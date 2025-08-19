@@ -1,0 +1,64 @@
+---
+name: Laravel/12x Rules
+---
+
+- You are an expert in Laravel, PHP, and any closely related web development technologies.
+- Produce concise, technical responses with precise PHP examples.
+- Adhere to Laravel best practices and conventions.
+- Apply object-oriented programming with a focus on SOLID principles.
+- Prioritize code iteration and modularization over duplication.
+- Choose descriptive names for variables and methods.
+- Name directories in lowercase with dashes (e.g., `app/Http/Controllers`).
+- Prioritize dependency injection and service containers.
+- Leverage PHP 8.1+ features like typed properties and match expressions.
+- Comply with PSR-12 coding standards.
+- Enforce strict typing with `declare(strict_types=1);`.
+- Utilize Laravel's built-in features and helpers efficiently.
+- Adhere to Laravel's directory structure and naming conventions.
+- Implement effective error handling and logging using Laravel's features, including custom exceptions and try-catch blocks.
+- Employ Laravel's validation for forms and requests.
+- Use middleware for request filtering and modification.
+- Utilize Laravel's Eloquent ORM and query builder for database interactions.
+- Apply proper practices for database migrations and seeders.
+- Manage dependencies with the latest stable version of Laravel and Composer.
+- Prefer Eloquent ORM over raw SQL queries.
+- Implement the Repository pattern for the data access layer.
+- Use Laravel's authentication and authorization features.
+- Utilize caching mechanisms for performance enhancement.
+- Implement job queues for handling long-running tasks.
+- Use Laravel's testing tools, such as PHPUnit and Dusk, for unit and feature tests.
+- Implement API versioning for public endpoints.
+- Utilize localization features for multilingual support.
+- Apply CSRF protection and other security measures.
+- Use Laravel Mix for asset compilation.
+- Ensure efficient database indexing for query performance enhancement.
+- Employ Laravel's pagination features for data presentation.
+- Implement comprehensive error logging and monitoring.
+- Follow Laravel's MVC architecture.
+- Use Laravel's routing system to define application endpoints.
+- Implement request validation using Form Requests.
+- Use Laravel's Blade engine for templating views.
+- Establish database relationships with Eloquent.
+- Leverage Laravel's authentication scaffolding.
+- Implement API resource transformations correctly.
+- Utilize Laravel's event and listener system for decoupled code functionality.
+- Apply database transactions to maintain data integrity.
+- Use Laravel's scheduling features for managing recurring tasks.
+- Use attribute-based routing when applicable.
+- Implement typed enums for status/value casting in models.
+- Use readonly properties for immutable service dependencies.
+- Prefer PestPHP for new test files, while retaining PHPUnit for complex feature tests.
+- Use `ValidationRule` interface for custom rules.
+- Migrate helper calls to class-based alternatives (`Str`, `to_route`, etc.).
+- Refactor `Handler` using `reportUsing()` and `renderUsing()` for cleaner error reporting.
+- Apply route middleware using Laravel 12’s updated group syntax.
+- Explicitly declare visibility (`public`, `protected`, `private`) for all class constants.
+- Use `#[\Override]` attribute for all overridden methods to ensure override correctness.
+- Utilize `json_validate()` to safely check JSON strings before decoding.
+- Declare class constants with types (e.g., `public const string STATUS = 'active';`) for stricter contracts.
+- Avoid dynamic class constant access with untrusted input (e.g., `$class::{$constant}`).
+- Prefer first-class callable syntax (e.g., `array_map([ClassName::class, 'method'], $items)`).
+- Allow `readonly` properties to be mutable only within constructors when using `readonly` classes.
+- Prefer `[ClassName::method]($arg)` syntax for first-class callables once supported.
+- Avoid overusing magic property hooks (e.g., `__getProperty()`, `__setProperty()`) if implemented; prefer explicit accessors.
+- Adopt `readonly` classes for immutable DTOs and service response models.
