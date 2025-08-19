@@ -25,13 +25,13 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner"; // ✅ pakai sonner
 import { type BreadcrumbItem } from "@/types";
 
-interface Agama {
+interface Posker {
   id: number;
   nama: string;
 }
 
 interface PageProps {
-  agamas: Agama[];
+  poskers: Posker[];
   flash?: {
     success?: string;
     error?: string;
@@ -40,25 +40,24 @@ interface PageProps {
 
 const breadcrumbs: BreadcrumbItem[] = [
   { title: "Data Master", href: "" },
-  { title: "Umum", href: "" },
-  { title: "Agama", href: "" },
+  { title: "Manajemen", href: "" },
+  { title: "Posker", href: "" },
 ];
 
 export default function Index() {
- const { agamas, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
+  const { poskers, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
 
-useEffect(() => {
-  if (flash?.success) {
-    toast.success(flash.success);
-  }
-  if (flash?.error) {
-    toast.error(flash.error);
-  }
-  if (errors?.nama) {
-    toast.error(errors.nama);
-  }
-}, [flash, errors]);
-
+  useEffect(() => {
+    if (flash?.success) {
+      toast.success(flash.success);
+    }
+    if (flash?.error) {
+      toast.error(flash.error);
+    }
+    if (errors?.nama) {
+      toast.error(errors.nama);
+    }
+  }, [flash, errors]);
 
   // State modal Tambah/Edit
   const [open, setOpen] = useState(false);
@@ -73,77 +72,76 @@ useEffect(() => {
   // Pencarian
   const [search, setSearch] = useState("");
 
-  const filteredAgamas = agamas.filter((a) =>
+  const filteredPoskers = poskers.filter((a) =>
     a.nama.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (editId) {
-    router.put(
-      `/datamaster/umum/agama/${editId}`,
-      { nama },
-      {
-        preserveScroll: true,
-        onSuccess: () => {
-          setOpen(false);
-          setNama("");
-          setEditId(null);
-        },
-      }
-    );
-  } else {
-    router.post(
-      "/datamaster/umum/agama",
-      { nama },
-      {
-        preserveScroll: true,
-        onSuccess: () => {
-          setOpen(false);
-          setNama("");
-          setEditId(null);
-        },
-        onError: () => {
-          // modal tetap terbuka
-        },
-      }
-    );
-  }
-};
+    if (editId) {
+      router.put(
+        `/datamaster/manajemen/posker/${editId}`,
+        { nama },
+        {
+          preserveScroll: true,
+          onSuccess: () => {
+            setOpen(false);
+            setNama("");
+            setEditId(null);
+          },
+        }
+      );
+    } else {
+      router.post(
+        "/datamaster/manajemen/posker",
+        { nama },
+        {
+          preserveScroll: true,
+          onSuccess: () => {
+            setOpen(false);
+            setNama("");
+            setEditId(null);
+          },
+          onError: () => {
+            // modal tetap terbuka
+          },
+        }
+      );
+    }
+  };
 
-
-  const handleOpenEdit = (agama: Agama) => {
-    setEditId(agama.id);
-    setNama(agama.nama);
+  const handleOpenEdit = (posker: Posker) => {
+    setEditId(posker.id);
+    setNama(posker.nama);
     setOpen(true);
   };
 
-  const handleOpenDelete = (agama: Agama) => {
-    setDeleteId(agama.id);
-    setDeleteNama(agama.nama);
+  const handleOpenDelete = (posker: Posker) => {
+    setDeleteId(posker.id);
+    setDeleteNama(posker.nama);
     setDeleteOpen(true);
   };
 
   const handleDelete = () => {
     if (!deleteId) return;
-    router.delete(`/datamaster/umum/agama/${deleteId}`, { preserveScroll: true });
+    router.delete(`/datamaster/manajemen/posker/${deleteId}`, { preserveScroll: true });
     setDeleteOpen(false);
     setDeleteId(null);
   };
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title="Data Agama" />
+      <Head title="Data Posker" />
       <div className="p-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Data Agama</CardTitle>
+            <CardTitle>Data Posker</CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder="Cari agama..."
+                  placeholder="Cari posker..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-8 w-48"
@@ -171,8 +169,8 @@ useEffect(() => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAgamas.length > 0 ? (
-                  filteredAgamas.map((item, index) => (
+                {filteredPoskers.length > 0 ? (
+                  filteredPoskers.map((item, index) => (
                     <TableRow key={item.id}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>{item.nama}</TableCell>
@@ -211,11 +209,11 @@ useEffect(() => {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editId ? "Edit Agama" : "Tambah Agama"}</DialogTitle>
+            <DialogTitle>{editId ? "Edit Posker" : "Tambah Posker"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              placeholder="Nama Agama"
+              placeholder="Nama Posker"
               value={nama}
               onChange={(e) => setNama(e.target.value)}
               required
@@ -237,7 +235,7 @@ useEffect(() => {
             <DialogTitle>Konfirmasi Hapus</DialogTitle>
           </DialogHeader>
           <p>
-            Apakah Anda yakin ingin menghapus agama{" "}
+            Apakah Anda yakin ingin menghapus posker{" "}
             <span className="font-semibold">{deleteNama}</span>?
           </p>
           <DialogFooter>
