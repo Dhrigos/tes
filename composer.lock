@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "13efca01c4ffa1039afd6af205b0b972",
+    "content-hash": "90bfa7b50194d266d38ea95fdd61741f",
     "packages": [
         {
             "name": "brick/math",
@@ -1400,6 +1400,70 @@
             "time": "2025-07-07T14:17:42+00:00"
         },
         {
+            "name": "laravel/sanctum",
+            "version": "v4.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laravel/sanctum.git",
+                "reference": "fd6df4f79f48a72992e8d29a9c0ee25422a0d677"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/laravel/sanctum/zipball/fd6df4f79f48a72992e8d29a9c0ee25422a0d677",
+                "reference": "fd6df4f79f48a72992e8d29a9c0ee25422a0d677",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "illuminate/console": "^11.0|^12.0",
+                "illuminate/contracts": "^11.0|^12.0",
+                "illuminate/database": "^11.0|^12.0",
+                "illuminate/support": "^11.0|^12.0",
+                "php": "^8.2",
+                "symfony/console": "^7.0"
+            },
+            "require-dev": {
+                "mockery/mockery": "^1.6",
+                "orchestra/testbench": "^9.0|^10.0",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^11.3"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Laravel\\Sanctum\\SanctumServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Laravel\\Sanctum\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Taylor Otwell",
+                    "email": "taylor@laravel.com"
+                }
+            ],
+            "description": "Laravel Sanctum provides a featherweight authentication system for SPAs and simple APIs.",
+            "keywords": [
+                "auth",
+                "laravel",
+                "sanctum"
+            ],
+            "support": {
+                "issues": "https://github.com/laravel/sanctum/issues",
+                "source": "https://github.com/laravel/sanctum"
+            },
+            "time": "2025-07-09T19:45:24+00:00"
+        },
+        {
             "name": "laravel/serializable-closure",
             "version": "v2.0.4",
             "source": {
@@ -2562,6 +2626,53 @@
                 "source": "https://github.com/nikic/PHP-Parser/tree/v5.6.1"
             },
             "time": "2025-08-13T20:13:15+00:00"
+        },
+        {
+            "name": "nullpunkt/lz-string-php",
+            "version": "1.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nullpunkt/lz-string-php.git",
+                "reference": "bf4ae48f8a164bc6e95f5e7a2c6da45907ac3ba9"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nullpunkt/lz-string-php/zipball/bf4ae48f8a164bc6e95f5e7a2c6da45907ac3ba9",
+                "reference": "bf4ae48f8a164bc6e95f5e7a2c6da45907ac3ba9",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.4"
+            },
+            "require-dev": {
+                "monolog/monolog": "^1.17",
+                "phpunit/phpunit": "~9.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "LZCompressor\\": "src/LZCompressor"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "authors": [
+                {
+                    "name": "Tobias Seipke",
+                    "email": "tobias.seipke@gmail.com",
+                    "homepage": "https://github.com/nullpunkt"
+                },
+                {
+                    "name": "Juhász Ádám",
+                    "email": "juhasz.adam@virgo.hu",
+                    "homepage": "https://github.com/JuhaszAdam"
+                }
+            ],
+            "description": "PHP Class implementation of LZ-String javascript.",
+            "support": {
+                "issues": "https://github.com/nullpunkt/lz-string-php/issues",
+                "source": "https://github.com/nullpunkt/lz-string-php/tree/1.3.0"
+            },
+            "time": "2021-06-17T07:52:00+00:00"
         },
         {
             "name": "nunomaduro/termwind",

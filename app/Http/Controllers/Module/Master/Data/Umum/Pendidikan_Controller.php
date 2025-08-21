@@ -20,44 +20,33 @@ class Pendidikan_Controller extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'nama' => 'required|string|max:255|unique:pendidikans,nama',
+            'nama' => 'required|string|max:255',
+            'singkatan' => 'nullable|string|max:50',
+            'level' => 'nullable|string|max:100',
         ]);
 
-        $exists = Pendidikan::whereRaw('LOWER(nama) = ?', [strtolower($request->nama)])->exists();
+        Pendidikan::create($request->only(['nama', 'singkatan', 'level']));
 
-        if ($exists) {
-            return redirect()->back()->withErrors(['nama' => 'Data Pendidikan sudah ada.']);
-        }
-
-        Pendidikan::create([
-            'nama' => ucfirst(strtolower($request->nama)),
-        ]);
-
-        return redirect()->back()->with('success', 'Data Pendidikan berhasil ditambahkan');
+        return redirect()->back()->with('success', 'Pendidikan berhasil ditambahkan.');
     }
 
     public function update(Request $request, Pendidikan $pendidikan)
     {
         $request->validate([
-            'nama' => 'required|string|max:255|unique:pendidikans,nama',
+            'nama' => 'required|string|max:255',
+            'singkatan' => 'nullable|string|max:50',
+            'level' => 'nullable|string|max:100',
         ]);
 
-        $exists = Pendidikan::whereRaw('LOWER(nama) = ?', [strtolower($request->nama)])->exists();
+        $pendidikan->update($request->only(['nama', 'singkatan', 'level']));
 
-        if ($exists) {
-            return redirect()->back()->withErrors(['nama' => 'Data Pendidikan sudah ada.']);
-        }
-
-        $pendidikan->update([
-            'nama' => ucfirst(strtolower($request->nama)),
-        ]);
-
-        return redirect()->back()->with('success', 'Data Pendidikan berhasil diubah');
+        return redirect()->back()->with('success', 'Pendidikan berhasil diperbarui.');
     }
 
     public function destroy(Pendidikan $pendidikan)
     {
         $pendidikan->delete();
-        return redirect()->back()->with('success', 'Data Pendidikan berhasil dihapus');
+
+        return redirect()->back()->with('success', 'Pendidikan berhasil dihapus.');
     }
 }

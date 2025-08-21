@@ -30,7 +30,7 @@ class Bank_Controller extends Controller
         }
 
         Bank::create([
-            'nama' => ucfirst(strtolower($request->nama)),
+            'nama' => $request->nama,
         ]);
 
         return redirect()->back()->with('success', 'Data Bank berhasil ditambahkan');
@@ -49,7 +49,7 @@ class Bank_Controller extends Controller
         }
 
         $bank->update([
-            'nama' => ucfirst(strtolower($request->nama)),
+            'nama' => $request->nama,
         ]);
 
         return redirect()->back()->with('success', 'Data Bank berhasil diubah');

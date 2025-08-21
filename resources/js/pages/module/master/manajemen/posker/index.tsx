@@ -136,7 +136,7 @@ export default function Index() {
       <div className="p-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Data Posker</CardTitle>
+            <CardTitle>Posisi Kerja</CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
@@ -209,11 +209,11 @@ export default function Index() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editId ? "Edit Posker" : "Tambah Posker"}</DialogTitle>
+            <DialogTitle>{editId ? "Edit Posisi Kerja" : "Tambah Posisi Kerja"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              placeholder="Nama Posker"
+              placeholder="Nama Posisi Kerja"
               value={nama}
               onChange={(e) => setNama(e.target.value)}
               required
@@ -235,7 +235,7 @@ export default function Index() {
             <DialogTitle>Konfirmasi Hapus</DialogTitle>
           </DialogHeader>
           <p>
-            Apakah Anda yakin ingin menghapus posker{" "}
+            Apakah Anda yakin ingin menghapus posisi kerja{" "}
             <span className="font-semibold">{deleteNama}</span>?
           </p>
           <DialogFooter>

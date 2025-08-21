@@ -136,12 +136,12 @@ export default function Index() {
       <div className="p-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Data Pernikahan</CardTitle>
+            <CardTitle>Pernikahan</CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder="Cari pernikahan..."
+                  placeholder="Cari Pernikahan..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-8 w-48"

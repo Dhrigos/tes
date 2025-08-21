@@ -12,8 +12,8 @@ class Pernikahan_Controller extends Controller
     public function index()
     {
         $pernikahans = Pernikahan::all();
-        return Inertia::render('module/master/umum/penjamin/index', [
-            'pernikahan' => $pernikahans
+        return Inertia::render('module/master/umum/pernikahan/index', [
+            'pernikahans' => $pernikahans
         ]);
     }
 
@@ -30,28 +30,22 @@ class Pernikahan_Controller extends Controller
         return redirect()->back()->with('success', 'Data Pernikahan berhasil ditambahkan');
     }
 
-    public function update(Request $request, Pernikahan $penjamin)
+    public function update(Request $request, Pernikahan $pernikahan)
     {
         $request->validate([
-            'nama' => 'required|string|max:255|unique:pernikahans,nama',
+            'nama' => 'required|string|max:255|unique:pernikahans,nama,' . $pernikahan->id,
         ]);
 
-        $exists = Pernikahan::whereRaw('LOWER(nama) = ?', [strtolower($request->nama)])->exists();
-
-        if ($exists) {
-            return redirect()->back()->withErrors(['nama' => 'Data Pernikahan sudah ada.']);
-        }
-
-        $penjamin->update([
+        $pernikahan->update([
             'nama' => ucfirst(strtolower($request->nama)),
         ]);
 
         return redirect()->back()->with('success', 'Data Pernikahan berhasil diubah');
     }
 
-    public function destroy(Pernikahan $penjamin)
+    public function destroy(Pernikahan $pernikahan)
     {
-        $penjamin->delete();
+        $pernikahan->delete();
         return redirect()->back()->with('success', 'Data Pernikahan berhasil dihapus');
     }
 }

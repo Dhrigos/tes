@@ -138,3 +138,15 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Utility untuk menyembunyikan scrollbar namun tetap memungkinkan scroll */
+.scrollbar-none {
+    -ms-overflow-style: none; /* IE dan Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-none::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+

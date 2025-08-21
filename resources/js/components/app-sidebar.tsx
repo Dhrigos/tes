@@ -14,11 +14,21 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+
+import {
+  Dialog,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+
+import { SettingsDialog } from "./dialog-content"; // ✅ import komponen baru
+
+
+
 import { Link, usePage } from '@inertiajs/react';
-import { ChevronDown, LayoutGrid } from 'lucide-react';
+import { ChevronDown, LayoutGrid,ChevronsUpDown, GalleryVerticalEnd, AudioWaveform, Command,PlusCircle  } from 'lucide-react';
 import AppLogo from './app-logo';
 
-// Definisi menu utama
 const mainNavItems = [
     {
         title: 'Dashboard',
@@ -29,6 +39,43 @@ const mainNavItems = [
         title: 'Pasien',
         href: '/pasien',
         icon: LayoutGrid,
+    },
+    {
+        title: 'Pendaftaran',
+        href: '/pendaftaran',
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Pelayanan',
+        icon: LayoutGrid,
+        children: [
+            {
+                title: 'Dokter',
+                href: '/datamaster/umum/agama',
+            },
+            {
+                title: 'Perawat',
+                href: '/datamaster/umum/asuransi',
+            },
+        ]
+    },
+    {
+        title: 'SDM',
+        icon: LayoutGrid,
+        children: [
+            {
+                title: 'Dokter',
+                href: '/datamaster/umum/agama',
+            },
+            {
+                title: 'Perawat',
+                href: '/datamaster/umum/asuransi',
+            },
+            {
+                title: 'Staff',
+                href: '/datamaster/umum/asuransi',
+            },
+        ]
     },
     {
         title: 'Data Master',
@@ -53,12 +100,46 @@ const mainNavItems = [
                 ],
             },
             {
+                title: 'Manajemen',
+                children: [{ title: 'Posisi Kerja', href: '/datamaster/manajemen/posker' }],
+            },
+            {
                 title: 'Medis',
-                children: [{ title: 'Diagnosa', href: '/datamaster/medis/diagnosa' }],
+                children: [
+                    { title: 'Alergi', href: '/datamaster/medis/alergi' },
+                    { title: 'HTT Pemeriksaan', href: '/datamaster/medis/htt-pemeriksaan' },
+                    { title: 'ICD-10', href: '/datamaster/medis/icd10' },
+                    { title: 'ICD-9', href: '/datamaster/medis/icd9' },
+                    { title: 'Instruksi Obat', href: '/datamaster/medis/instruksi-obat' },
+                    { title: 'Jenis Diet', href: '/datamaster/medis/jenis-diet' },
+                    { title: 'Laboratorium Bidang', href: '/datamaster/medis/laboratorium-bidang' },
+                    { title: 'Nama Makanan', href: '/datamaster/medis/makanan' },
+                    { title: 'Penggunaan Obat', href: '/datamaster/medis/penggunaan-obat' },
+                    { title: 'Poli', href: '/datamaster/medis/poli' },
+                    { title: 'Perawtan dan Tindakan', href: '/datamaster/medis/tindakan' },
+                    { title: 'Radiologi Jenis dan Pemeriksaan', href: '/datamaster/medis/radiologi' },
+                    { title: 'Sarana', href: '/datamaster/medis/sarana' },
+                    { title: 'Spesialis', href: '/datamaster/medis/spesialis' },
+                ],
+            },
+            {
+                title: 'Gudang',
+                children: [
+                    { title: 'Satuan Obat', href: '/datamaster/gudang/satuan-obat' },
+                    { title: 'Kategori Obat', href: '/datamaster/gudang/kategori-obat' },
+                    { title: 'Supplier', href: '/datamaster/gudang/supplier' },
+                    { title: 'Setting Harga Jual', href: '/datamaster/gudang/setting-harga-jual' },
+                    { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
+                    { title: 'Satuan Inventaris', href: '/datamaster/gudang/satuan-inventaris' },
+                    { title: 'Kategori Inventaris', href: '/datamaster/gudang/kategori-inventaris' },
+                ],
             },
         ],
     },
 ];
+
+
+
 
 // Recursive renderer untuk nested menu
 function RenderMenu({ items }: { items: any[] }) {
@@ -120,31 +201,29 @@ export function AppSidebar() {
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard" prefetch>
-                                <AppLogo />
-                            </Link>
+                    <Dialog>
+                        {/* Trigger: tombol di sidebar */}
+                        <DialogTrigger asChild>
+                        <SidebarMenuButton size="lg" className="flex items-center gap-2">
+                            <AppLogo />
                         </SidebarMenuButton>
+                        </DialogTrigger>
+                        <SettingsDialog />
+                    </Dialog>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>
 
+
+
             {/* Sidebar Menu Content */}
-            <SidebarContent>
+            <SidebarContent className="scrollbar-none">
                 {/* Playground group (items tanpa children) */}
                 <SidebarGroup>
-                    <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
+                    <SidebarGroupLabel>Menu</SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>
-                            <RenderMenu items={mainNavItems.filter((i) => !i.children)} />
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-                {/* Data Master group (items dengan children) */}
-                <SidebarGroup>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            <RenderMenu items={mainNavItems.filter((i) => i.children)} />
+                            <RenderMenu items={mainNavItems} />
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>

@@ -107,34 +107,6 @@ export default function Login({
                 {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                 Log in
               </Button>
-
-              {/* Divider */}
-              <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:flex after:items-center after:border-t after:border-border">
-                <span className="bg-card px-2 text-muted-foreground relative z-10">
-                  Or continue with
-                </span>
-              </div>
-
-              {/* Social login */}
-              <div className="grid grid-cols-3 gap-4">
-                <Button variant="outline" type="button" className="w-full">
-                  Apple
-                </Button>
-                <Button variant="outline" type="button" className="w-full">
-                  Google
-                </Button>
-                <Button variant="outline" type="button" className="w-full">
-                  Meta
-                </Button>
-              </div>
-
-              {/* Sign up */}
-              <div className="text-center text-sm">
-                Don&apos;t have an account?{" "}
-                <a href={route("register")} className="underline underline-offset-4">
-                  Sign up
-                </a>
-              </div>
             </Form>
 
             {/* Lottie animation */}

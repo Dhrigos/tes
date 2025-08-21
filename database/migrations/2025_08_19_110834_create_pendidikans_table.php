@@ -14,6 +14,8 @@ return new class extends Migration
         Schema::create('pendidikans', function (Blueprint $table) {
             $table->id();
             $table->string('nama');
+            $table->string('singkatan')->nullable();
+            $table->string('level')->nullable();
             $table->timestamps();
         });
     }

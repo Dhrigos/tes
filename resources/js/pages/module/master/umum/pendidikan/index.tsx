@@ -22,6 +22,8 @@ import { toast } from "sonner";
 interface Pendidikan {
   id: number;
   nama: string;
+  singkatan: string;
+  level: string;
 }
 
 interface PageProps {
@@ -42,21 +44,17 @@ export default function Index() {
   const { pendidikans, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
 
   useEffect(() => {
-    if (flash?.success) {
-      toast.success(flash.success);
-    }
-    if (flash?.error) {
-      toast.error(flash.error);
-    }
-    if (errors?.nama) {
-      toast.error(errors.nama);
-    }
+    if (flash?.success) toast.success(flash.success);
+    if (flash?.error) toast.error(flash.error);
+    if (errors?.nama) toast.error(errors.nama);
   }, [flash, errors]);
 
   // State untuk modal
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [nama, setNama] = useState("");
+  const [singkatan, setSingkatan] = useState("");
+  const [level, setLevel] = useState("");
 
   // Pencarian
   const [search, setSearch] = useState("");
@@ -67,7 +65,7 @@ export default function Index() {
   const [deleteNama, setDeleteNama] = useState("");
 
   const filteredPendidikan = pendidikans.filter((g) =>
-    `${g.nama}`.toLowerCase().includes(search.toLowerCase())
+    `${g.nama} ${g.singkatan} ${g.level}`.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleOpenDelete = (pendidikan: Pendidikan) => {
@@ -90,39 +88,37 @@ export default function Index() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = { nama, singkatan, level };
+
     if (editId) {
-      // Update
-      router.put(
-        `/datamaster/umum/pendidikan/${editId}`,
-        { nama },
-        {
-          preserveScroll: true,
-          onSuccess: () => {
-            setOpen(false);
-            setNama("");
-            setEditId(null);
-          },
-        }
-      );
+      router.put(`/datamaster/umum/pendidikan/${editId}`, payload, {
+        preserveScroll: true,
+        onSuccess: () => {
+          setOpen(false);
+          setNama("");
+          setSingkatan("");
+          setLevel("");
+          setEditId(null);
+        },
+      });
     } else {
-      // Tambah
-      router.post(
-        "/datamaster/umum/pendidikan",
-        { nama },
-        {
-          preserveScroll: true,
-          onSuccess: () => {
-            setOpen(false);
-            setNama("");
-          },
-        }
-      );
+      router.post("/datamaster/umum/pendidikan", payload, {
+        preserveScroll: true,
+        onSuccess: () => {
+          setOpen(false);
+          setNama("");
+          setSingkatan("");
+          setLevel("");
+        },
+      });
     }
   };
 
   const handleOpenEdit = (pendidikan: Pendidikan) => {
     setEditId(pendidikan.id);
     setNama(pendidikan.nama);
+    setSingkatan(pendidikan.singkatan);
+    setLevel(pendidikan.level);
     setOpen(true);
   };
 
@@ -147,6 +143,8 @@ export default function Index() {
                 onClick={() => {
                   setEditId(null);
                   setNama("");
+                  setSingkatan("");
+                  setLevel("");
                   setOpen(true);
                 }}
               >
@@ -161,6 +159,8 @@ export default function Index() {
                 <TableRow>
                   <TableHead className="w-16">#</TableHead>
                   <TableHead>Nama</TableHead>
+                  <TableHead>Singkatan</TableHead>
+                  <TableHead>Level</TableHead>
                   <TableHead className="w-40 text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -170,6 +170,8 @@ export default function Index() {
                     <TableRow key={item.id}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>{item.nama}</TableCell>
+                      <TableCell>{item.singkatan}</TableCell>
+                      <TableCell>{item.level}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
@@ -190,7 +192,7 @@ export default function Index() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center">
+                    <TableCell colSpan={5} className="text-center">
                       Tidak ada data.
                     </TableCell>
                   </TableRow>
@@ -205,15 +207,25 @@ export default function Index() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editId ? "Edit Pendidikan" : "Tambah Pendidikan"}
-            </DialogTitle>
+            <DialogTitle>{editId ? "Edit Pendidikan" : "Tambah Pendidikan"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               placeholder="Nama Pendidikan"
               value={nama}
               onChange={(e) => setNama(e.target.value)}
+              required
+            />
+            <Input
+              placeholder="Singkatan Pendidikan"
+              value={singkatan}
+              onChange={(e) => setSingkatan(e.target.value)}
+              required
+            />
+            <Input
+              placeholder="Level Pendidikan"
+              value={level}
+              onChange={(e) => setLevel(e.target.value)}
               required
             />
             <DialogFooter>
