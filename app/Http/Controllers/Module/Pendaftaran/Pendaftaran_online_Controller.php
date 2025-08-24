@@ -25,6 +25,7 @@ class Pendaftaran_online_Controller extends Controller
             'pernikahan' => $pernikahan
         ]);
     }
+    
     private function createNoRM()
     {
         // Ambil No RM terbesar di database

@@ -1,0 +1,489 @@
+<?php
+
+namespace App\Http\Controllers\Module\Pasien;
+
+use App\Http\Controllers\Controller;
+use App\Models\Module\Pasien\Pasien;
+use App\Models\Module\Master\Data\Umum\Kelamin;
+use App\Models\Module\Master\Data\Umum\Goldar;
+use App\Models\Module\Master\Data\Umum\Pernikahan;
+use App\Models\Module\Master\Data\Umum\Agama;
+use App\Models\Module\Master\Data\Umum\Pendidikan;
+use App\Models\Module\Master\Data\Umum\Pekerjaan;
+use App\Models\Module\Master\Data\Umum\Suku;
+use App\Models\Module\Master\Data\Umum\Bangsa;
+use App\Models\Module\Master\Data\Umum\Bahasa;
+use App\Models\Module\Master\Data\Umum\Asuransi;
+use Illuminate\Container\Attributes\Log;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log as FacadesLog;
+use Inertia\Inertia;
+use Laravolt\Indonesia\Models\Province;
+use Laravolt\Indonesia\Models\City;
+use Laravolt\Indonesia\Models\District;
+use Laravolt\Indonesia\Models\Village;
+
+class PasienController extends Controller
+{
+    public function index()
+    {
+        // Load data pasien dengan pagination untuk menghindari memory exhausted
+        $pasiens = Pasien::with('goldarRelation', 'provinsi', 'kabupaten', 'kecamatan', 'desa')->paginate(50);
+
+        // Hitung statistik dengan query yang lebih efisien
+        $pasienallold = Pasien::where('verifikasi', 2)->count();
+        $pasienallnewnow = Pasien::whereMonth('created_at', now()->month)->count();
+        $pasienall = Pasien::count();
+        $pasiennoverif = Pasien::where('verifikasi', 1)->count();
+
+        // Data master untuk dropdown menggunakan Laravolt Indonesia - hanya load yang diperlukan
+        $provinsi = Province::select('id', 'name', 'code')->orderBy('name')->get();
+
+        // Data master lainnya - hanya load yang diperlukan
+        $kelamin = Kelamin::select('id', 'nama')->get();
+        $goldar = Goldar::select('id', 'nama', 'rhesus')->get();
+        $pernikahan = Pernikahan::select('id', 'nama')->get();
+        $agama = Agama::select('id', 'nama')->get();
+        $pendidikan = Pendidikan::select('id', 'nama')->get();
+        $pekerjaan = Pekerjaan::select('id', 'name')->get();
+        $suku = Suku::select('id', 'nama')->get();
+        $bangsa = Bangsa::select('id', 'nama')->get();
+        $bahasa = Bahasa::select('id', 'nama')->get();
+        $asuransi = Asuransi::select('id', 'nama')->get();
+
+        return Inertia::render('module/pasien/pasien', compact(
+            'pasiens',
+            'pasienallold',
+            'pasienallnewnow',
+            'pasienall',
+            'pasiennoverif',
+            'provinsi',
+            'kelamin',
+            'goldar',
+            'pernikahan',
+            'agama',
+            'pendidikan',
+            'pekerjaan',
+            'suku',
+            'bangsa',
+            'bahasa',
+            'asuransi'
+        ));
+    }
+
+    public function verifikasi(Request $request)
+    {
+        $data = $request->validate([
+            'nomor_rm' => 'required',
+            'nama' => 'sometimes',
+            'nik' => 'sometimes',
+            'tempat_lahir' => 'sometimes',
+            'tanggal_lahir' => 'sometimes|date',
+            'provinsi' => 'sometimes',
+            'kabupaten' => 'sometimes',
+            'kecamatan' => 'sometimes',
+            'desa' => 'sometimes',
+            'rt' => 'sometimes',
+            'rw' => 'sometimes',
+            'kode_pos' => 'sometimes',
+            'alamat' => 'sometimes',
+            'noka' => 'sometimes|nullable',
+            'noihs' => 'sometimes|nullable',
+            'jenis_kartu' => 'sometimes|nullable',
+            'kelas' => 'sometimes|nullable',
+            'provide' => 'sometimes|nullable',
+            'kodeprovide' => 'sometimes|nullable',
+            'hubungan_keluarga' => 'sometimes|nullable',
+            'tgl_exp_bpjs' => 'sometimes|nullable',
+            'seks' => 'sometimes',
+            'goldar' => 'sometimes',
+            'pernikahan' => 'sometimes',
+            'kewarganegaraan' => 'sometimes',
+            'agama' => 'sometimes',
+            'pendidikan' => 'sometimes',
+            'status_kerja' => 'sometimes',
+            'telepon' => 'sometimes',
+            'suku' => 'sometimes',
+            'bangsa' => 'sometimes',
+            'bahasa' => 'sometimes',
+            'penjamin_2' => 'sometimes|nullable',
+            'penjamin_2_info' => 'sometimes|nullable',
+            'penjamin_3' => 'sometimes|nullable',
+            'penjamin_3_info' => 'sometimes|nullable',
+            'aktif_penjamin_2' => 'nullable',
+            'aktif_penjamin_3' => 'nullable',
+        ]);
+
+        $pasien = Pasien::with('goldarRelation')->where('no_rm', $request->nomor_rm)->first();
+
+        if (!$pasien) {
+            return redirect()->back()->withErrors(['msg' => 'Pasien tidak ditemukan']);
+        }
+
+
+        // Cek kelengkapan data untuk verifikasi (gunakan fallback ke data existing)
+        $isDataComplete = $this->checkDataCompleteness($request, $pasien);
+
+        // Ambil kode untuk alamat dari ID atau CODE yang dikirim, fallback ke nilai existing
+        $provinsiKode = $request->filled('provinsi') ? $this->resolveRegionCode($request->provinsi, Province::class) : $pasien->provinsi_kode;
+        $kabupatenKode = $request->filled('kabupaten') ? $this->resolveRegionCode($request->kabupaten, City::class) : $pasien->kabupaten_kode;
+        $kecamatanKode = $request->filled('kecamatan') ? $this->resolveRegionCode($request->kecamatan, District::class) : $pasien->kecamatan_kode;
+        $desaKode = $request->filled('desa') ? $this->resolveRegionCode($request->desa, Village::class) : $pasien->desa_kode;
+        FacadesLog::info('[Verifikasi] Resolve wilayah', compact('provinsiKode','kabupatenKode','kecamatanKode','desaKode'));
+
+        $aktifPenjamin2 = $request->boolean('aktif_penjamin_2');
+        $aktifPenjamin3 = $request->boolean('aktif_penjamin_3');
+
+        $pasien->update([
+            'nik' => $request->has('nik') ? $request->nik : $pasien->nik,
+            'tempat_lahir' => $request->has('tempat_lahir') ? $request->tempat_lahir : $pasien->tempat_lahir,
+            'tanggal_lahir' => $request->has('tanggal_lahir') ? $request->tanggal_lahir : $pasien->tanggal_lahir,
+            'provinsi_kode' => $provinsiKode,
+            'kabupaten_kode' => $kabupatenKode,
+            'kecamatan_kode' => $kecamatanKode,
+            'desa_kode' => $desaKode,
+            'rt' => $request->has('rt') ? $request->rt : $pasien->rt,
+            'rw' => $request->has('rw') ? $request->rw : $pasien->rw,
+            'kode_pos' => $request->has('kode_pos') ? $request->kode_pos : $pasien->kode_pos,
+            'alamat' => $request->has('alamat') ? $request->alamat : $pasien->alamat,
+            'no_bpjs' => $request->has('noka') ? $request->noka : $pasien->no_bpjs,
+            'kode_ihs' => $request->has('noihs') ? $request->noihs : $pasien->kode_ihs,
+            'jenis_peserta_bpjs' => $request->has('jenis_kartu') ? $request->jenis_kartu : $pasien->jenis_peserta_bpjs,
+            'kelas_bpjs' => $request->has('kelas') ? $request->kelas : $pasien->kelas_bpjs,
+            'provide' => $request->has('provide') ? $request->provide : $pasien->provide,
+            'kodeprovide' => $request->has('kodeprovide') ? $request->kodeprovide : $pasien->kodeprovide,
+            'hubungan_keluarga' => $request->has('hubungan_keluarga') ? $request->hubungan_keluarga : $pasien->hubungan_keluarga,
+            'tgl_exp_bpjs' => $request->has('tgl_exp_bpjs') ? $request->tgl_exp_bpjs : $pasien->tgl_exp_bpjs,
+            'seks' => $request->has('seks') ? $request->seks : $pasien->seks,
+            'goldar' => $request->has('goldar') ? $request->goldar : $pasien->goldar,
+            'pernikahan' => $request->has('pernikahan') ? $request->pernikahan : $pasien->pernikahan,
+            'kewarganegaraan' => $request->has('kewarganegaraan') ? $request->kewarganegaraan : $pasien->kewarganegaraan,
+            'agama' => $request->has('agama') ? $request->agama : $pasien->agama,
+            'pendidikan' => $request->has('pendidikan') ? $request->pendidikan : $pasien->pendidikan,
+            'pekerjaan' => $request->has('status_kerja') ? $request->status_kerja : $pasien->pekerjaan,
+            'telepon' => $request->has('telepon') ? $request->telepon : $pasien->telepon,
+            'suku' => $request->has('suku') ? $request->suku : $pasien->suku,
+            'bangsa' => $request->has('bangsa') ? $request->bangsa : $pasien->bangsa,
+            'bahasa' => $request->has('bahasa') ? $request->bahasa : $pasien->bahasa,
+            'penjamin_2_nama' => $aktifPenjamin2 ? $request->penjamin_2 : null,
+            'penjamin_2_no' => $aktifPenjamin2 ? $request->penjamin_2_info : null,
+            'penjamin_3_nama' => $aktifPenjamin3 ? $request->penjamin_3 : null,
+            'penjamin_3_no' => $aktifPenjamin3 ? $request->penjamin_3_info : null,
+            'verifikasi' => $isDataComplete ? 2 : 1, // Otomatis set status berdasarkan kelengkapan
+        ]);
+
+        if ($request->hasFile('profile_image')) {
+            $file = $request->file('profile_image');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->storeAs('public/pasien', $filename);
+            $pasien->update(['foto' => $filename]);
+        }
+
+
+        $message = $isDataComplete ? 'Data pasien berhasil dilengkapi dan terverifikasi!' : 'Data pasien berhasil diperbarui, namun masih perlu dilengkapi!';
+
+        // Log untuk debugging
+        FacadesLog::info('Pasien verifikasi berhasil', [
+            'no_rm' => $request->nomor_rm,
+            'goldar' => $request->goldar,
+            'is_complete' => $isDataComplete
+        ]);
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    public function update(Request $request)
+    {
+        // Validasi field wajib untuk verifikasi - gunakan nama field yang sama dengan form
+        $request->validate([
+            'nomor_rm' => 'required',
+            'nama' => 'required',
+            'nik' => 'required',
+            'tempat_lahir' => 'required',
+            'tanggal_lahir' => 'required|date',
+            'provinsi' => 'required',
+            'kabupaten' => 'required',
+            'kecamatan' => 'required',
+            'desa' => 'required',
+            'rt' => 'required',
+            'rw' => 'required',
+            'kode_pos' => 'required',
+            'alamat' => 'required',
+            'noka' => 'nullable',
+            'noihs' => 'nullable',
+            'jenis_kartu' => 'nullable',
+            'kelas' => 'nullable',
+            'provide' => 'nullable',
+            'kodeprovide' => 'nullable',
+            'hubungan_keluarga' => 'nullable',
+            'tgl_exp_bpjs' => 'nullable',
+            'seks' => 'required',
+            'goldar' => 'required',
+            'pernikahan' => 'required',
+            'kewarganegaraan' => 'required',
+            'agama' => 'required',
+            'pendidikan' => 'required',
+            'status_kerja' => 'required',
+            'telepon' => 'required',
+            'suku' => 'required',
+            'bangsa' => 'required',
+            'bahasa' => 'required',
+            'penjamin_2' => 'nullable',
+            'penjamin_2_info' => 'nullable',
+            'penjamin_3' => 'nullable',
+            'penjamin_3_info' => 'nullable',
+            'aktif_penjamin_2' => 'nullable',
+            'aktif_penjamin_3' => 'nullable',
+        ]);
+
+        $pasien = Pasien::with('goldarRelation')->where('no_rm', $request->nomor_rm)->first();
+
+        if (!$pasien) {
+            return redirect()->back()->withErrors(['msg' => 'Pasien tidak ditemukan']);
+        }
+
+        // Cek apakah semua field wajib telah diisi untuk menentukan status verifikasi
+        $isDataComplete = $this->checkDataCompleteness($request);
+
+        // Ambil kode untuk alamat dari ID atau CODE yang dikirim
+        $provinsiKode = $this->resolveRegionCode($request->provinsi, Province::class) ?? ($request->provinsi ?: null);
+        $kabupatenKode = $this->resolveRegionCode($request->kabupaten, City::class) ?? ($request->kabupaten ?: null);
+        $kecamatanKode = $this->resolveRegionCode($request->kecamatan, District::class) ?? ($request->kecamatan ?: null);
+        $desaKode = $this->resolveRegionCode($request->desa, Village::class) ?? ($request->desa ?: null);
+        FacadesLog::info('[Update] Resolve wilayah', compact('provinsiKode','kabupatenKode','kecamatanKode','desaKode'));
+
+        $aktifPenjamin2 = $request->boolean('aktif_penjamin_2');
+        $aktifPenjamin3 = $request->boolean('aktif_penjamin_3');
+
+        $updateData = [
+            'nik' => $request->nik,
+            'tempat_lahir' => $request->tempat_lahir,
+            'tanggal_lahir' => $request->tanggal_lahir,
+            'provinsi_kode' => $provinsiKode,
+            'kabupaten_kode' => $kabupatenKode,
+            'kecamatan_kode' => $kecamatanKode,
+            'desa_kode' => $desaKode,
+            'rt' => $request->rt,
+            'rw' => $request->rw,
+            'kode_pos' => $request->kode_pos,
+            'alamat' => $request->alamat,
+            'no_bpjs' => $request->noka,
+            'kode_ihs' => $request->noihs,
+            'jenis_peserta_bpjs' => $request->jenis_kartu,
+            'kelas_bpjs' => $request->kelas,
+            'provide' => $request->provide,
+            'kodeprovide' => $request->kodeprovide,
+            'hubungan_keluarga' => $request->hubungan_keluarga,
+            'tgl_exp_bpjs' => $request->tgl_exp_bpjs,
+            'seks' => $request->seks,
+            'goldar' => $request->goldar,
+            'pernikahan' => $request->pernikahan,
+            'kewarganegaraan' => $request->kewarganegaraan,
+            'agama' => $request->agama,
+            'pendidikan' => $request->pendidikan,
+            'pekerjaan' => $request->status_kerja,
+            'telepon' => $request->telepon,
+            'suku' => $request->suku,
+            'bangsa' => $request->bangsa,
+            'bahasa' => $request->bahasa,
+            'penjamin_2_nama' => $aktifPenjamin2 ? $request->penjamin_2 : null,
+            'penjamin_2_no' => $aktifPenjamin2 ? $request->penjamin_2_info : null,
+            'penjamin_3_nama' => $aktifPenjamin3 ? $request->penjamin_3 : null,
+            'penjamin_3_no' => $aktifPenjamin3 ? $request->penjamin_3_info : null,
+            'verifikasi' => $isDataComplete ? 2 : 1, // Otomatis set status verifikasi
+        ];
+
+        $pasien->update($updateData);
+
+        if ($request->hasFile('profile_image')) {
+            $file = $request->file('profile_image');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->storeAs('public/pasien', $filename);
+            $pasien->update(['foto' => $filename]);
+        }
+
+        $message = $isDataComplete ? 'Data pasien berhasil diperbarui dan telah terverifikasi!' : 'Data pasien berhasil diperbarui!';
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Method helper untuk mengecek kelengkapan data
+     */
+    private function checkDataCompleteness($request, $pasien = null)
+    {
+        $requiredFields = [
+            'nik',
+            'tempat_lahir',
+            'tanggal_lahir',
+            'provinsi',
+            'kabupaten',
+            'kecamatan',
+            'desa',
+            'rt',
+            'rw',
+            'kode_pos',
+            'alamat',
+            'seks',
+            'goldar',
+            'pernikahan',
+            'kewarganegaraan',
+            'agama',
+            'pendidikan',
+            'status_kerja',
+            'telepon',
+            'suku',
+            'bangsa',
+            'bahasa'
+        ];
+
+        if ($pasien) {
+            // Peta fallback dari field request ke kolom pasien
+            $fallbackMap = [
+                'nik' => 'nik',
+                'tempat_lahir' => 'tempat_lahir',
+                'tanggal_lahir' => 'tanggal_lahir',
+                'provinsi' => 'provinsi_kode',
+                'kabupaten' => 'kabupaten_kode',
+                'kecamatan' => 'kecamatan_kode',
+                'desa' => 'desa_kode',
+                'rt' => 'rt',
+                'rw' => 'rw',
+                'kode_pos' => 'kode_pos',
+                'alamat' => 'alamat',
+                'seks' => 'seks',
+                'goldar' => 'goldar',
+                'pernikahan' => 'pernikahan',
+                'kewarganegaraan' => 'kewarganegaraan',
+                'agama' => 'agama',
+                'pendidikan' => 'pendidikan',
+                'status_kerja' => 'pekerjaan',
+                'telepon' => 'telepon',
+                'suku' => 'suku',
+                'bangsa' => 'bangsa',
+                'bahasa' => 'bahasa',
+            ];
+
+            foreach ($requiredFields as $field) {
+                $hasValue = !empty($request->$field);
+                if (!$hasValue) {
+                    $patientAttr = $fallbackMap[$field] ?? null;
+                    if (!$patientAttr || empty($pasien->$patientAttr)) {
+                        return false;
+                    }
+                }
+            }
+        } else {
+            foreach ($requiredFields as $field) {
+                if (empty($request->$field)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Menyelesaikan nilai wilayah menjadi code, menerima input berupa ID atau CODE.
+     */
+    private function resolveRegionCode($value, $modelClass)
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        // Utamakan mencari berdasarkan code terlebih dahulu
+        $record = $modelClass::where('code', $value)->first();
+        if ($record) {
+            return $record->code;
+        }
+
+        // Jika tidak ketemu dan input numeric, coba cari berdasarkan ID
+        if (is_numeric($value)) {
+            $record = $modelClass::find($value);
+            if ($record) {
+                return $record->code;
+            }
+        }
+
+        // Terakhir, kembalikan value apa adanya (diasumsikan sudah berupa code)
+        return $value;
+    }
+
+    public function panggil($id)
+    {
+        $pasien = Pasien::findOrFail($id);
+
+        // Logika untuk memanggil pasien
+        // Bisa ditambahkan ke antrian panggilan atau notifikasi
+
+        return response()->json([
+            'success' => true,
+            'message' => "Pasien {$pasien->nama} berhasil dipanggil"
+        ]);
+    }
+
+    // Method untuk cascading dropdown daerah
+    public function getKabupaten($provinceId)
+    {
+        try {
+            // Cari provinsi berdasarkan ID untuk mendapatkan code
+            $province = Province::find($provinceId);
+
+            if (!$province) {
+                return response()->json([]);
+            }
+
+            $kabupaten = City::where('province_code', $province->code)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'province_code']);
+
+            return response()->json($kabupaten);
+        } catch (\Exception $e) {
+            FacadesLog::error('Error getting kabupaten: ' . $e->getMessage());
+            return response()->json([]);
+        }
+    }
+
+    public function getKecamatan($regencyId)
+    {
+        try {
+            // Cari kabupaten berdasarkan ID untuk mendapatkan code
+            $regency = City::find($regencyId);
+
+            if (!$regency) {
+                return response()->json([]);
+            }
+
+            $kecamatan = District::where('city_code', $regency->code)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'city_code']);
+
+            return response()->json($kecamatan);
+        } catch (\Exception $e) {
+            FacadesLog::error('Error getting kecamatan: ' . $e->getMessage());
+            return response()->json([]);
+        }
+    }
+
+    public function getDesa($districtId)
+    {
+        try {
+            // Cari kecamatan berdasarkan ID untuk mendapatkan code
+            $district = District::find($districtId);
+
+            if (!$district) {
+                return response()->json([]);
+            }
+
+            $desa = Village::where('district_code', $district->code)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'district_code']);
+
+            return response()->json($desa);
+        } catch (\Exception $e) {
+            FacadesLog::error('Error getting desa: ' . $e->getMessage());
+            return response()->json([]);
+        }
+    }
+}

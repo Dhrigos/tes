@@ -460,6 +460,7 @@ class Pcare_Controller extends Controller
             ], 500);
         }
     }
+
     public function get_peserta($no)
     {
         $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
@@ -524,5 +525,66 @@ class Pcare_Controller extends Controller
             ], 500);
         }
     }
+
+    public function get_dokter()
+    {
+        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
+        $SERVICE_NAME = "pcare-rest-dev";
+        $feature = 'dokter';
+        $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->get("{$BASE_URL}/{$SERVICE_NAME}/{$feature}/0/100");
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            // Jika error metadata
+            if (($body['metaData']['code'] ?? 0) != 200 || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+
+            // Dekripsi
+            $data = $this->decryptBpjsResponse($body['response'], $token);
+
+            if (!$data || empty($data['list'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Data tidak ditemukan',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            $transformed = array_map(fn($p) => [
+                'kode'  => $p['kdDokter'],
+                'nama'  => $p['nmDokter']
+            ], $data['list']);
+
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $transformed,
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+
 
 }

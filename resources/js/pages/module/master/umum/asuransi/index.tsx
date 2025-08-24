@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
@@ -16,6 +17,19 @@ import { toast } from 'sonner'; // ✅ pakai sonner
 interface Asuransi {
     id: number;
     nama: string;
+    kode?: string;
+    jenis_asuransi?: string;
+    verif_pasien?: string;
+    filter_obat?: string;
+    tanggal_mulai?: string;
+    tanggal_akhir?: string;
+    alamat_asuransi?: string;
+    no_telp_asuransi?: string;
+    faksimil?: string;
+    pic?: string;
+    no_telp_pic?: string;
+    jabatan_pic?: string;
+    no_rekening?: string;
     bank_id?: number | null;
     bank?: Bank | null;
 }
@@ -88,6 +102,9 @@ export default function Index() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Pastikan hanya submit pada step 3
+        if (currentStep !== 3) return;
+
         const payload = {
             nama,
             kode,
@@ -107,36 +124,28 @@ export default function Index() {
         };
 
         if (editId) {
-            router.put(
-                `/datamaster/umum/asuransi/${editId}`,
-                payload,
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-                        resetForm();
-                        setEditId(null);
-                        setCurrentStep(1);
-                    },
+            router.put(`/datamaster/umum/asuransi/${editId}`, payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpen(false);
+                    resetForm();
+                    setEditId(null);
+                    setCurrentStep(1);
                 },
-            );
+            });
         } else {
-            router.post(
-                '/datamaster/umum/asuransi',
-                payload,
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-                        resetForm();
-                        setEditId(null);
-                        setCurrentStep(1);
-                    },
-                    onError: () => {
-                        // modal tetap terbuka
-                    },
+            router.post('/datamaster/umum/asuransi', payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpen(false);
+                    resetForm();
+                    setEditId(null);
+                    setCurrentStep(1);
                 },
-            );
+                onError: () => {
+                    // modal tetap terbuka
+                },
+            });
         }
     };
 
@@ -168,8 +177,22 @@ export default function Index() {
 
     const handleOpenEdit = (asuransi: Asuransi) => {
         setEditId(asuransi.id);
-        setNama(asuransi.nama);
+        setNama(asuransi.nama || '');
+        setKode(asuransi.kode || '');
+        setJenis(asuransi.jenis_asuransi || '');
+        setVerifikasiPasien(asuransi.verif_pasien || '');
+        setFilterObat(asuransi.filter_obat || '');
+        setBerlakuMulai(asuransi.tanggal_mulai || '');
+        setBerlakuHingga(asuransi.tanggal_akhir || '');
+        setAlamat(asuransi.alamat_asuransi || '');
+        setTelpAsuransi(asuransi.no_telp_asuransi || '');
+        setFaksimil(asuransi.faksimil || '');
+        setContactPerson(asuransi.pic || '');
+        setTelpContactPerson(asuransi.no_telp_pic || '');
+        setJabatanContactPerson(asuransi.jabatan_pic || '');
         setBankAkun(asuransi.bank?.id ? String(asuransi.bank.id) : asuransi.bank_id ? String(asuransi.bank_id) : '');
+        setNoRekening(asuransi.no_rekening || '');
+        setCurrentStep(1);
         setOpen(true);
     };
 
@@ -191,7 +214,7 @@ export default function Index() {
             case 1:
                 return nama && kode && jenis;
             case 2:
-                return alamat && telpAsuransi && contactPerson && bankAkun;
+                return alamat && telpAsuransi && contactPerson;
             case 3:
                 return true;
             default:
@@ -269,56 +292,69 @@ export default function Index() {
 
             {/* Modal Tambah/Edit */}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="sm:max-w-3xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-h-[90vh] w-[70vw] !max-w-5xl overflow-y-auto rounded-lg">
                     <DialogHeader>
                         <DialogTitle>{editId ? 'Edit Asuransi' : 'Tambah Asuransi'}</DialogTitle>
                     </DialogHeader>
-                    
-                    {/* Progress Steps */}
-                    <div className="flex items-center justify-center mb-6">
-                        <div className="flex items-center space-x-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                                currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>
-                                1
-                            </div>
-                            <div className={`w-16 h-1 ${
-                                currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                                currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>
-                                2
-                            </div>
-                            <div className={`w-16 h-1 ${
-                                currentStep >= 3 ? 'bg-blue-600' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                                currentStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>
-                                3
+
+                    {/* Step Indicator */}
+                    <div className="px-4 py-3">
+                        <div className="flex items-center justify-center">
+                            <div className="flex items-center space-x-6">
+                                {[
+                                    { id: 1, label: 'Informasi Dasar' },
+                                    { id: 2, label: 'Kontak & Bank' },
+                                    { id: 3, label: 'Konfirmasi' },
+                                ].map((step, idx, arr) => (
+                                    <div key={step.id} className="flex items-center">
+                                        {/* Bulatan step */}
+                                        <div
+                                            className={`flex items-center transition-colors ${
+                                                currentStep >= step.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'
+                                            }`}
+                                        >
+                                            <div
+                                                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all ${
+                                                    currentStep >= step.id
+                                                        ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
+                                                        : 'border-gray-300 text-gray-400 dark:border-gray-600 dark:text-gray-500'
+                                                }`}
+                                            >
+                                                {step.id}
+                                            </div>
+                                            <span className="ml-2 text-sm font-medium">{step.label}</span>
+                                        </div>
+
+                                        {/* Garis penghubung antar step */}
+                                        {idx < arr.length - 1 && (
+                                            <div
+                                                className={`mx-3 h-0.5 w-12 transition-colors ${
+                                                    currentStep > step.id ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                                                }`}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit} className="space-y-4 p-4">
                         {/* Step 1: Informasi Dasar */}
                         {currentStep === 1 && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-semibold">Informasi Dasar</h3>
-                                
-                                {/* Baris 1: Nama, Kode, Jenis */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            <div className="flex min-h-[400px] gap-8">
+                                {/* Left Column - Basic Info */}
+                                <div className="w-1/2 space-y-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Nama asuransi</label>
+                                        <Label>Nama asuransi</Label>
                                         <Input placeholder="Nama asuransi" value={nama} onChange={(e) => setNama(e.target.value)} required />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Kode asuransi</label>
+                                        <Label>Kode asuransi</Label>
                                         <Input placeholder="Kode asuransi" value={kode} onChange={(e) => setKode(e.target.value)} />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Jenis Asuransi</label>
+                                        <Label>Jenis Asuransi</Label>
                                         <Select value={jenis} onValueChange={setJenis}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="-- Pilih --" />
@@ -333,12 +369,8 @@ export default function Index() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                </div>
-
-                                {/* Baris 2: Verifikasi, Filter Obat, Berlaku Mulai, Berlaku Hingga */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Verifikasi Pasien</label>
+                                        <Label>Verifikasi Pasien</Label>
                                         <Select value={verifikasiPasien} onValueChange={setVerifikasiPasien}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="-- Pilih --" />
@@ -349,35 +381,41 @@ export default function Index() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Filter Obat Ditanggung</label>
-                                        <Select value={filterObat} onValueChange={setFilterObat}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="-- Pilih --" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Aktif">Aktif</SelectItem>
-                                                <SelectItem value="Tidak Aktif">Tidak Aktif</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Berlaku Mulai</label>
-                                        <Input
-                                            type="date"
-                                            value={berlakuMulai}
-                                            onChange={(e) => setBerlakuMulai(e.target.value)}
-                                            onFocus={(e) => e.target.showPicker && e.target.showPicker()}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Berlaku Hingga</label>
-                                        <Input
-                                            type="date"
-                                            value={berlakuHingga}
-                                            onChange={(e) => setBerlakuHingga(e.target.value)}
-                                            onFocus={(e) => e.target.showPicker && e.target.showPicker()}
-                                        />
+                                </div>
+
+                                {/* Right Column - Additional Info */}
+                                <div className="w-1/2 border-l pl-8">
+                                    <div className="space-y-6">
+                                        <div className="space-y-2">
+                                            <Label>Filter Obat Ditanggung</Label>
+                                            <Select value={filterObat} onValueChange={setFilterObat}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="-- Pilih --" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Aktif">Aktif</SelectItem>
+                                                    <SelectItem value="Tidak Aktif">Tidak Aktif</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Berlaku Mulai</Label>
+                                            <Input
+                                                type="date"
+                                                value={berlakuMulai}
+                                                onChange={(e) => setBerlakuMulai(e.target.value)}
+                                                onFocus={(e) => e.target.showPicker && e.target.showPicker()}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Berlaku Hingga</Label>
+                                            <Input
+                                                type="date"
+                                                value={berlakuHingga}
+                                                onChange={(e) => setBerlakuHingga(e.target.value)}
+                                                onFocus={(e) => e.target.showPicker && e.target.showPicker()}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -385,63 +423,79 @@ export default function Index() {
 
                         {/* Step 2: Informasi Kontak & Bank */}
                         {currentStep === 2 && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-semibold">Informasi Kontak & Bank</h3>
-                                
-                                {/* Baris 3: Alamat (full) */}
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                                    <div className="space-y-2 lg:col-span-3">
-                                        <label className="text-sm font-medium leading-none">Alamat Asuransi</label>
+                            <div className="flex min-h-[400px] gap-8">
+                                {/* Left Column - Contact Info */}
+                                <div className="w-1/2 space-y-6">
+                                    <div className="space-y-2">
+                                        <Label>Alamat Asuransi</Label>
                                         <Input placeholder="Alamat Asuransi" value={alamat} onChange={(e) => setAlamat(e.target.value)} />
                                     </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label>No Telp Asuransi</Label>
+                                            <Input
+                                                placeholder="No Telp Asuransi"
+                                                value={telpAsuransi}
+                                                onChange={(e) => setTelpAsuransi(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Faksimil</Label>
+                                            <Input placeholder="Faksimil" value={faksimil} onChange={(e) => setFaksimil(e.target.value)} />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-6">
+                                        <div className="space-y-2">
+                                            <Label>Contact Person</Label>
+                                            <Input
+                                                placeholder="Contact Person"
+                                                value={contactPerson}
+                                                onChange={(e) => setContactPerson(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Telp Contact Person</Label>
+                                            <Input
+                                                placeholder="Telp Contact Person"
+                                                value={telpContactPerson}
+                                                onChange={(e) => setTelpContactPerson(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Jabatan Contact Person</Label>
+                                            <Input
+                                                placeholder="Jabatan Contact Person"
+                                                value={jabatanContactPerson}
+                                                onChange={(e) => setJabatanContactPerson(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* Baris 4: Telp, Faksimil */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">No Telp Asuransi</label>
-                                        <Input placeholder="No Telp Asuransi" value={telpAsuransi} onChange={(e) => setTelpAsuransi(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Faksimil</label>
-                                        <Input placeholder="Faksimil" value={faksimil} onChange={(e) => setFaksimil(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">No Rekening</label>
-                                        <Input placeholder="No Rekening" value={noRekening} onChange={(e) => setNoRekening(e.target.value)} />
-                                    </div>
-                                </div>
-
-                                {/* Baris 5: CP, Telp CP, Jabatan CP */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Contact Person</label>
-                                        <Input placeholder="Contact Person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Telp Contact Person</label>
-                                        <Input placeholder="Telp Contact Person" value={telpContactPerson} onChange={(e) => setTelpContactPerson(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium leading-none">Jabatan Contact Person</label>
-                                        <Input placeholder="Jabatan Contact Person" value={jabatanContactPerson} onChange={(e) => setJabatanContactPerson(e.target.value)} />
-                                    </div>
-                                </div>
-
-                                {/* Baris 6: Bank Akun, No Rekening */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    <div className="space-y-2 lg:col-span-2">
-                                        <label className="text-sm font-medium leading-none">Bank Akun</label>
-                                        <Select value={bankAkun} onValueChange={setBankAkun}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="-- Pilih --" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {banks?.map((b) => (
-                                                    <SelectItem key={b.id} value={String(b.id)}>{b.nama}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                {/* Right Column - Bank Info */}
+                                <div className="w-1/2 border-l pl-8">
+                                    <div className="mt-6 space-y-6">
+                                        <div className="space-y-2">
+                                            <Label>Bank Akun</Label>
+                                            <Select value={bankAkun} onValueChange={setBankAkun}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="-- Pilih --" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {banks?.map((b) => (
+                                                        <SelectItem key={b.id} value={String(b.id)}>
+                                                            {b.nama}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>No Rekening</Label>
+                                            <Input placeholder="No Rekening" value={noRekening} onChange={(e) => setNoRekening(e.target.value)} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -449,54 +503,68 @@ export default function Index() {
 
                         {/* Step 3: Konfirmasi */}
                         {currentStep === 3 && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-semibold">Konfirmasi Data</h3>
-                                
-                                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="min-h-[400px] space-y-4">
+                                <div className="rounded-lg bg-muted/50 p-4 dark:bg-muted/20">
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Nama Asuransi</label>
-                                            <p className="text-sm">{nama || '-'}</p>
+                                            <Label className="text-muted-foreground">Nama Asuransi</Label>
+                                            <p className="text-sm text-foreground">{nama || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Kode Asuransi</label>
-                                            <p className="text-sm">{kode || '-'}</p>
+                                            <Label className="text-muted-foreground">Kode Asuransi</Label>
+                                            <p className="text-sm text-foreground">{kode || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Jenis Asuransi</label>
-                                            <p className="text-sm">{jenis || '-'}</p>
+                                            <Label className="text-muted-foreground">Jenis Asuransi</Label>
+                                            <p className="text-sm text-foreground">{jenis || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Verifikasi Pasien</label>
-                                            <p className="text-sm">{verifikasiPasien || '-'}</p>
+                                            <Label className="text-muted-foreground">Verifikasi Pasien</Label>
+                                            <p className="text-sm text-foreground">{verifikasiPasien || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Filter Obat</label>
-                                            <p className="text-sm">{filterObat || '-'}</p>
+                                            <Label className="text-muted-foreground">Filter Obat</Label>
+                                            <p className="text-sm text-foreground">{filterObat || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Berlaku Mulai</label>
-                                            <p className="text-sm">{berlakuMulai || '-'}</p>
+                                            <Label className="text-muted-foreground">Berlaku Mulai</Label>
+                                            <p className="text-sm text-foreground">{berlakuMulai || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Berlaku Hingga</label>
-                                            <p className="text-sm">{berlakuHingga || '-'}</p>
+                                            <Label className="text-muted-foreground">Berlaku Hingga</Label>
+                                            <p className="text-sm text-foreground">{berlakuHingga || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Alamat</label>
-                                            <p className="text-sm">{alamat || '-'}</p>
+                                            <Label className="text-muted-foreground">Alamat</Label>
+                                            <p className="text-sm text-foreground">{alamat || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">No Telp</label>
-                                            <p className="text-sm">{telpAsuransi || '-'}</p>
+                                            <Label className="text-muted-foreground">No Telp</Label>
+                                            <p className="text-sm text-foreground">{telpAsuransi || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Contact Person</label>
-                                            <p className="text-sm">{contactPerson || '-'}</p>
+                                            <Label className="text-muted-foreground">Contact Person</Label>
+                                            <p className="text-sm text-foreground">{contactPerson || '-'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Bank</label>
-                                            <p className="text-sm">{banks?.find(b => String(b.id) === bankAkun)?.nama || '-'}</p>
+                                            <Label className="text-muted-foreground">Bank</Label>
+                                            <p className="text-sm text-foreground">{banks?.find((b) => String(b.id) === bankAkun)?.nama || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-muted-foreground">No Rekening</Label>
+                                            <p className="text-sm text-foreground">{noRekening || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-muted-foreground">Faksimil</Label>
+                                            <p className="text-sm text-foreground">{faksimil || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-muted-foreground">Telp Contact Person</Label>
+                                            <p className="text-sm text-foreground">{telpContactPerson || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-muted-foreground">Jabatan Contact Person</Label>
+                                            <p className="text-sm text-foreground">{jabatanContactPerson || '-'}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -507,25 +575,19 @@ export default function Index() {
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Batal
                             </Button>
-                            
+
                             {currentStep > 1 && (
                                 <Button type="button" variant="outline" onClick={handlePrev}>
-                                    Sebelumnya
+                                    Kembali
                                 </Button>
                             )}
-                            
-                            {currentStep < 3 ? (
-                                <Button
-                                    type="button"
-                                    onClick={handleNext}
-                                    disabled={!isStepValid(currentStep)}
-                                >
-                                    Selanjutnya
+
+                            {currentStep <= 3 ? (
+                                <Button type="button" onClick={handleNext} disabled={!isStepValid(currentStep)}>
+                                    Lanjut
                                 </Button>
                             ) : (
-                                <Button type="submit">
-                                    {editId ? 'Update' : 'Simpan'}
-                                </Button>
+                                <Button type="submit">{editId ? 'Update' : 'Simpan'}</Button>
                             )}
                         </DialogFooter>
                     </form>

@@ -3,6 +3,11 @@
 namespace App\Models\Module\Pasien;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Module\Master\Data\Umum\Goldar;
+use Laravolt\Indonesia\Models\City;
+use Laravolt\Indonesia\Models\District;
+use Laravolt\Indonesia\Models\Province;
+use Laravolt\Indonesia\Models\Village;
 
 class Pasien extends Model
 {
@@ -46,4 +51,30 @@ class Pasien extends Model
         'penjamin_3_no',
         'foto',
     ];
+
+    public function provinsi()
+    {
+        return $this->belongsTo(Province::class, 'provinsi_kode', 'code');
+    }
+
+    public function kabupaten()
+    {
+        return $this->belongsTo(City::class, 'kabupaten_kode', 'code');
+    }
+
+    public function kecamatan()
+    {
+        return $this->belongsTo(District::class, 'kecamatan_kode', 'code');
+    }
+
+    public function desa()
+    {
+        return $this->belongsTo(Village::class, 'desa_kode', 'code');
+    }
+
+    // Relasi dengan tabel goldar
+    public function goldarRelation()
+    {
+        return $this->belongsTo(Goldar::class, 'goldar', 'id');
+    }
 }

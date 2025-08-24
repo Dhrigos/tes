@@ -23,10 +23,13 @@ class Goldar_Controller extends Controller
             'rhesus' => 'required|string|max:255',
         ]);
 
-        $exists = Goldar::whereRaw('LOWER(nama) = ?', [strtolower($request->nama)])->exists();
+        $exists = Goldar::whereRaw('LOWER(nama) = ? AND LOWER(rhesus) = ?', [
+            strtolower($request->nama),
+            strtolower($request->rhesus)
+        ])->exists();
 
         if ($exists) {
-            return redirect()->back()->withErrors(['nama' => 'Data Golongan Darah sudah ada.']);
+            return redirect()->back()->withErrors(['nama' => 'Kombinasi Golongan Darah dan Rhesus sudah ada.']);
         }
 
         Goldar::create([
@@ -44,7 +47,20 @@ class Goldar_Controller extends Controller
             'rhesus' => 'required|string|max:255',
         ]);
 
-        $goldar->update($request->all());
+        // Cek apakah kombinasi nama + rhesus sudah ada (kecuali untuk data yang sedang diedit)
+        $exists = Goldar::whereRaw('LOWER(nama) = ? AND LOWER(rhesus) = ?', [
+            strtolower($request->nama),
+            strtolower($request->rhesus)
+        ])->where('id', '!=', $goldar->id)->exists();
+
+        if ($exists) {
+            return redirect()->back()->withErrors(['nama' => 'Kombinasi Golongan Darah dan Rhesus sudah ada.']);
+        }
+
+        $goldar->update([
+            'nama' => ucfirst(strtolower($request->nama)),
+            'rhesus' => $request->rhesus,
+        ]);
 
         return redirect()->back()->with('success', 'Golongan Darah berhasil diupdate');
     }

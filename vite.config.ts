@@ -19,15 +19,15 @@ export default defineConfig({
     },
     resolve: {
         alias: {
+            '@': resolve(__dirname, 'resources/js'),
             'ziggy-js': resolve(__dirname, 'vendor/tightenco/ziggy'),
         },
     },
     server: {
-        host: '100.106.3.92',     // biar bisa diakses dari semua IP (LAN/WAN)
-        port: 5173,          // default Vite
+        host: '100.106.3.92', // biar bisa diakses dari semua IP (LAN/WAN)
+        port: 5173, // default Vite
         cors: {
-            origin: '*',     // atau bisa spesifik: "http://100.106.3.92:82"
+            origin: '*', // atau bisa spesifik: "http://100.106.3.92:82"
         },
     },
 });
-

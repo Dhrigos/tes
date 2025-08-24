@@ -15,18 +15,12 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 
-import {
-  Dialog,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 
-
-import { SettingsDialog } from "./dialog-content"; // ✅ import komponen baru
-
-
+import { SettingsDialog } from './dialog-content'; // ✅ import komponen baru
 
 import { Link, usePage } from '@inertiajs/react';
-import { ChevronDown, LayoutGrid,ChevronsUpDown, GalleryVerticalEnd, AudioWaveform, Command,PlusCircle  } from 'lucide-react';
+import { ChevronDown, LayoutGrid } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems = [
@@ -57,7 +51,7 @@ const mainNavItems = [
                 title: 'Perawat',
                 href: '/datamaster/umum/asuransi',
             },
-        ]
+        ],
     },
     {
         title: 'SDM',
@@ -65,17 +59,17 @@ const mainNavItems = [
         children: [
             {
                 title: 'Dokter',
-                href: '/datamaster/umum/agama',
+                href: '/sdm/dokter',
             },
             {
                 title: 'Perawat',
-                href: '/datamaster/umum/asuransi',
+                href: '/sdm/perawat',
             },
             {
                 title: 'Staff',
-                href: '/datamaster/umum/asuransi',
+                href: '/sdm/staff',
             },
-        ]
+        ],
     },
     {
         title: 'Data Master',
@@ -138,9 +132,6 @@ const mainNavItems = [
     },
 ];
 
-
-
-
 // Recursive renderer untuk nested menu
 function RenderMenu({ items }: { items: any[] }) {
     const { url } = usePage(); // current path dari inertia
@@ -157,12 +148,12 @@ function RenderMenu({ items }: { items: any[] }) {
                                 <SidebarMenuButton className="group transition-all duration-200 ease-in-out hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                                     {item.icon && <item.icon className="h-4 w-4" />}
                                     <span className="flex-1">{item.title}</span>
-                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-300 ease-in-out group-data-[state=open]:rotate-180" />
                                 </SidebarMenuButton>
                             </CollapsibleTrigger>
 
-                            <CollapsibleContent>
-                                <div className="ml-3 border-l border-sidebar-border/70 pl-3">
+                            <CollapsibleContent className="data-[state=closed]:slide-up-1 data-[state=open]:slide-down-1 overflow-hidden transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                                <div className="ml-3 border-l border-sidebar-border/70 pl-3 transition-all duration-200 ease-in-out">
                                     <SidebarMenu className="pl-3">
                                         <RenderMenu items={item.children} />
                                     </SidebarMenu>
@@ -201,20 +192,18 @@ export function AppSidebar() {
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                    <Dialog>
-                        {/* Trigger: tombol di sidebar */}
-                        <DialogTrigger asChild>
-                        <SidebarMenuButton size="lg" className="flex items-center gap-2">
-                            <AppLogo />
-                        </SidebarMenuButton>
-                        </DialogTrigger>
-                        <SettingsDialog />
-                    </Dialog>
+                        <Dialog>
+                            {/* Trigger: tombol di sidebar */}
+                            <DialogTrigger asChild>
+                                <SidebarMenuButton size="lg" className="flex items-center gap-2">
+                                    <AppLogo />
+                                </SidebarMenuButton>
+                            </DialogTrigger>
+                            <SettingsDialog />
+                        </Dialog>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>
-
-
 
             {/* Sidebar Menu Content */}
             <SidebarContent className="scrollbar-none">

@@ -42,6 +42,49 @@ use App\Http\Controllers\Module\Master\Data\Gudang\Satuan_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Supplier_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_online_Controller;
+use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
+use App\Http\Controllers\Module\SDM\Dokter_Controller;
+use App\Http\Controllers\Module\Pasien\PasienController;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Request;
+
+
+
+// SDM
+Route::middleware(['auth'])->prefix('sdm')->as('sdm.')->group(function () {
+    Route::get('/dokter', [Dokter_Controller::class, 'index'])->name('dokter.index');
+    Route::post('/dokter', [Dokter_Controller::class, 'store'])->name('dokter.store');
+    Route::put('/dokter/{dokter}', [Dokter_Controller::class, 'update'])->name('dokter.update');
+    Route::delete('/dokter/{dokter}', [Dokter_Controller::class, 'destroy'])->name('dokter.destroy');
+
+    // Proxy pencarian dokter eksternal
+    Route::get('/dokter/search', function (Request $request) {
+        $nama = (string) $request->query('nama', '');
+        $offset = (int) $request->query('offset', 0);
+        $limit = (int) $request->query('limit', 10);
+
+        if (strlen(trim($nama)) < 2) {
+            return response()->json([
+                'response' => ['count' => 0, 'list' => []],
+                'metaData' => ['message' => 'OK', 'code' => 200],
+            ]);
+        }
+
+        $base = rtrim((string) env('EXTERNAL_API_BASE_URL', ''), '/');
+        $service = trim((string) env('EXTERNAL_API_SERVICE', 'api'), '/');
+        if ($base === '') {
+            return response()->json([
+                'response' => ['count' => 0, 'list' => []],
+                'metaData' => ['message' => 'EXTERNAL_API_BASE_URL not set', 'code' => 500],
+            ], 500);
+        }
+
+        $url = $base . '/' . $service . '/dokter/' . $offset . '/' . $limit;
+        $resp = Http::acceptJson()->get($url, ['nama' => $nama]);
+        return response()->json($resp->json(), $resp->status());
+    })->name('dokter.search');
+});
+
 
 // Datamaster
 Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(function () {
@@ -113,7 +156,6 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::post('/suku', [Suku_Controller::class, 'store'])->name('suku.store');
         Route::put('/suku/{suku}', [Suku_Controller::class, 'update'])->name('suku.update');
         Route::delete('/suku/{suku}', [Suku_Controller::class, 'destroy'])->name('suku.destroy');
-
     });
 
     // Grup untuk data manajemen
@@ -274,19 +316,43 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
-Route::get('/pasien', function () {
-    return Inertia::render('pasien');
-})->middleware(['auth', 'verified'])->name('pasien');
-Route::get('/pendaftaran', function () {
-    return Inertia::render('pasien');
-})->middleware(['auth', 'verified'])->name('pendaftaran');
 
-Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran');
+Route::middleware(['auth', 'verified'])->prefix('pasien')->as('pasien.')->group(
+    function () {
+        Route::get('/', [PasienController::class, 'index'])->name('index');
+        Route::post('/verifikasi', [PasienController::class, 'verifikasi'])->name('verifikasi');
+        Route::post('/update', [PasienController::class, 'update'])->name('update');
+        Route::post('/panggil/{id}', [PasienController::class, 'panggil'])->name('panggil');
+        Route::get('/kabupaten/{provinceId}', [PasienController::class, 'getKabupaten'])->name('kabupaten');
+        Route::get('/kecamatan/{regencyId}', [PasienController::class, 'getKecamatan'])->name('kecamatan');
+        Route::get('/desa/{districtId}', [PasienController::class, 'getDesa'])->name('desa');
+    }
+);
+
+Route::get('/pendaftaran', [Pendaftaran_Controller::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('pendaftaran');
+
+Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran-online');
 Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'add'])->name('pendaftaran-online.add');
 
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Module SDM - Dokter
+    Route::prefix('module/sdm/dokter')->group(function () {
+        Route::get('/', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'index'])->name('dokter.index');
+        Route::post('/', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'store'])->name('dokter.store');
+        Route::put('/{id}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'update'])->name('dokter.update');
+        Route::delete('/{id}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'destroy'])->name('dokter.destroy');
+        Route::post('/verifikasi', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'verifikasi'])->name('dokter.verifikasi');
+
+        // Cascading dropdown untuk alamat
+        Route::get('/kabupaten/{provinceId}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'getKabupaten']);
+        Route::get('/kecamatan/{cityId}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'getKecamatan']);
+        Route::get('/desa/{districtId}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'getDesa']);
+    });
 });
 
 require __DIR__ . '/settings.php';

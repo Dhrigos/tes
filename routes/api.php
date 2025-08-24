@@ -11,3 +11,4 @@ Route::get('/get_sarana', [Pcare_Controller::class, 'get_sarana']);
 Route::get('/get_spesialis', [Pcare_Controller::class, 'get_spesialis']);
 Route::get('/get_sub_spesialis/{kode}', [Pcare_Controller::class, 'get_sub_spesialis']);
 Route::get('/get_peserta/{no}', [Pcare_Controller::class, 'get_peserta']);
+Route::get('/get_dokter', [Pcare_Controller::class, 'get_dokter']);
