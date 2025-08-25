@@ -44,7 +44,9 @@ use App\Http\Controllers\Module\Master\Data\Gudang\Supplier_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_online_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
 use App\Http\Controllers\Module\SDM\Dokter_Controller;
+use App\Http\Controllers\Module\SDM\Staff_Controller;
 use App\Http\Controllers\Module\Pasien\PasienController;
+use App\Http\Controllers\Module\SDM\Perawat_Controller;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 
@@ -52,37 +54,29 @@ use Illuminate\Http\Request;
 
 // SDM
 Route::middleware(['auth'])->prefix('sdm')->as('sdm.')->group(function () {
+
+    // Dokter
     Route::get('/dokter', [Dokter_Controller::class, 'index'])->name('dokter.index');
     Route::post('/dokter', [Dokter_Controller::class, 'store'])->name('dokter.store');
     Route::put('/dokter/{dokter}', [Dokter_Controller::class, 'update'])->name('dokter.update');
     Route::delete('/dokter/{dokter}', [Dokter_Controller::class, 'destroy'])->name('dokter.destroy');
 
-    // Proxy pencarian dokter eksternal
-    Route::get('/dokter/search', function (Request $request) {
-        $nama = (string) $request->query('nama', '');
-        $offset = (int) $request->query('offset', 0);
-        $limit = (int) $request->query('limit', 10);
+    // Perawat
+    Route::get('/perawat', [Perawat_Controller::class, 'index'])->name('perawat.index');
+    Route::post('/perawat', [Perawat_Controller::class, 'store'])->name('perawat.store');
+    Route::put('/perawat/{perawat}', [Perawat_Controller::class, 'update'])->name('perawat.update');
+    Route::delete('/perawat/{perawat}', [Perawat_Controller::class, 'destroy'])->name('perawat.destroy');
 
-        if (strlen(trim($nama)) < 2) {
-            return response()->json([
-                'response' => ['count' => 0, 'list' => []],
-                'metaData' => ['message' => 'OK', 'code' => 200],
-            ]);
-        }
+    // Staff
+    Route::get('/staff', [Staff_Controller::class, 'index'])->name('staff.index');
+    Route::post('/staff', [Staff_Controller::class, 'store'])->name('staff.store');
+    Route::put('/staff/{staff}', [Staff_Controller::class, 'update'])->name('staff.update');
+    Route::delete('/staff/{staff}', [Staff_Controller::class, 'destroy'])->name('staff.destroy');
 
-        $base = rtrim((string) env('EXTERNAL_API_BASE_URL', ''), '/');
-        $service = trim((string) env('EXTERNAL_API_SERVICE', 'api'), '/');
-        if ($base === '') {
-            return response()->json([
-                'response' => ['count' => 0, 'list' => []],
-                'metaData' => ['message' => 'EXTERNAL_API_BASE_URL not set', 'code' => 500],
-            ], 500);
-        }
-
-        $url = $base . '/' . $service . '/dokter/' . $offset . '/' . $limit;
-        $resp = Http::acceptJson()->get($url, ['nama' => $nama]);
-        return response()->json($resp->json(), $resp->status());
-    })->name('dokter.search');
+    // Staff wilayah endpoints
+    Route::get('/staff/kabupaten/{provinceId}', [Staff_Controller::class, 'getKabupaten'])->name('staff.kabupaten');
+    Route::get('/staff/kecamatan/{cityId}', [Staff_Controller::class, 'getKecamatan'])->name('staff.kecamatan');
+    Route::get('/staff/desa/{districtId}', [Staff_Controller::class, 'getDesa'])->name('staff.desa');
 });
 
 

@@ -41,6 +41,10 @@ interface LaravoltIndonesiaProps {
     onRegencyChange: (value: string) => void;
     onDistrictChange: (value: string) => void;
     onVillageChange: (value: string) => void;
+    // Configurable endpoints
+    kabupatenEndpoint?: string;
+    kecamatanEndpoint?: string;
+    desaEndpoint?: string;
 }
 
 export default function LaravoltIndonesiaExample({
@@ -53,6 +57,9 @@ export default function LaravoltIndonesiaExample({
     onRegencyChange,
     onDistrictChange,
     onVillageChange,
+    kabupatenEndpoint = '/pasien/kabupaten',
+    kecamatanEndpoint = '/pasien/kecamatan',
+    desaEndpoint = '/pasien/desa',
 }: LaravoltIndonesiaProps) {
     const [regencies, setRegencies] = useState<Regency[]>([]);
     const [districts, setDistricts] = useState<District[]>([]);
@@ -141,7 +148,7 @@ export default function LaravoltIndonesiaExample({
             const province = provinces.find((p) => norm(p.code) === norm(selectedProvince) || norm(p.id) === norm(selectedProvince));
             // console.log('[Wilayah] Province change:', { selectedProvince, foundProvince: province });
             if (province) {
-                fetch(`/pasien/kabupaten/${province.id}`)
+                fetch(`${kabupatenEndpoint}/${province.id}`)
                     .then((response) => response.json())
                     .then((data) => {
                         // Normalize to ensure code exists
@@ -170,7 +177,55 @@ export default function LaravoltIndonesiaExample({
             setDistricts([]);
             setVillages([]);
         }
-    }, [selectedProvince, provinces]);
+    }, [selectedProvince, provinces, kabupatenEndpoint]);
+
+    // Load data for editing when component mounts with existing selections
+    useEffect(() => {
+        if (selectedProvince && selectedRegency && selectedDistrict && selectedVillage) {
+            // Load all data for editing
+            const loadDataForEditing = async () => {
+                try {
+                    setLoading(true);
+
+                    // Load regencies
+                    const province = provinces.find((p) => norm(p.code) === norm(selectedProvince) || norm(p.id) === norm(selectedProvince));
+                    if (province) {
+                        const resKab = await fetch(`${kabupatenEndpoint}/${province.id}`);
+                        const dataKab = await resKab.json();
+                        const normalizedKab = (dataKab as any[]).map((r) => ({
+                            ...r,
+                            code: norm(r.code ?? r.kode ?? r.id),
+                        }));
+                        setRegencies(normalizedKab as Regency[]);
+
+                        // Load districts
+                        const resKec = await fetch(`${kecamatanEndpoint}/${selectedRegency}`);
+                        const dataKec = await resKec.json();
+                        const normalizedKec = (dataKec as any[]).map((d) => ({
+                            ...d,
+                            code: norm(d.code ?? d.kode ?? d.id),
+                        }));
+                        setDistricts(normalizedKec as District[]);
+
+                        // Load villages
+                        const resDesa = await fetch(`${desaEndpoint}/${selectedDistrict}`);
+                        const dataDesa = await resDesa.json();
+                        const normalizedDesa = (dataDesa as any[]).map((v) => ({
+                            ...v,
+                            code: norm(v.code ?? v.kode ?? v.id),
+                        }));
+                        setVillages(normalizedDesa as Village[]);
+                    }
+                } catch (error) {
+                    console.error('Error loading data for editing:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            loadDataForEditing();
+        }
+    }, [selectedProvince, selectedRegency, selectedDistrict, selectedVillage, provinces, kabupatenEndpoint, kecamatanEndpoint, desaEndpoint]);
 
     // Load districts when regency changes
     useEffect(() => {
@@ -209,7 +264,7 @@ export default function LaravoltIndonesiaExample({
                     if (province) {
                         setLoading(true);
                         try {
-                            const resKab = await fetch(`/pasien/kabupaten/${province.id}`);
+                            const resKab = await fetch(`${kabupatenEndpoint}/${province.id}`);
                             const dataKab = await resKab.json();
                             availableRegencies = (dataKab as any[]).map((r) => ({
                                 ...r,
@@ -250,7 +305,7 @@ export default function LaravoltIndonesiaExample({
                 setLoading(true);
                 if (regency) {
                     try {
-                        const res = await fetch(`/pasien/kecamatan/${regency.id}`);
+                        const res = await fetch(`${kecamatanEndpoint}/${regency.id}`);
                         const data = await res.json();
                         const normalized = (data as any[]).map((d) => ({
                             ...d,
@@ -295,7 +350,7 @@ export default function LaravoltIndonesiaExample({
 
         if (district) {
             setLoading(true);
-            fetch(`/pasien/desa/${district.id}`)
+            fetch(`${desaEndpoint}/${district.id}`)
                 .then((response) => response.json())
                 .then((data) => {
                     // Normalize to ensure code exists
