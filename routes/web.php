@@ -44,6 +44,7 @@ use App\Http\Controllers\Module\Master\Data\Gudang\Harga_Jual_Utama_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Supplier_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Inventaris_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_online_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
 use App\Http\Controllers\Module\SDM\Dokter_Controller;
@@ -51,8 +52,10 @@ use App\Http\Controllers\Module\SDM\Staff_Controller;
 use App\Http\Controllers\Module\Pasien\PasienController;
 use App\Http\Controllers\Module\SDM\Perawat_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
+use App\Http\Controllers\Module\Pelayanan\PelayananController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
+use App\Models\Module\Pelayanan\Pelayanan;
 
 
 
@@ -337,6 +340,12 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::put('/daftar-obat/{daftarObat}', [Daftar_Obat_Controller::class, 'update'])->name('daftar-obat.update');
         Route::delete('/daftar-obat/{daftarObat}', [Daftar_Obat_Controller::class, 'destroy'])->name('daftar-obat.destroy');
         Route::post('/daftar-obat/sync-pull', [Daftar_Obat_Controller::class, 'syncPull'])->name('daftar-obat.sync-pull');
+
+        Route::get('/daftar-inventaris', [Daftar_Inventaris_Controller::class, 'index'])->name('daftar-inventaris.index');
+        Route::post('/daftar-inventaris', [Daftar_Inventaris_Controller::class, 'store'])->name('daftar-inventaris.store');
+        Route::put('/daftar-inventaris/{daftarInventaris}', [Daftar_Inventaris_Controller::class, 'update'])->name('daftar-inventaris.update');
+        Route::delete('/daftar-inventaris/{daftarInventaris}', [Daftar_Inventaris_Controller::class, 'destroy'])->name('daftar-inventaris.destroy');
+        Route::post('/daftar-inventaris/sync-pull', [Daftar_Inventaris_Controller::class, 'syncPull'])->name('daftar-inventaris.sync-pull');
     });
 });
 
@@ -365,7 +374,6 @@ Route::get('/pendaftaran', [Pendaftaran_Controller::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('pendaftaran');
 
-
 // API master data
 Route::prefix('api/master')->group(function () {
     Route::get('/pasien', [Pendaftaran_Controller::class, 'getPasienList']);
@@ -379,6 +387,22 @@ Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'a
 Route::middleware(['auth', 'verified'])->prefix('pembelian')->as('pembelian.')->group(function () {
     Route::get('/', [Pembelian_Controller::class, 'index'])->name('index');
     Route::post('/add', [Pembelian_Controller::class, 'store'])->name('add');
+});
+
+// Pelayanan routes
+Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->group(function () {
+    Route::get('/so-perawat', [PelayananController::class, 'index'])->name('so-perawat.index');
+});
+
+// API routes for pelayanan
+Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () {
+    Route::get('/', [PelayananController::class, 'index']);
+    Route::get('/hadir/{norawat}', [PelayananController::class, 'hadirPasien']);
+    Route::post('/dokter/update', [PelayananController::class, 'updateDokter']);
+});
+
+Route::middleware(['auth'])->prefix('api')->group(function () {
+    Route::get('/get-dokter-by-poli/{poliId}', [PelayananController::class, 'getDokterByPoli']);
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

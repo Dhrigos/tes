@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Log;
 use App\Models\Module\Master\Data\Gudang\Daftar_Obat;
 use App\Models\Module\Master\Data\Gudang\Satuan_Obat;
 use App\Models\Module\Master\Data\Gudang\Kategori_Obat;
@@ -14,14 +15,33 @@ use App\Models\Module\Master\Data\Gudang\Kategori_Obat;
 class Daftar_Obat_Controller extends Controller
 {
     public function index()
-    {        
+    {
         $daftarObat = Daftar_Obat::latest()->get();
-        $satuanObats = Satuan_Obat::orderBy('nama')->get(['id','nama']);
-        $kategoriObats = Kategori_Obat::orderBy('nama')->get(['id','nama']);
+        $satuanObats = Satuan_Obat::orderBy('nama')->get(['id', 'nama']);
+        $kategoriObats = Kategori_Obat::orderBy('nama')->get(['id', 'nama']);
         return Inertia::render('module/master/gudang/daftar-obat/index', [
             'daftarObat' => $daftarObat,
             'satuanObats' => $satuanObats,
             'kategoriObats' => $kategoriObats,
+        ]);
+    }
+
+    // JSON list for frontend selects
+    public function list()
+    {
+        $items = Daftar_Obat::orderBy('nama')->get([
+            'id',
+            'kode',
+            'nama',
+            'nama_dagang',
+            'satuan_kecil',
+            'nilai_satuan_kecil',
+            'satuan_besar',
+            'nilai_satuan_besar',
+        ]);
+        return response()->json([
+            'success' => true,
+            'data' => $items,
         ]);
     }
 
@@ -144,19 +164,20 @@ class Daftar_Obat_Controller extends Controller
             $identity = $data['kode'] ?? ($data['id'] ?? '');
             $timestamp = $data['updated_at'] ?? ($data['created_at'] ?? '');
             $dedupKey = sprintf('sync:barang:http:%s:%s:%s', $event, $identity, $timestamp);
-            $set = Redis::set($dedupKey, '1', 'NX', 'EX', 120);
-            if ($set !== true) {
+            $isNew = Redis::setnx($dedupKey, '1');
+            if (!$isNew) {
                 continue;
             }
+            Redis::expire($dedupKey, 120);
 
             if ($event === 'delete') {
-                if (!empty($data['id'])) {
-                    Daftar_Obat::where('id', $data['id'])->delete();
+                if (!empty($data['kode'])) {
+                    Daftar_Obat::where('kode', $data['kode'])->delete();
                     $applied++;
                     continue;
                 }
-                if (!empty($data['kode'])) {
-                    Daftar_Obat::where('kode', $data['kode'])->delete();
+                if (!empty($data['id'])) {
+                    Daftar_Obat::where('id', $data['id'])->delete();
                     $applied++;
                     continue;
                 }
@@ -164,10 +185,10 @@ class Daftar_Obat_Controller extends Controller
             }
 
             $lookup = [];
-            if (!empty($data['id'])) {
-                $lookup['id'] = $data['id'];
-            } elseif (!empty($data['kode'])) {
+            if (!empty($data['kode'])) {
                 $lookup['kode'] = $data['kode'];
+            } elseif (!empty($data['id'])) {
+                $lookup['id'] = $data['id'];
             }
             if (empty($lookup)) {
                 continue;
@@ -194,6 +215,21 @@ class Daftar_Obat_Controller extends Controller
                 'merek',
                 'bentuk_obat',
             ])->toArray();
+
+            // Validasi foreign key kategori agar tidak melanggar constraint
+            if (array_key_exists('gudang_kategori', $write)) {
+                $kategoriId = $write['gudang_kategori'];
+                if ($kategoriId === '' || $kategoriId === null) {
+                    $write['gudang_kategori'] = null;
+                } else {
+                    $kategoriId = is_numeric($kategoriId) ? (int) $kategoriId : $kategoriId;
+                    if (!\App\Models\Module\Master\Data\Gudang\Kategori_Obat::where('id', $kategoriId)->exists()) {
+                        $write['gudang_kategori'] = null;
+                    } else {
+                        $write['gudang_kategori'] = $kategoriId;
+                    }
+                }
+            }
 
             Daftar_Obat::updateOrCreate($lookup, $write);
             $applied++;
@@ -244,15 +280,25 @@ class Daftar_Obat_Controller extends Controller
             $identity = $payload['data']['kode'] ?: ($payload['data']['id'] ?? '');
             $timestamp = $payload['data']['updated_at'] ?? $payload['data']['created_at'] ?? now()->toISOString();
             $dedupKey = sprintf('sync:barang:pub:http:%s:%s:%s', $event, $identity, $timestamp);
-            $set = Redis::set($dedupKey, '1', 'NX', 'EX', 60);
-            if ($set !== true) {
+            $isNew = Redis::setnx($dedupKey, '1');
+            if (!$isNew) {
                 return;
             }
+            Redis::expire($dedupKey, 60);
 
             // Gunakan RPUSH agar bersama LPOP di sisi konsumer menjadi FIFO
             Redis::rpush($queueKey, json_encode($payload));
         } catch (\Throwable $e) {
-            // Diabaikan agar tidak mengganggu alur CRUD bila Redis bermasalah
+            try {
+                Log::warning('Sync push Redis gagal', [
+                    'error' => $e->getMessage(),
+                    'queue' => $queueKey,
+                    'event' => $event,
+                    'kode' => $obat->kode,
+                ]);
+            } catch (\Throwable $logError) {
+                error_log('Sync push Redis gagal: ' . $e->getMessage());
+            }
         }
     }
 }

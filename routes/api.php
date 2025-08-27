@@ -1,18 +1,26 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Module\Pasien\PasienController;
+use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Inventaris_Controller;
+
+// Pasien sync endpoint: keep only the HTTP apply endpoint (pub/sub based)
+Route::post('/sync/pasien/upsert', [PasienController::class, 'syncApply'])->middleware('sync.token');
+
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Satu_Sehat_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
 use App\Http\Controllers\Module\Master\Data\Umum\Penjamin_Controller;
-use App\Http\Controllers\Module\Pasien\PasienController;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
 use App\Http\Controllers\Module\SDM\Dokter_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use App\Http\Controllers\Settings\Web_Setting_Controller;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
+
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
 Route::get('/get_alergi/{kode}', [Pcare_Controller::class, 'get_alergi']);
@@ -29,9 +37,10 @@ Route::get('/get_kfa_obat/{type}/{nama}', [Satu_Sehat_Controller::class, 'get_kf
 
 
 // API untuk Setting Harga Jual (tanpa CSRF, sementara tanpa auth untuk test)
-Route::get('/setting-harga-jual/get-settings', [\App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller::class, 'getSettings']);
-Route::post('/setting-harga-jual', [\App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller::class, 'store']);
-Route::post('/setting-harga-jual-utama', [\App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller::class, 'storeUtama']);
+Route::get('/setting-harga-jual/get-settings', [Setting_Harga_Jual_Controller::class, 'getSettings']);
+Route::post('/setting-harga-jual', [Setting_Harga_Jual_Controller::class, 'store']);
+Route::post('/setting-harga-jual-utama', [Setting_Harga_Jual_Controller::class, 'storeUtama']);
+Route::post('/setting-harga-jual/sync-from-utama', [Setting_Harga_Jual_Controller::class, 'syncFromUtama']);
 
 
 Route::get('/pendaftaran/master-data', [Pendaftaran_Controller::class, 'getMasterData']);
@@ -46,6 +55,10 @@ Route::prefix('api/master')->group(function () {
 Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
 Route::post('/pembelian/store', [Pembelian_Controller::class, 'store']);
 Route::post('/pembelian/generate-inventaris', [Pembelian_Controller::class, 'generatePembelianInventaris']);
+
+Route::post('/generate-kode-inventaris', [Daftar_Inventaris_Controller::class, 'generateKodeInventaris']);
+Route::get('/inventaris/list', [Daftar_Inventaris_Controller::class, 'list']);
+Route::get('/obat/list', [Daftar_Obat_Controller::class, 'list']);
 
 // Test route
 Route::get('/test-setting', function () {

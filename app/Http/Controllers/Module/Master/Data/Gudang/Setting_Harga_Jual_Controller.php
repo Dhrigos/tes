@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama;
+use Illuminate\Support\Facades\DB;
 
 class Setting_Harga_Jual_Controller extends Controller
 {
@@ -33,6 +34,48 @@ class Setting_Harga_Jual_Controller extends Controller
         }
     }
 
+    // Method untuk sinkronisasi manual - hanya sync harga jual, tidak embalase
+    public function syncFromUtama()
+    {
+        try {
+            $settingUtama = Setting_Harga_Jual_Utama::first();
+
+            if (!$settingUtama) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Setting Harga Jual Utama belum ada. Silakan atur terlebih dahulu di Gudang Utama.'
+                ], 404);
+            }
+
+            // Ambil embalase_poin yang sudah ada, jangan overwrite
+            $currentKlinik = Setting_Harga_Jual::first();
+            $currentEmbalase = $currentKlinik ? $currentKlinik->embalase_poin : '0';
+
+
+            // Update harga jual klinik dengan data dari utama
+            $result = Setting_Harga_Jual::updateOrCreate(
+                [
+                    'harga_jual_1' => $settingUtama->harga_jual_1,
+                    'harga_jual_2' => $settingUtama->harga_jual_2,
+                    'harga_jual_3' => $settingUtama->harga_jual_3,
+                    'embalase_poin' => $currentEmbalase, // Tetap gunakan embalase yang sudah ada
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data harga jual berhasil disinkronkan dari Gudang Utama',
+                'settingHargaJual' => $result,
+                'settingHargaJualUtama' => $settingUtama,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal melakukan sinkronisasi: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         try {
@@ -45,7 +88,6 @@ class Setting_Harga_Jual_Controller extends Controller
 
             // Update atau create - hanya boleh ada 1 record setting per klinik
             Setting_Harga_Jual::updateOrCreate(
-                ['id' => 1], // Selalu gunakan ID 1 untuk setting klinik
                 [
                     'harga_jual_1' => $request->harga_jual_1,
                     'harga_jual_2' => $request->harga_jual_2,
@@ -77,46 +119,29 @@ class Setting_Harga_Jual_Controller extends Controller
 
 
 
-            // Update atau create - hanya boleh ada 1 record setting utama
-            $resultUtama = Setting_Harga_Jual_Utama::updateOrCreate(
-                ['id' => 1], // Selalu gunakan ID 1 untuk setting utama
-                [
-                    'nama_template' => 'Setting Utama',
-                    'harga_jual_1' => $request->harga_jual_1,
-                    'harga_jual_2' => $request->harga_jual_2,
-                    'harga_jual_3' => $request->harga_jual_3,
-                    'embalase_poin' => '0',
-                    'deskripsi' => 'Setting harga jual dari gudang utama',
-                    'is_active' => true,
-                ]
-            );
+            // Update atau create untuk tabel tanpa kolom id menggunakan Query Builder
+            $count = DB::table('harga_jual_utamas')->count();
 
+            $data = [
+                'harga_jual_1' => $request->harga_jual_1,
+                'harga_jual_2' => $request->harga_jual_2,
+                'harga_jual_3' => $request->harga_jual_3,
+                'updated_at' => now(),
+            ];
 
+            if ($count > 0) {
+                DB::table('harga_jual_utamas')->update($data);
+            } else {
+                $data['created_at'] = now();
+                DB::table('harga_jual_utamas')->insert($data);
+            }
 
-            // SYNC: Update Setting Harga Jual (per klinik) dengan harga dari utama
-            // Ambil embalase_poin yang sudah ada, jangan overwrite
-            $currentKlinik = Setting_Harga_Jual::first();
-            $currentEmbalase = $currentKlinik ? $currentKlinik->embalase_poin : '0';
-
-            $resultKlinik = Setting_Harga_Jual::updateOrCreate(
-                ['id' => 1], // Selalu gunakan ID 1 untuk setting klinik
-                [
-                    'harga_jual_1' => $request->harga_jual_1, // Sync dari utama
-                    'harga_jual_2' => $request->harga_jual_2, // Sync dari utama
-                    'harga_jual_3' => $request->harga_jual_3, // Sync dari utama
-                    'embalase_poin' => $currentEmbalase, // Tetap gunakan nilai yang sudah ada
-                ]
-            );
-
-
+            $resultUtama = DB::table('harga_jual_utamas')->first();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Setting Harga Jual Utama berhasil disimpan dan disinkronkan',
-                'data' => [
-                    'utama' => $resultUtama,
-                    'klinik' => $resultKlinik
-                ]
+                'message' => 'Setting Harga Jual Utama berhasil disimpan',
+                'data' => $resultUtama
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
 

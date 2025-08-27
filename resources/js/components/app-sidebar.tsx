@@ -45,11 +45,11 @@ const mainNavItems = [
         children: [
             {
                 title: 'Dokter',
-                href: '/datamaster/umum/agama',
+                href: '/pelayanan/dokter',
             },
             {
                 title: 'Perawat',
-                href: '/datamaster/umum/asuransi',
+                href: '/pelayanan/so-perawat',
             },
         ],
     },
@@ -131,6 +131,7 @@ const mainNavItems = [
                     { title: 'Satuan Inventaris', href: '/datamaster/gudang/satuan-inventaris' },
                     { title: 'Kategori Inventaris', href: '/datamaster/gudang/kategori-inventaris' },
                     { title: 'Daftar Obat', href: '/datamaster/gudang/daftar-obat' },
+                    { title: 'Daftar Inventaris', href: '/datamaster/gudang/daftar-inventaris' },
                 ],
             },
         ],

@@ -10,6 +10,7 @@ use App\Models\Module\Pembelian\PembelianInventarisDetail;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class Pembelian_Controller extends Controller
@@ -90,63 +91,68 @@ class Pembelian_Controller extends Controller
                 ], 422);
             }
 
-            // Simpan data pembelian utama
-            $pembelian = Pembelian::create([
-                'jenis_pembelian' => $request->jenis_pembelian,
-                'nomor_faktur' => $request->nomor_faktur,
-                'supplier' => $request->supplier,
-                'no_po_sp' => $request->no_po_sp,
-                'no_faktur_supplier' => $request->no_faktur_supplier,
-                'tanggal_terima_barang' => $request->tanggal_terima_barang,
-                'tanggal_faktur' => $request->tanggal_faktur,
-                'tanggal_jatuh_tempo' => $request->tanggal_jatuh_tempo,
-                'pajak_ppn' => $request->pajak_ppn ?: '0',
-                'metode_hna' => $request->metode_hna,
-                'sub_total' => $request->sub_total ?: '0',
-                'total_diskon' => $request->total_diskon ?: '0',
-                'ppn_total' => $request->ppn_total ?: '0',
-                'total' => $request->total,
-                'materai' => $request->materai ?: '0',
-                'koreksi' => $request->koreksi ?: '0',
-                'penerima_barang' => $request->penerima_barang,
-                'tgl_pembelian' => $request->tgl_pembelian ?: now()->format('Y-m-d'),
-            ]);
+            // Simpan data secara atomik agar master dan detail konsisten
+            $pembelian = DB::transaction(function () use ($request) {
+                $header = Pembelian::create([
+                    'jenis_pembelian' => $request->jenis_pembelian,
+                    'nomor_faktur' => $request->nomor_faktur,
+                    'supplier' => $request->supplier,
+                    'no_po_sp' => $request->no_po_sp,
+                    'no_faktur_supplier' => $request->no_faktur_supplier,
+                    'tanggal_terima_barang' => $request->tanggal_terima_barang,
+                    'tanggal_faktur' => $request->tanggal_faktur,
+                    'tanggal_jatuh_tempo' => $request->tanggal_jatuh_tempo,
+                    'pajak_ppn' => $request->pajak_ppn ?: '0',
+                    'metode_hna' => $request->metode_hna,
+                    'sub_total' => $request->sub_total ?: '0',
+                    'total_diskon' => $request->total_diskon ?: '0',
+                    'ppn_total' => $request->ppn_total ?: '0',
+                    'total' => $request->total,
+                    'materai' => $request->materai ?: '0',
+                    'koreksi' => $request->koreksi ?: '0',
+                    'penerima_barang' => $request->penerima_barang,
+                    'tgl_pembelian' => $request->tgl_pembelian ?: now()->format('Y-m-d'),
+                ]);
 
-            // Simpan detail pembelian berdasarkan jenis
-            foreach ($request->details as $detail) {
-                if ($request->jenis_pembelian === 'inventaris') {
-                    // Untuk inventaris, gunakan PembelianInventarisDetail dengan struktur yang berbeda
-                    PembelianInventarisDetail::create([
-                        'kode' => $request->nomor_faktur, // Menggunakan nomor faktur sebagai kode
-                        'kode_barang' => $detail['kode_obat_alkes'],
-                        'nama_barang' => $detail['nama_obat_alkes'],
-                        'kategori_barang' => 'Inventaris', // Default kategori
-                        'jenis_barang' => 'Medical Equipment', // Default jenis
-                        'qty_barang' => $detail['qty'],
-                        'harga_barang' => $detail['harga_satuan'],
-                        'lokasi' => 'Gudang', // Default lokasi
-                        'kondisi' => 'Baik', // Default kondisi
-                        'masa_akhir_penggunaan' => $detail['exp'],
-                        'tanggal_pembelian' => $request->tgl_pembelian,
-                        'detail_barang' => 'Batch: ' . ($detail['batch'] ?: '-'),
-                        'user_input_id' => Auth::id() ?? 1,
-                        'user_input_name' => Auth::user()->name ?? 'System',
-                    ]);
-                } else {
-                    // Untuk obat, gunakan PembelianObatDetail
-                    PembelianObatDetail::create([
-                        'nomor_faktur' => $request->nomor_faktur,
-                        'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                        'kode_obat_alkes' => $detail['kode_obat_alkes'],
-                        'qty' => $detail['qty'],
-                        'harga_satuan' => $detail['harga_satuan'],
-                        'diskon' => $detail['diskon'] ?: '0',
-                        'exp' => $detail['exp'],
-                        'batch' => $detail['batch'],
-                        'sub_total' => $detail['sub_total'],
-                    ]);
+                $details = $request->input('details', []);
+                foreach ($details as $detail) {
+                    // Lewati entri kosong jika ada
+                    if (!(isset($detail['nama_obat_alkes'], $detail['kode_obat_alkes'], $detail['qty'], $detail['harga_satuan'], $detail['sub_total']))) {
+                        continue;
+                    }
+
+                    if ($request->jenis_pembelian === 'inventaris') {
+                        PembelianInventarisDetail::create([
+                            'kode' => $request->nomor_faktur,
+                            'kode_barang' => $detail['kode_obat_alkes'],
+                            'nama_barang' => $detail['nama_obat_alkes'],
+                            'kategori_barang' => 'Inventaris',
+                            'jenis_barang' => 'Medical Equipment',
+                            'qty_barang' => $detail['qty'],
+                            'harga_barang' => $detail['harga_satuan'],
+                            'lokasi' => $detail['lokasi'] ?? 'Gudang',
+                            'kondisi' => $detail['kondisi'] ?? 'Baik',
+                            'masa_akhir_penggunaan' => $detail['exp'] ?? null,
+                            'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
+                            'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
+                        ]);
+                    } else {
+                        PembelianObatDetail::create([
+                            'nomor_faktur' => $request->nomor_faktur,
+                            'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                            'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                            'qty' => $detail['qty'],
+                            'harga_satuan' => $detail['harga_satuan'],
+                            'diskon' => $detail['diskon'] ?? '0',
+                            'exp' => $detail['exp'] ?? null,
+                            'batch' => $detail['batch'] ?? null,
+                            'sub_total' => $detail['sub_total'],
+                        ]);
+                    }
                 }
-            }
+
+                return $header;
+            });
 
             return response()->json([
                 'success' => true,

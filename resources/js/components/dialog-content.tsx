@@ -23,7 +23,7 @@ const data = {
         { name: 'Config Satu Sehat', icon: Stethoscope },
         { name: 'Config BPJS', icon: Building2 },
         { name: 'Config Fitur Gudang', icon: Database },
-        { name: 'Harga Jual', icon: DollarSign },
+        { name: 'Setting Harga Jual', icon: DollarSign },
         { name: 'Payment', icon: CreditCard },
         { name: 'Advanced', icon: Settings },
     ],
@@ -34,7 +34,7 @@ const pageComponents: Record<string, React.ReactNode> = {
     'Config Satu Sehat': <ConfigSatuSehat />,
     'Config BPJS': <ConfigBPJS />,
     'Config Fitur Gudang': <ConfigGudang />,
-    'Harga Jual': <HargaJual />,
+    'Setting Harga Jual': <HargaJual />,
     Payment: <Payment />,
     Advanced: <Advanced />,
 };
@@ -45,8 +45,10 @@ export function SettingsDialog() {
 
     return (
         <DialogContent className="overflow-hidden p-0 md:max-h-[600px] md:max-w-[850px] lg:max-w-[950px]">
-            <DialogTitle className="sr-only">Settings</DialogTitle>
-            <DialogDescription className="sr-only">Customize your settings here.</DialogDescription>
+            <DialogTitle className="sr-only">Web Settings Configuration</DialogTitle>
+            <DialogDescription className="sr-only">
+                Configure your web application settings including BPJS, Satu Sehat, warehouse management, and pricing.
+            </DialogDescription>
 
             <SidebarProvider className="items-start">
                 {/* Sidebar */}

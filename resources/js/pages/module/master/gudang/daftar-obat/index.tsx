@@ -16,6 +16,7 @@ import { toast } from 'sonner'; // ✅ pakai sonner
 interface DaftarObat {
     id: number;
     nama: string;
+    kode?: string;
     kfa_kode?: string;
     jenis_formularium?: string;
     nama_dagang?: string;
@@ -121,6 +122,7 @@ export default function Index() {
                 `/datamaster/gudang/daftar-obat/${editId}`,
                 {
                     nama,
+                    kode: kfaKode,
                     kfa_kode: kfaKode,
                     jenis_formularium: jenisFormularium,
                     nama_dagang: namaDagang,
@@ -155,6 +157,7 @@ export default function Index() {
                 '/datamaster/gudang/daftar-obat',
                 {
                     nama,
+                    kode: kfaKode,
                     kfa_kode: kfaKode,
                     jenis_formularium: jenisFormularium,
                     nama_dagang: namaDagang,

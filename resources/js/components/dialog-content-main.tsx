@@ -2,12 +2,12 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 
 // ----------------- Config Satu Sehat -----------------
 function ConfigSatuSehat() {
@@ -319,7 +319,7 @@ function ConfigGudang() {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    setEnabled(data.data.setting?.is_gudangutama_active ?? true);
+                    setEnabled(Boolean(data.data.setting?.is_gudangutama_active ?? true));
                     setExternalDatabases(data.data.external_databases || []);
                 }
             }
@@ -401,27 +401,31 @@ function ConfigGudang() {
         <div className="space-y-4 p-4">
             <div className="flex items-center justify-between">
                 <span className="font-medium">Aktifkan Fitur Gudang</span>
+                {/* Toggle harus selalu tampil, tidak tergantung enabled */}
                 <Switch checked={enabled} onCheckedChange={handleToggleChange} disabled={loading} />
             </div>
 
-            {enabled && externalDatabases.length > 0 && (
-                <div className="space-y-2">
-                    <h4 className="font-medium">Pilih Gudang Utama:</h4>
+            {enabled ? (
+                Boolean(externalDatabases?.length) ? (
                     <div className="space-y-2">
-                        {externalDatabases.map((db) => (
-                            <div key={db.id} className="flex items-center justify-between rounded border p-2">
-                                <span>
-                                    {db.name} ({db.database})
-                                </span>
-                                <Button size="sm" variant={db.active ? 'default' : 'outline'} onClick={() => handleSetActiveGudang(db.database)}>
-                                    {db.active ? 'Aktif' : 'Pilih'}
-                                </Button>
-                            </div>
-                        ))}
+                        <h4 className="font-medium">Pilih Gudang Utama:</h4>
+                        <div className="space-y-2">
+                            {externalDatabases.map((db) => (
+                                <div key={db.id} className="flex items-center justify-between rounded border p-2">
+                                    <span>{db.name}</span>
+                                    <Button size="sm" variant={db.active ? 'default' : 'outline'} onClick={() => handleSetActiveGudang(db.database)}>
+                                        {db.active ? 'Aktif' : 'Pilih'}
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="text-sm text-muted-foreground">Belum ada data gudang eksternal.</div>
+                )
+            ) : null}
 
+            {/* Tombol konfirmasi nonaktifkan tetap tampil jika enabled true, tapi disabled */}
             {!enabled && (
                 <Button variant="destructive" onClick={handleConfirmDisable}>
                     Konfirmasi Nonaktifkan
@@ -433,6 +437,14 @@ function ConfigGudang() {
 
 // ----------------- Harga Jual -----------------
 function HargaJual() {
+    // Helper function untuk clear nilai "0"
+    const clearZeroValue = (value: any) => {
+        if (!value || value === '0' || value === 0 || value === '00' || value === '') {
+            return '';
+        }
+        return value;
+    };
+
     // State untuk Setting Harga Jual Utama (Gudang Utama)
     const [hargaJualUtama1, setHargaJualUtama1] = useState('');
     const [hargaJualUtama2, setHargaJualUtama2] = useState('');
@@ -444,13 +456,84 @@ function HargaJual() {
     const [hargaJual3, setHargaJual3] = useState('');
     const [embalasePoin, setEmbalasePoin] = useState('');
 
+    // State untuk status gudang utama
+    const [isGudangUtama, setIsGudangUtama] = useState(false);
+    const [loading, setLoading] = useState(false);
+
     // Load data dari backend
     useEffect(() => {
+        fetchWebSettings();
         fetchAndUpdateSettings();
     }, []);
 
+    // Clear harga jual ketika status gudang utama berubah
+    useEffect(() => {
+        if (!isGudangUtama) {
+            // Clear semua state secara immediate
+            setHargaJualUtama1('');
+            setHargaJualUtama2('');
+            setHargaJualUtama3('');
+            setHargaJual1('');
+            setHargaJual2('');
+            setHargaJual3('');
+            setEmbalasePoin('');
+        }
+    }, [isGudangUtama]);
+
+    // Prevent rendering sampai state benar-benar clear
+    const shouldRenderHargaJual = isGudangUtama || hargaJual1 || hargaJual2 || hargaJual3;
+
+    const fetchWebSettings = async () => {
+        try {
+            const response = await fetch('/api/web-settings/show', {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    const newGudangStatus = Boolean(data.data.setting?.is_gudangutama_active ?? false);
+
+                    // Jika status gudang utama berubah
+                    if (newGudangStatus !== isGudangUtama) {
+                        setIsGudangUtama(newGudangStatus);
+
+                        // Jika gudang utama dinonaktifkan, clear semua harga jual dan embalase
+                        if (!newGudangStatus) {
+                            setHargaJualUtama1('');
+                            setHargaJualUtama2('');
+                            setHargaJualUtama3('');
+                            setHargaJual1('');
+                            setHargaJual2('');
+                            setHargaJual3('');
+                            setEmbalasePoin('');
+                        }
+
+                        // Refresh data setelah status berubah
+                        fetchAndUpdateSettings();
+                    } else {
+                        setIsGudangUtama(newGudangStatus);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching web settings:', error);
+        }
+    };
+
     const fetchAndUpdateSettings = async () => {
         try {
+            // Clear state terlebih dahulu untuk mencegah nilai lama tertampil
+            if (!isGudangUtama) {
+                setHargaJual1('');
+                setHargaJual2('');
+                setHargaJual3('');
+                setEmbalasePoin('');
+            }
+
             const response = await fetch('/api/setting-harga-jual/get-settings', {
                 headers: {
                     Accept: 'application/json',
@@ -465,17 +548,26 @@ function HargaJual() {
             const data = await response.json();
             const { settingHargaJual, settingHargaJualUtama } = data;
 
+            // Debug: log data yang diterima
+            // console.debug('Data from backend:', { settingHargaJual, settingHargaJualUtama });
+
             if (settingHargaJualUtama) {
-                setHargaJualUtama1(settingHargaJualUtama.harga_jual_1 || '');
-                setHargaJualUtama2(settingHargaJualUtama.harga_jual_2 || '');
-                setHargaJualUtama3(settingHargaJualUtama.harga_jual_3 || '');
+                setHargaJualUtama1(clearZeroValue(settingHargaJualUtama.harga_jual_1));
+                setHargaJualUtama2(clearZeroValue(settingHargaJualUtama.harga_jual_2));
+                setHargaJualUtama3(clearZeroValue(settingHargaJualUtama.harga_jual_3));
             }
 
-            if (settingHargaJual) {
-                setHargaJual1(settingHargaJual.harga_jual_1 || '');
-                setHargaJual2(settingHargaJual.harga_jual_2 || '');
-                setHargaJual3(settingHargaJual.harga_jual_3 || '');
-                setEmbalasePoin(settingHargaJual.embalase_poin || '');
+            if (settingHargaJual && (settingHargaJual.harga_jual_1 || settingHargaJual.harga_jual_2 || settingHargaJual.harga_jual_3)) {
+                setHargaJual1(clearZeroValue(settingHargaJual.harga_jual_1));
+                setHargaJual2(clearZeroValue(settingHargaJual.harga_jual_2));
+                setHargaJual3(clearZeroValue(settingHargaJual.harga_jual_3));
+                setEmbalasePoin(clearZeroValue(settingHargaJual.embalase_poin));
+            } else {
+                // Jika tidak ada data harga jual yang valid, clear state
+                setHargaJual1('');
+                setHargaJual2('');
+                setHargaJual3('');
+                setEmbalasePoin('');
             }
 
             return true;
@@ -485,16 +577,53 @@ function HargaJual() {
     };
 
     const handleManualSync = async () => {
-        const success = await fetchAndUpdateSettings();
-        if (success) {
-            toast.success('Data berhasil disinkronkan');
-        } else {
-            toast.error('Gagal melakukan sinkronisasi');
+        try {
+            const response = await fetch('/api/setting-harga-jual/sync-from-utama', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Update state dengan data yang baru disinkronkan
+                const { settingHargaJual, settingHargaJualUtama } = data;
+
+                if (settingHargaJualUtama) {
+                    setHargaJualUtama1(clearZeroValue(settingHargaJualUtama.harga_jual_1));
+                    setHargaJualUtama2(clearZeroValue(settingHargaJualUtama.harga_jual_2));
+                    setHargaJualUtama3(clearZeroValue(settingHargaJualUtama.harga_jual_3));
+                }
+
+                if (settingHargaJual && (settingHargaJual.harga_jual_1 || settingHargaJual.harga_jual_2 || settingHargaJual.harga_jual_3)) {
+                    setHargaJual1(clearZeroValue(settingHargaJual.harga_jual_1));
+                    setHargaJual2(clearZeroValue(settingHargaJual.harga_jual_2));
+                    setHargaJual3(clearZeroValue(settingHargaJual.harga_jual_3));
+                    // Embalase tidak diubah saat sinkronisasi
+                    setEmbalasePoin(clearZeroValue(settingHargaJual.embalase_poin) || embalasePoin);
+                } else {
+                    // Jika tidak ada data harga jual yang valid, clear state
+                    setHargaJual1('');
+                    setHargaJual2('');
+                    setHargaJual3('');
+                }
+
+                toast.success(data.message || 'Data berhasil disinkronkan dari Gudang Utama');
+            } else {
+                toast.error(data.message || 'Gagal melakukan sinkronisasi');
+            }
+        } catch (error) {
+            toast.error('Terjadi kesalahan saat melakukan sinkronisasi');
         }
     };
 
     const handleSubmitUtama = async (e: React.FormEvent) => {
         e.preventDefault();
+        setLoading(true);
 
         try {
             const response = await fetch('/api/setting-harga-jual-utama', {
@@ -518,6 +647,8 @@ function HargaJual() {
             toast.success('Setting Harga Jual Utama berhasil disimpan');
         } catch (error) {
             toast.error('Gagal menyimpan Setting Harga Jual Utama');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -552,95 +683,218 @@ function HargaJual() {
 
     return (
         <div className="space-y-6 p-4">
-            {/* Setting Harga Jual Utama */}
-            <Card>
-                <CardContent className="p-4">
-                    <h3 className="mb-4 text-lg font-semibold">Setting Harga Jual Utama</h3>
-                    <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">Pengaturan harga dari Gudang Utama</p>
-
-                    <form onSubmit={handleSubmitUtama} className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Harga Jual 1 (BPJS)</label>
-                                <Input placeholder="0" value={hargaJualUtama1} onChange={(e) => setHargaJualUtama1(e.target.value)} type="number" />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Harga Jual 2 (Asuransi)</label>
-                                <Input placeholder="0" value={hargaJualUtama2} onChange={(e) => setHargaJualUtama2(e.target.value)} type="number" />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Harga Jual 3 (Umum)</label>
-                                <Input placeholder="0" value={hargaJualUtama3} onChange={(e) => setHargaJualUtama3(e.target.value)} type="number" />
-                            </div>
+            {/* Status Gudang Utama */}
+            {Boolean(isGudangUtama) && (
+                <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+                    <div className="flex items-center">
+                        <svg className="mr-3 h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <h4 className="text-sm font-medium text-green-800 dark:text-green-200">Status: Gudang Utama Aktif</h4>
+                            <p className="mt-1 text-sm text-green-700 dark:text-green-300">
+                                Klinik ini dapat mengatur harga jual utama yang akan disinkronkan ke klinik lain.
+                            </p>
                         </div>
+                    </div>
+                </div>
+            )}
 
-                        <div className="flex justify-end">
-                            <Button type="submit">Simpan Harga Utama</Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+            {/* Setting Harga Jual Utama - Hanya untuk Gudang Utama */}
+            {Boolean(isGudangUtama) && (
+                <Card>
+                    <CardContent className="p-4">
+                        <h3 className="mb-4 text-lg font-semibold">Setting Harga Jual Utama</h3>
+                        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                            Pengaturan persentase markup harga jual dari Gudang Utama. Nilai dalam persen (%) dari harga dasar obat. Embalase diatur
+                            per klinik.
+                        </p>
+
+                        <form onSubmit={handleSubmitUtama} className="space-y-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Harga Jual 1 (BPJS)</label>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="10"
+                                            value={Boolean(isGudangUtama) ? hargaJualUtama1 : ''}
+                                            onChange={(e) => setHargaJualUtama1(e.target.value)}
+                                            type="number"
+                                            disabled={loading || !Boolean(isGudangUtama)}
+                                            min="0"
+                                            max="1000"
+                                            step="0.01"
+                                        />
+                                        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-gray-500">%</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Harga Jual 2 (Asuransi)</label>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="15"
+                                            value={Boolean(isGudangUtama) ? hargaJualUtama2 : ''}
+                                            onChange={(e) => setHargaJualUtama2(e.target.value)}
+                                            type="number"
+                                            disabled={loading || !Boolean(isGudangUtama)}
+                                            min="0"
+                                            max="1000"
+                                            step="0.01"
+                                        />
+                                        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-gray-500">%</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Harga Jual 3 (Umum)</label>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="20"
+                                            value={Boolean(isGudangUtama) ? hargaJualUtama3 : ''}
+                                            onChange={(e) => setHargaJualUtama3(e.target.value)}
+                                            type="number"
+                                            disabled={loading || !Boolean(isGudangUtama)}
+                                            min="0"
+                                            max="1000"
+                                            step="0.01"
+                                        />
+                                        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-gray-500">%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end">
+                                <Button type="submit" disabled={loading}>
+                                    {loading ? 'Menyimpan...' : 'Simpan Harga Utama'}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Setting Harga Jual Per Klinik */}
             <Card>
                 <CardContent className="p-4">
                     <h3 className="mb-4 text-lg font-semibold">Setting Harga Jual</h3>
-                    <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        Harga jual disinkronkan dari Setting Utama. Hanya embalase yang dapat diubah.
-                    </p>
+                    {Boolean(isGudangUtama) ? (
+                        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                            Sebagai Gudang Utama, persentase harga jual sudah diatur di atas. Embalase (biaya tambahan) diatur per klinik di sini.
+                        </p>
+                    ) : (
+                        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                            Persentase harga jual disinkronkan dari Gudang Utama. Lakukan sinkronisasi untuk mendapatkan harga terbaru, dan atur
+                            embalase sesuai kebutuhan klinik.
+                        </p>
+                    )}
+
+                    {!Boolean(isGudangUtama) && !hargaJual1 && !hargaJual2 && !hargaJual3 && (
+                        <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-800 dark:bg-orange-900/20">
+                            <div className="flex items-center">
+                                <svg className="mr-3 h-5 w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z"
+                                    />
+                                </svg>
+                                <div>
+                                    <h4 className="text-sm font-medium text-orange-800 dark:text-orange-200">Belum Ada Data Harga Jual</h4>
+                                    <p className="mt-1 text-sm text-orange-700 dark:text-orange-300">
+                                        Klinik ini bukan Gudang Utama. Silakan lakukan sinkronisasi untuk mendapatkan harga jual dari Gudang Utama.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {!Boolean(isGudangUtama) && (hargaJual1 || hargaJual2 || hargaJual3) && (
+                        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+                            <div className="flex items-center">
+                                <svg className="mr-3 h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                </svg>
+                                <div>
+                                    <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">Data Harga Jual Tersedia</h4>
+                                    <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                                        Harga jual sudah disinkronkan dari Gudang Utama. Anda dapat mengatur embalase sesuai kebutuhan klinik.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmitKlinik} className="space-y-4">
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Harga Jual 1 (BPJS)</label>
-                                    <Input
-                                        placeholder="Disinkronkan dari Setting Utama"
-                                        value={hargaJual1}
-                                        readOnly
-                                        disabled
-                                        type="number"
-                                        className="cursor-not-allowed bg-gray-100 dark:bg-gray-800 dark:text-gray-400"
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Disinkronkan dari Setting Utama"
+                                            value={shouldRenderHargaJual ? hargaJual1 : ''}
+                                            readOnly
+                                            disabled
+                                            type="text"
+                                            className="cursor-not-allowed bg-gray-100 dark:bg-gray-800 dark:text-gray-400"
+                                        />
+                                        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-gray-400">%</span>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Harga Jual 2 (Asuransi)</label>
-                                    <Input
-                                        placeholder="Disinkronkan dari Setting Utama"
-                                        value={hargaJual2}
-                                        readOnly
-                                        disabled
-                                        type="number"
-                                        className="cursor-not-allowed bg-gray-100 dark:bg-gray-800 dark:text-gray-400"
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Disinkronkan dari Setting Utama"
+                                            value={shouldRenderHargaJual ? hargaJual2 : ''}
+                                            readOnly
+                                            disabled
+                                            type="text"
+                                            className="cursor-not-allowed bg-gray-100 dark:bg-gray-800 dark:text-gray-400"
+                                        />
+                                        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-gray-400">%</span>
+                                    </div>
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Harga Jual 3 (Umum)</label>
-                                    <Input
-                                        placeholder="Disinkronkan dari Setting Utama"
-                                        value={hargaJual3}
-                                        readOnly
-                                        disabled
-                                        type="number"
-                                        className="cursor-not-allowed bg-gray-100 dark:bg-gray-800 dark:text-gray-400"
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Disinkronkan dari Setting Utama"
+                                            value={shouldRenderHargaJual ? hargaJual3 : ''}
+                                            readOnly
+                                            disabled
+                                            type="text"
+                                            className="cursor-not-allowed bg-gray-100 dark:bg-gray-800 dark:text-gray-400"
+                                        />
+                                        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-gray-400">%</span>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Embalase (per poin)</label>
-                                    <Input
-                                        placeholder="0"
-                                        value={embalasePoin}
-                                        onChange={(e) => setEmbalasePoin(e.target.value)}
-                                        type="number"
-                                        className="border-blue-300 focus:border-blue-500 dark:border-blue-600 dark:focus:border-blue-400"
-                                    />
+                                    <div className="relative">
+                                        <span className="absolute top-1/2 left-3 -translate-y-1/2 text-sm text-gray-500">Rp</span>
+                                        <Input
+                                            placeholder="1000"
+                                            value={embalasePoin}
+                                            onChange={(e) => setEmbalasePoin(e.target.value)}
+                                            type="number"
+                                            className="border-blue-300 pl-10 focus:border-blue-500 dark:border-blue-600 dark:focus:border-blue-400"
+                                            min="0"
+                                            step="100"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>

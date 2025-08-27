@@ -12,7 +12,9 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { Separator } from '../../../components/ui/separator';
+import { Switch } from '../../../components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { Textarea } from '../../../components/ui/textarea';
 import AppLayout from '../../../layouts/app-layout';
 import type { BreadcrumbItem } from '../../../types';
 
@@ -55,6 +57,11 @@ interface PembelianDetail {
     harga_satuan_besar?: string;
     harga_satuan_kecil?: string;
     diskon_persen?: boolean; // true = persen, false = rupiah
+    // Tambahan untuk inventaris
+    lokasi?: string;
+    kondisi?: 'Baik' | 'Rusak Ringan' | 'Rusak Sedang' | 'Rusak Berat';
+    tanggal_pembelian?: string;
+    deskripsi_barang?: string;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -107,6 +114,42 @@ export default function PembelianIndex() {
     });
 
     const [pembelianDetails, setPembelianDetails] = useState<PembelianDetail[]>([]);
+    const [inventarisOptions, setInventarisOptions] = useState<Array<{ id: number; kode_barang?: string; nama_barang: string }>>([]);
+    const [obatOptions, setObatOptions] = useState<
+        Array<{
+            id: number;
+            kode: string;
+            nama: string;
+            nama_dagang?: string;
+            satuan_kecil?: string;
+            nilai_satuan_kecil?: number;
+            satuan_besar?: string;
+            nilai_satuan_besar?: number;
+        }>
+    >([]);
+
+    const fetchDaftarInventaris = async () => {
+        try {
+            const res = await axios.get('/api/inventaris/list');
+            if (res.data?.success) {
+                setInventarisOptions(res.data.data || []);
+            }
+        } catch (e) {
+            // silently ignore
+        }
+    };
+
+    const fetchDaftarObat = async () => {
+        try {
+            const res = await axios.get('/api/obat/list');
+            if (res.data?.success) {
+                setObatOptions(res.data.data || []);
+                console.log(res.data.data);
+            }
+        } catch (e) {
+            // silently ignore
+        }
+    };
 
     const steps = [
         { number: 1, title: 'Jenis Pembelian', icon: Package },
@@ -173,7 +216,11 @@ export default function PembelianIndex() {
             qty: '0',
             harga_satuan: '0',
             diskon: '0',
-            exp: '',
+            // exp dipakai untuk inventaris sebagai masa akhir penggunaan
+            exp:
+                pembelianData.jenis_pembelian === 'inventaris'
+                    ? new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0]
+                    : '',
             batch: '',
             sub_total: '0',
             nilai_konversi: 1,
@@ -183,13 +230,61 @@ export default function PembelianIndex() {
             harga_satuan_besar: '0',
             harga_satuan_kecil: '0',
             diskon_persen: true,
+            lokasi: 'Gudang',
+            kondisi: 'Baik',
+            tanggal_pembelian: pembelianData.tgl_pembelian,
+            deskripsi_barang: '',
         });
+        if (pembelianData.jenis_pembelian === 'inventaris' && inventarisOptions.length === 0) {
+            fetchDaftarInventaris();
+        }
         setIsModalOpen(true);
     };
 
     const openEditModal = (item: PembelianDetail) => {
         setEditingItem(item);
-        setModalData(item);
+        // Normalize modal data based on kemasan and konversi so editing shows correct values
+        const konversi = item.nilai_konversi || 1;
+        const kemasanBesar = !!item.kemasan_besar;
+
+        let hargaBesar = parseFloat(item.harga_satuan_besar || '0') || 0;
+        let hargaKecil = parseFloat(item.harga_satuan_kecil || '0') || 0;
+        if (!hargaBesar && hargaKecil) {
+            hargaBesar = hargaKecil * konversi;
+        }
+        if (!hargaKecil && hargaBesar) {
+            hargaKecil = hargaBesar / konversi;
+        }
+
+        let nilaiBesar = parseInt(item.nilai_satuan_besar || '0') || 0;
+        let nilaiKecil = parseInt(item.nilai_satuan_kecil || '0') || 0;
+        if (!nilaiBesar && nilaiKecil) {
+            nilaiBesar = Math.round(nilaiKecil / konversi);
+        }
+        if (!nilaiKecil && nilaiBesar) {
+            nilaiKecil = nilaiBesar * konversi;
+        }
+
+        const qtyAktif = kemasanBesar ? nilaiBesar : nilaiKecil;
+        const hargaAktif = kemasanBesar ? hargaBesar : hargaKecil;
+
+        const diskonPersen = item.diskon_persen ?? true;
+        const diskonValue = parseFloat(item.diskon || '0') || 0;
+        const diskonNominal = diskonPersen ? qtyAktif * hargaAktif * (diskonValue / 100) : diskonValue;
+        const subTotal = qtyAktif * hargaAktif - diskonNominal;
+
+        setModalData({
+            ...item,
+            nilai_konversi: konversi,
+            kemasan_besar: kemasanBesar,
+            harga_satuan_besar: hargaBesar.toString(),
+            harga_satuan_kecil: hargaKecil.toString(),
+            nilai_satuan_besar: nilaiBesar.toString(),
+            nilai_satuan_kecil: nilaiKecil.toString(),
+            qty: qtyAktif.toString(),
+            harga_satuan: hargaAktif.toString(),
+            sub_total: subTotal.toString(),
+        });
         setIsModalOpen(true);
     };
 
@@ -204,6 +299,19 @@ export default function PembelianIndex() {
 
             // Apply same calculation logic as before
             if (pembelianData.jenis_pembelian === 'obat') {
+                // Sync harga satuan besar/kecil saat input harga berubah
+                if (field === 'harga_satuan') {
+                    const konversi = prev.nilai_konversi || 1;
+                    const hargaInput = parseFloat(value as string) || 0;
+                    if (prev.kemasan_besar) {
+                        updatedItem.harga_satuan_besar = hargaInput.toString();
+                        updatedItem.harga_satuan_kecil = (hargaInput / konversi).toString();
+                    } else {
+                        updatedItem.harga_satuan_kecil = hargaInput.toString();
+                        updatedItem.harga_satuan_besar = (hargaInput * konversi).toString();
+                    }
+                }
+
                 if (field === 'nilai_satuan_besar') {
                     const nilaiBesar = parseInt(value as string) || 0;
                     const nilaiKonversi = prev.nilai_konversi || 1;
@@ -219,8 +327,24 @@ export default function PembelianIndex() {
                 if (field === 'kemasan_besar') {
                     if (value) {
                         updatedItem.qty = prev.nilai_satuan_besar || '0';
+                        // Saat beralih ke kemasan besar, konversi harga dari kecil->besar bila perlu
+                        const konversi = prev.nilai_konversi || 1;
+                        const hargaBesar = parseFloat(prev.harga_satuan_besar || '0');
+                        const hargaKecil = parseFloat(prev.harga_satuan_kecil || '0');
+                        const hargaTerpakai = hargaBesar || hargaKecil * konversi;
+                        updatedItem.harga_satuan_besar = (hargaTerpakai || 0).toString();
+                        updatedItem.harga_satuan_kecil = (hargaTerpakai / konversi || 0).toString();
+                        updatedItem.harga_satuan = (hargaTerpakai || 0).toString();
                     } else {
                         updatedItem.qty = prev.nilai_satuan_kecil || '0';
+                        // Saat beralih ke kemasan kecil, konversi harga dari besar->kecil bila perlu
+                        const konversi = prev.nilai_konversi || 1;
+                        const hargaBesar = parseFloat(prev.harga_satuan_besar || '0');
+                        const hargaKecil = parseFloat(prev.harga_satuan_kecil || '0');
+                        const hargaTerpakai = hargaKecil || hargaBesar / konversi;
+                        updatedItem.harga_satuan_kecil = (hargaTerpakai || 0).toString();
+                        updatedItem.harga_satuan_besar = (hargaTerpakai * konversi || 0).toString();
+                        updatedItem.harga_satuan = (hargaTerpakai || 0).toString();
                     }
                 }
 
@@ -231,10 +355,44 @@ export default function PembelianIndex() {
                         updatedItem.qty = updatedItem.nilai_satuan_kecil || '0';
                     }
                 }
+
+                // Jika nilai konversi berubah, sinkronkan harga besar/kecil yang saling terkait
+                if (field === 'nilai_konversi') {
+                    const newKonversi = (value as number) || parseFloat(value as string) || 1;
+                    const hargaBesar = parseFloat(updatedItem.harga_satuan_besar || prev.harga_satuan_besar || '0');
+                    const hargaKecil = parseFloat(updatedItem.harga_satuan_kecil || prev.harga_satuan_kecil || '0');
+
+                    if (hargaBesar && !hargaKecil) {
+                        updatedItem.harga_satuan_kecil = (hargaBesar / newKonversi).toString();
+                    } else if (!hargaBesar && hargaKecil) {
+                        updatedItem.harga_satuan_besar = (hargaKecil * newKonversi).toString();
+                    } else if (hargaBesar && hargaKecil) {
+                        // Prioritaskan konsistensi dengan kemasan aktif
+                        if (updatedItem.kemasan_besar) {
+                            updatedItem.harga_satuan_kecil = (hargaBesar / newKonversi).toString();
+                        } else {
+                            updatedItem.harga_satuan_besar = (hargaKecil * newKonversi).toString();
+                        }
+                    }
+
+                    // Set harga_satuan sesuai kemasan aktif
+                    updatedItem.harga_satuan = updatedItem.kemasan_besar
+                        ? updatedItem.harga_satuan_besar || '0'
+                        : updatedItem.harga_satuan_kecil || '0';
+                }
             }
 
             // Calculate sub_total
-            if (field === 'qty' || field === 'harga_satuan' || field === 'diskon' || field === 'kemasan_besar' || field === 'diskon_persen') {
+            if (
+                field === 'qty' ||
+                field === 'harga_satuan' ||
+                field === 'diskon' ||
+                field === 'kemasan_besar' ||
+                field === 'diskon_persen' ||
+                field === 'nilai_satuan_besar' ||
+                field === 'nilai_satuan_kecil' ||
+                field === 'nilai_konversi'
+            ) {
                 const qty = parseFloat(field === 'qty' ? (value as string) : updatedItem.qty) || 0;
                 const harga = parseFloat(field === 'harga_satuan' ? (value as string) : updatedItem.harga_satuan) || 0;
                 let diskon = 0;
@@ -255,12 +413,21 @@ export default function PembelianIndex() {
     };
 
     const saveModalData = () => {
+        // Compute values synchronously to avoid saving stale modal state
+        const current = { ...modalData };
+        const qty = parseFloat(current.qty || '0') || 0;
+        const harga = parseFloat(current.harga_satuan || '0') || 0;
+        const diskonValue = parseFloat(current.diskon || '0') || 0;
+        const diskonNominal = current.diskon_persen ? qty * harga * (diskonValue / 100) : diskonValue;
+        const subtotal = qty * harga - diskonNominal;
+        const itemToSave: PembelianDetail = { ...current, sub_total: subtotal.toString() };
+
         if (editingItem) {
             // Update existing item
-            setPembelianDetails((prev) => prev.map((item) => (item.id === editingItem.id ? modalData : item)));
+            setPembelianDetails((prev) => prev.map((item) => (item.id === editingItem.id ? itemToSave : item)));
         } else {
             // Add new item
-            setPembelianDetails((prev) => [...prev, modalData]);
+            setPembelianDetails((prev) => [...prev, itemToSave]);
         }
         closeModal();
     };
@@ -344,12 +511,35 @@ export default function PembelianIndex() {
 
             // Validasi setiap detail item
             for (const detail of pembelianDetails) {
-                if (!detail.nama_obat_alkes || !detail.kode_obat_alkes || !detail.qty || !detail.harga_satuan) {
-                    toast.error('Semua field item wajib diisi (nama, kode, qty, harga)');
+                console.log('Validating item:', {
+                    nama: detail.nama_obat_alkes,
+                    kode: detail.kode_obat_alkes,
+                    qty: detail.qty,
+                    qty_number: Number(detail.qty),
+                    harga: detail.harga_satuan,
+                    harga_number: Number(detail.harga_satuan),
+                });
+
+                if (
+                    !detail.nama_obat_alkes?.trim() ||
+                    !detail.kode_obat_alkes?.trim() ||
+                    !detail.qty ||
+                    isNaN(Number(detail.qty)) ||
+                    Number(detail.qty) <= 0 ||
+                    !detail.harga_satuan ||
+                    isNaN(Number(detail.harga_satuan)) ||
+                    Number(detail.harga_satuan) <= 0
+                ) {
+                    console.log('Validation failed:', {
+                        nama_empty: !detail.nama_obat_alkes?.trim(),
+                        kode_empty: !detail.kode_obat_alkes?.trim(),
+                        qty_invalid: !detail.qty || isNaN(Number(detail.qty)) || Number(detail.qty) <= 0,
+                        harga_invalid: !detail.harga_satuan || isNaN(Number(detail.harga_satuan)) || Number(detail.harga_satuan) <= 0,
+                    });
+                    toast.error('Semua field item wajib diisi dengan benar (nama dan kode tidak boleh kosong, qty dan harga harus lebih dari 0)');
                     return;
                 }
             }
-
             const formData = {
                 ...pembelianData,
                 details: pembelianDetails.map((detail) => ({
@@ -421,21 +611,19 @@ export default function PembelianIndex() {
                                 return (
                                     <div key={step.number} className="flex items-center">
                                         <div
-                                            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${
-                                                isCompleted
-                                                    ? 'border-green-500 bg-green-500 text-white'
-                                                    : isActive
-                                                      ? 'border-blue-500 bg-blue-500 text-white'
-                                                      : 'border-gray-300 bg-gray-100 text-gray-400'
-                                            }`}
+                                            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${isCompleted
+                                                ? 'border-green-500 bg-green-500 text-white'
+                                                : isActive
+                                                    ? 'border-blue-500 bg-blue-500 text-white'
+                                                    : 'border-gray-300 bg-gray-100 text-gray-400'
+                                                }`}
                                         >
                                             <Icon className="h-5 w-5" />
                                         </div>
                                         <div className="ml-3">
                                             <p
-                                                className={`text-sm font-medium ${
-                                                    isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
-                                                }`}
+                                                className={`text-sm font-medium ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                                                    }`}
                                             >
                                                 Step {step.number}
                                             </p>
@@ -531,12 +719,24 @@ export default function PembelianIndex() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="no_po_sp">No PO/SP</Label>
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="no_po_sp">No PO/SP</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="no_po_sp_konsinyasi"
+                                                    checked={pembelianData.no_po_sp === 'KONSINYASI'}
+                                                    onCheckedChange={(checked) => handleDataAwalChange('no_po_sp', checked ? 'KONSINYASI' : '')}
+                                                    aria-label="Tandai sebagai konsinyasi"
+                                                />
+                                                <span className="text-sm text-muted-foreground">Konsinyasi</span>
+                                            </div>
+                                        </div>
                                         <Input
                                             id="no_po_sp"
                                             value={pembelianData.no_po_sp}
                                             onChange={(e) => handleDataAwalChange('no_po_sp', e.target.value)}
                                             placeholder="Nomor PO/SP"
+                                            disabled={pembelianData.no_po_sp === 'KONSINYASI'}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -606,48 +806,6 @@ export default function PembelianIndex() {
                         {/* Step 3: Detail Pembelian */}
                         {currentStep === 3 && (
                             <div className="space-y-6">
-                                {/* Data Pelengkap */}
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold">Data Pelengkap</h3>
-                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="penerima_barang">Penerima Barang *</Label>
-                                            <Input
-                                                id="penerima_barang"
-                                                value={pembelianData.penerima_barang}
-                                                onChange={(e) => handleDataAwalChange('penerima_barang', e.target.value)}
-                                                placeholder="Nama penerima barang"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="materai">Materai</Label>
-                                            <Select value={pembelianData.materai} onValueChange={(value) => handleDataAwalChange('materai', value)}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Pilih :" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0">0</SelectItem>
-                                                    <SelectItem value="3000">3.000</SelectItem>
-                                                    <SelectItem value="6000">6.000</SelectItem>
-                                                    <SelectItem value="10000">10.000</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="koreksi">Koreksi</Label>
-                                            <Input
-                                                id="koreksi"
-                                                type="number"
-                                                value={pembelianData.koreksi}
-                                                onChange={(e) => handleDataAwalChange('koreksi', e.target.value)}
-                                                placeholder="0"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <Separator />
-
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-lg font-semibold">Detail Item Pembelian</h3>
                                     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -751,42 +909,56 @@ export default function PembelianIndex() {
                                                         <div className="space-y-2">
                                                             <Label>Nama Obat/Alkes</Label>
                                                             <Select
-                                                                value={modalData.nama_obat_alkes}
+                                                                value={modalData.kode_obat_alkes}
+                                                                onOpenChange={(open) => {
+                                                                    if (open && obatOptions.length === 0) fetchDaftarObat();
+                                                                }}
                                                                 onValueChange={(value) => {
-                                                                    updateModalData('nama_obat_alkes', value);
-                                                                    updateModalData('nilai_konversi', 10); // contoh nilai konversi
+                                                                    const item = obatOptions.find((i) => i.kode === value);
+                                                                    updateModalData('kode_obat_alkes', value);
+                                                                    updateModalData('nama_obat_alkes', item?.nama_dagang || item?.nama || '');
+                                                                    // Set konversi dan default nilai/harga sesuai kemasan
+                                                                    const nilaiBesar = Number(item?.nilai_satuan_besar || 0);
+                                                                    const nilaiKecil = Number(item?.nilai_satuan_kecil || 0);
+                                                                    const konversi =
+                                                                        nilaiBesar && nilaiKecil
+                                                                            ? Math.max(1, Math.round(nilaiKecil / nilaiBesar))
+                                                                            : modalData.nilai_konversi || 1;
+                                                                    updateModalData('nilai_konversi', konversi);
+                                                                    // Set default qty sesuai kemasan aktif
+                                                                    if (modalData.kemasan_besar) {
+                                                                        if (nilaiBesar) updateModalData('nilai_satuan_besar', String(nilaiBesar));
+                                                                        if (nilaiKecil) updateModalData('nilai_satuan_kecil', String(nilaiKecil));
+                                                                        updateModalData('qty', String(nilaiBesar || 0));
+                                                                    } else {
+                                                                        if (nilaiKecil) updateModalData('nilai_satuan_kecil', String(nilaiKecil));
+                                                                        if (nilaiBesar) updateModalData('nilai_satuan_besar', String(nilaiBesar));
+                                                                        updateModalData('qty', String(nilaiKecil || 0));
+                                                                    }
                                                                 }}
                                                             >
                                                                 <SelectTrigger>
-                                                                    <SelectValue placeholder="Pilih dari Daftar Obat" />
+                                                                    <SelectValue placeholder="Pilih dari Daftar Obat">
+                                                                        {obatOptions.find(opt => opt.kode === modalData.kode_obat_alkes)?.nama_dagang || obatOptions.find(opt => opt.kode === modalData.kode_obat_alkes)?.nama || ''}
+                                                                    </SelectValue>
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    <SelectItem value="paracetamol">Paracetamol</SelectItem>
-                                                                    <SelectItem value="amoxicillin">Amoxicillin</SelectItem>
-                                                                    <SelectItem value="ibuprofen">Ibuprofen</SelectItem>
+                                                                    {obatOptions.map((opt) => (
+                                                                        <SelectItem key={opt.id} value={opt.kode}>
+                                                                            {opt.nama || opt.nama_dagang}
+                                                                        </SelectItem>
+                                                                    ))}
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
                                                         <div className="space-y-2">
-                                                            <Label>Jenis Kemasan</Label>
-                                                            <div className="flex items-center space-x-6">
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id="kemasan-kecil-modal"
-                                                                        checked={!modalData.kemasan_besar}
-                                                                        onCheckedChange={() => updateModalData('kemasan_besar', false)}
-                                                                    />
-                                                                    <Label htmlFor="kemasan-kecil-modal">Kemasan Kecil</Label>
-                                                                </div>
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id="kemasan-besar-modal"
-                                                                        checked={modalData.kemasan_besar}
-                                                                        onCheckedChange={() => updateModalData('kemasan_besar', true)}
-                                                                    />
-                                                                    <Label htmlFor="kemasan-besar-modal">Kemasan Besar</Label>
-                                                                </div>
-                                                            </div>
+                                                            <Label>Kode Obat/Alkes</Label>
+                                                            <Input
+                                                                type="text"
+                                                                value={modalData.kode_obat_alkes}
+                                                                onChange={(e) => updateModalData('kode_obat_alkes', e.target.value)}
+                                                                placeholder="Masukkan kode obat"
+                                                            />
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Tanggal Expired</Label>
@@ -799,7 +971,18 @@ export default function PembelianIndex() {
                                                     </div>
 
                                                     {/* Baris 2: Satuan dan Harga */}
-                                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                                                        <div className="space-y-2">
+                                                            <Label>Jenis Kemasan</Label>
+                                                            <div className="flex items-center space-x-4 justify-center">
+                                                                <span className={modalData.kemasan_besar ? 'text-gray-500' : 'font-medium'}>Kemasan Kecil</span>
+                                                                <Switch
+                                                                    checked={modalData.kemasan_besar}
+                                                                    onCheckedChange={(checked) => updateModalData('kemasan_besar', checked)}
+                                                                />
+                                                                <span className={modalData.kemasan_besar ? 'font-medium' : 'text-gray-500'}>Kemasan Besar</span>
+                                                            </div>
+                                                        </div>
                                                         <div className="space-y-2">
                                                             <Label>Nilai Satuan ({modalData.kemasan_besar ? 'Besar' : 'Kecil'})</Label>
                                                             <Input
@@ -832,25 +1015,15 @@ export default function PembelianIndex() {
 
                                                     {/* Baris 3: Diskon dan Batch */}
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                                                        <div className="space-y-2">
+                                                        <div className="space-y-2 ">
                                                             <Label>Jenis Diskon</Label>
-                                                            <div className="flex items-center space-x-6">
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id="diskon-persen-modal"
-                                                                        checked={modalData.diskon_persen}
-                                                                        onCheckedChange={() => updateModalData('diskon_persen', true)}
-                                                                    />
-                                                                    <Label htmlFor="diskon-persen-modal">%</Label>
-                                                                </div>
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id="diskon-rupiah-modal"
-                                                                        checked={!modalData.diskon_persen}
-                                                                        onCheckedChange={() => updateModalData('diskon_persen', false)}
-                                                                    />
-                                                                    <Label htmlFor="diskon-rupiah-modal">Rp</Label>
-                                                                </div>
+                                                            <div className="flex items-center space-x-4 justify-center">
+                                                                <span className={modalData.diskon_persen ? 'text-gray-500' : 'font-medium'}>Rupiah (Rp)</span>
+                                                                <Switch
+                                                                    checked={modalData.diskon_persen}
+                                                                    onCheckedChange={(checked) => updateModalData('diskon_persen', checked)}
+                                                                />
+                                                                <span className={modalData.diskon_persen ? 'font-medium' : 'text-gray-500'}>Persen (%)</span>
                                                             </div>
                                                         </div>
                                                         <div className="space-y-2">
@@ -875,8 +1048,13 @@ export default function PembelianIndex() {
                                                     {/* Info readonly */}
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                                         <div className="space-y-2">
-                                                            <Label>Qty Aktual</Label>
-                                                            <Input type="number" value={modalData.qty} readOnly className="bg-gray-50" />
+                                                            <Label>Qty Aktual (Satuan Kecil)</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                value={modalData.nilai_satuan_kecil || '0'} 
+                                                                readOnly 
+                                                                className="bg-gray-50" 
+                                                            />
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Sub Total</Label>
@@ -888,23 +1066,37 @@ export default function PembelianIndex() {
                                                 // Modal UI untuk Inventaris
                                                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                                     <div className="space-y-2">
-                                                        <Label>Nama Alkes</Label>
-                                                        <Input
-                                                            value={modalData.nama_obat_alkes}
-                                                            onChange={(e) => updateModalData('nama_obat_alkes', e.target.value)}
-                                                            placeholder="Nama item"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label>Kode</Label>
-                                                        <Input
+                                                        <Label>Barang Inventaris</Label>
+                                                        <Select
                                                             value={modalData.kode_obat_alkes}
-                                                            onChange={(e) => updateModalData('kode_obat_alkes', e.target.value)}
-                                                            placeholder="Kode item"
-                                                        />
+                                                            onOpenChange={(open) => {
+                                                                if (open && inventarisOptions.length === 0) fetchDaftarInventaris();
+                                                            }}
+                                                            onValueChange={(value) => {
+                                                                console.log('Selected value:', value);
+                                                                console.log('Available options:', inventarisOptions);
+                                                                const item = inventarisOptions.find((i) => (i.kode_barang || String(i.id)) === value);
+                                                                console.log('Found item:', item);
+                                                                // Pastikan value tidak undefined atau null
+                                                                const kodeValue = value || '';
+                                                                updateModalData('kode_obat_alkes', kodeValue);
+                                                                updateModalData('nama_obat_alkes', item?.nama_barang || '');
+                                                            }}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih barang dari Daftar Inventaris" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {inventarisOptions.map((opt) => (
+                                                                    <SelectItem key={opt.id} value={opt.kode_barang || String(opt.id)}>
+                                                                        {(opt.kode_barang ? opt.kode_barang + ' - ' : '') + opt.nama_barang}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Qty</Label>
+                                                        <Label>Qty Pembelian (pcs)</Label>
                                                         <Input
                                                             type="number"
                                                             value={modalData.qty}
@@ -913,7 +1105,7 @@ export default function PembelianIndex() {
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Harga Satuan</Label>
+                                                        <Label>Harga Pembelian (Rp)</Label>
                                                         <Input
                                                             type="number"
                                                             value={modalData.harga_satuan}
@@ -922,28 +1114,62 @@ export default function PembelianIndex() {
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Diskon</Label>
+                                                        <Label>Lokasi Barang</Label>
                                                         <Input
-                                                            type="number"
-                                                            value={modalData.diskon}
-                                                            onChange={(e) => updateModalData('diskon', e.target.value)}
-                                                            placeholder="0"
+                                                            value={modalData.lokasi || ''}
+                                                            onChange={(e) => updateModalData('lokasi', e.target.value)}
+                                                            placeholder="Contoh: Gudang A / Ruang 101"
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Exp</Label>
+                                                        <Label>Kondisi Barang</Label>
+                                                        <Select
+                                                            value={modalData.kondisi || 'Baik'}
+                                                            onValueChange={(value) => updateModalData('kondisi', value as any)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih kondisi" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="Baik">Baik</SelectItem>
+                                                                <SelectItem value="Rusak Ringan">Rusak Ringan</SelectItem>
+                                                                <SelectItem value="Rusak Sedang">Rusak Sedang</SelectItem>
+                                                                <SelectItem value="Rusak Berat">Rusak Berat</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Tanggal Akhir Penggunaan</Label>
                                                         <Input
                                                             type="date"
                                                             value={modalData.exp}
                                                             onChange={(e) => updateModalData('exp', e.target.value)}
                                                         />
+                                                        <p className="text-xs text-muted-foreground">Default 5 tahun dari hari ini</p>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Batch</Label>
+                                                        <Label>Tanggal Pembelian</Label>
                                                         <Input
-                                                            value={modalData.batch}
-                                                            onChange={(e) => updateModalData('batch', e.target.value)}
-                                                            placeholder="Batch"
+                                                            type="date"
+                                                            value={modalData.tanggal_pembelian || pembelianData.tgl_pembelian}
+                                                            onChange={(e) => updateModalData('tanggal_pembelian', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2 md:col-span-2">
+                                                        <Label>Deskripsi Barang</Label>
+                                                        <Textarea
+                                                            value={modalData.deskripsi_barang || ''}
+                                                            onChange={(e) => updateModalData('deskripsi_barang', e.target.value)}
+                                                            placeholder="Deskripsi atau catatan barang"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Diskon (Rp)</Label>
+                                                        <Input
+                                                            type="number"
+                                                            value={modalData.diskon}
+                                                            onChange={(e) => updateModalData('diskon', e.target.value)}
+                                                            placeholder="0"
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
@@ -964,10 +1190,49 @@ export default function PembelianIndex() {
                                     </DialogContent>
                                 </Dialog>
 
+                                <Separator />
+                                {/* Data Pelengkap */}
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold">Data Pelengkap</h3>
+                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="penerima_barang">Penerima Barang *</Label>
+                                            <Input
+                                                id="penerima_barang"
+                                                value={pembelianData.penerima_barang}
+                                                onChange={(e) => handleDataAwalChange('penerima_barang', e.target.value)}
+                                                placeholder="Nama penerima barang"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="materai">Materai</Label>
+                                            <Select value={pembelianData.materai} onValueChange={(value) => handleDataAwalChange('materai', value)}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Pilih :" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="0">0</SelectItem>
+                                                    <SelectItem value="3000">3.000</SelectItem>
+                                                    <SelectItem value="6000">6.000</SelectItem>
+                                                    <SelectItem value="10000">10.000</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="koreksi">Koreksi</Label>
+                                            <Input
+                                                id="koreksi"
+                                                type="number"
+                                                value={pembelianData.koreksi}
+                                                onChange={(e) => handleDataAwalChange('koreksi', e.target.value)}
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                                 {/* Summary */}
                                 {pembelianDetails.length > 0 && (
                                     <>
-                                        <Separator />
                                         <Card className="bg-gray-50">
                                             <CardHeader>
                                                 <CardTitle className="text-lg">Ringkasan Pembelian</CardTitle>

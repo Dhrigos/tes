@@ -17,6 +17,7 @@ use App\Models\Module\Master\Data\Umum\Asuransi;
 use Illuminate\Container\Attributes\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as FacadesLog;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Laravolt\Indonesia\Models\Province;
 use Laravolt\Indonesia\Models\City;
@@ -182,6 +183,11 @@ class PasienController extends Controller
 
         $message = $isDataComplete ? 'Data pasien berhasil dilengkapi dan terverifikasi!' : 'Data pasien berhasil diperbarui, namun masih perlu dilengkapi!';
 
+        // Realtime sync ke remote apps jika grup=1
+        if ((string) env('PASIEN_SYNC_GROUP', '0') === '1') {
+            $this->sendPasienSyncToRemotes($pasien, 'upsert');
+        }
+
         // Log untuk debugging
         FacadesLog::info('Pasien verifikasi berhasil', [
             'no_rm' => $request->nomor_rm,
@@ -295,6 +301,12 @@ class PasienController extends Controller
 
         $pasien->update($updateData);
 
+        // Realtime sync ke remote apps jika grup=1
+        if ((string) env('PASIEN_SYNC_GROUP', '0') === '1') {
+            $fresh = $pasien->fresh();
+            $this->sendPasienSyncToRemotes($fresh, 'upsert');
+        }
+
         if ($request->hasFile('profile_image')) {
             $file = $request->file('profile_image');
             $filename = time() . '_' . $file->getClientOriginalName();
@@ -302,9 +314,105 @@ class PasienController extends Controller
             $pasien->update(['foto' => $filename]);
         }
 
-        $message = $isDataComplete ? 'Data pasien berhasil diperbarui dan telah terverifikasi!' : 'Data pasien berhasil diperbarui!';
-        return redirect()->back()->with('success', $message);
     }
+
+    /**
+     * Endpoint untuk menerima apply sinkronisasi pasien dari remote apps
+     */
+    public function syncApply(Request $request)
+    {
+        $payload = $request->validate([
+            'event' => 'required|string',
+            'data' => 'required|array',
+            'data.no_rm' => 'required|string',
+        ]);
+
+        $data = $payload['data'];
+        $lookup = ['no_rm' => $data['no_rm']];
+
+        // Ambil field yang aman untuk di-update
+        $write = collect($data)->only([
+            'no_rm','nik','nama','kode_ihs','tempat_lahir','tanggal_lahir','no_bpjs','tgl_exp_bpjs','kelas_bpjs','jenis_peserta_bpjs','provide','kodeprovide','hubungan_keluarga','alamat','rt','rw','kode_pos','kewarganegaraan','seks','agama','pendidikan','goldar','pernikahan','pekerjaan','telepon','provinsi_kode','kabupaten_kode','kecamatan_kode','desa_kode','suku','bahasa','bangsa','verifikasi','penjamin_2_nama','penjamin_2_no','penjamin_3_nama','penjamin_3_no','foto'
+        ])->toArray();
+
+        // Upsert berdasarkan no_rm
+        Pasien::updateOrCreate($lookup, $write);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    
+
+    private function sendPasienSyncToRemotes(Pasien $pasien, string $event): void
+    {
+        try {
+            $json = [
+                'event' => $event,
+                'data' => [
+                    'no_rm' => $pasien->no_rm,
+                    'nik' => $pasien->nik,
+                    'nama' => $pasien->nama,
+                    'kode_ihs' => $pasien->kode_ihs,
+                    'tempat_lahir' => $pasien->tempat_lahir,
+                    'tanggal_lahir' => $pasien->tanggal_lahir,
+                    'no_bpjs' => $pasien->no_bpjs,
+                    'tgl_exp_bpjs' => $pasien->tgl_exp_bpjs,
+                    'kelas_bpjs' => $pasien->kelas_bpjs,
+                    'jenis_peserta_bpjs' => $pasien->jenis_peserta_bpjs,
+                    'provide' => $pasien->provide,
+                    'kodeprovide' => $pasien->kodeprovide,
+                    'hubungan_keluarga' => $pasien->hubungan_keluarga,
+                    'alamat' => $pasien->alamat,
+                    'rt' => $pasien->rt,
+                    'rw' => $pasien->rw,
+                    'kode_pos' => $pasien->kode_pos,
+                    'kewarganegaraan' => $pasien->kewarganegaraan,
+                    'seks' => $pasien->seks,
+                    'agama' => $pasien->agama,
+                    'pendidikan' => $pasien->pendidikan,
+                    'goldar' => $pasien->goldar,
+                    'pernikahan' => $pasien->pernikahan,
+                    'pekerjaan' => $pasien->pekerjaan,
+                    'telepon' => $pasien->telepon,
+                    'provinsi_kode' => $pasien->provinsi_kode,
+                    'kabupaten_kode' => $pasien->kabupaten_kode,
+                    'kecamatan_kode' => $pasien->kecamatan_kode,
+                    'desa_kode' => $pasien->desa_kode,
+                    'suku' => $pasien->suku,
+                    'bahasa' => $pasien->bahasa,
+                    'bangsa' => $pasien->bangsa,
+                    'verifikasi' => $pasien->verifikasi,
+                    'penjamin_2_nama' => $pasien->penjamin_2_nama,
+                    'penjamin_2_no' => $pasien->penjamin_2_no,
+                    'penjamin_3_nama' => $pasien->penjamin_3_nama,
+                    'penjamin_3_no' => $pasien->penjamin_3_no,
+                    'foto' => $pasien->foto,
+                ],
+            ];
+
+            $endpoints = preg_split('/\s*,\s*/', (string) env('PASIEN_SYNC_REMOTES', ''), -1, PREG_SPLIT_NO_EMPTY);
+            $token = env('PASIEN_SYNC_TOKEN');
+            if (!$endpoints || !$token) {
+                return;
+            }
+
+            foreach ($endpoints as $url) {
+                try {
+                    Http::withHeaders(['X-Sync-Token' => $token])
+                        ->timeout(3)
+                        ->post(rtrim($url, '/').'/api/sync/pasien/upsert', $json);
+                } catch (\Throwable $e) {
+                    // Jangan ganggu proses utama
+                }
+            }
+        } catch (\Throwable $e) {
+            // Diabaikan
+        }
+    }
+
+    
+
+    
 
     /**
      * Method helper untuk mengecek kelengkapan data
