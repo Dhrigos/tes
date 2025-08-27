@@ -3,10 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Module\Pasien\PasienController;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Inventaris_Controller;
-
-// Pasien sync endpoint: keep only the HTTP apply endpoint (pub/sub based)
-Route::post('/sync/pasien/upsert', [PasienController::class, 'syncApply'])->middleware('sync.token');
-
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Satu_Sehat_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;

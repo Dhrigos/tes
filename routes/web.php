@@ -53,6 +53,7 @@ use App\Http\Controllers\Module\Pasien\PasienController;
 use App\Http\Controllers\Module\SDM\Perawat_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use App\Http\Controllers\Module\Pelayanan\PelayananController;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 use App\Models\Module\Pelayanan\Pelayanan;
@@ -345,7 +346,6 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::post('/daftar-inventaris', [Daftar_Inventaris_Controller::class, 'store'])->name('daftar-inventaris.store');
         Route::put('/daftar-inventaris/{daftarInventaris}', [Daftar_Inventaris_Controller::class, 'update'])->name('daftar-inventaris.update');
         Route::delete('/daftar-inventaris/{daftarInventaris}', [Daftar_Inventaris_Controller::class, 'destroy'])->name('daftar-inventaris.destroy');
-        Route::post('/daftar-inventaris/sync-pull', [Daftar_Inventaris_Controller::class, 'syncPull'])->name('daftar-inventaris.sync-pull');
     });
 });
 
@@ -392,6 +392,9 @@ Route::middleware(['auth', 'verified'])->prefix('pembelian')->as('pembelian.')->
 // Pelayanan routes
 Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->group(function () {
     Route::get('/so-perawat', [PelayananController::class, 'index'])->name('so-perawat.index');
+
+
+    Route::get('/so-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'index'])->name('so-dokter.index');
 });
 
 // API routes for pelayanan

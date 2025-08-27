@@ -45,7 +45,7 @@ const mainNavItems = [
         children: [
             {
                 title: 'Dokter',
-                href: '/pelayanan/dokter',
+                href: '/pelayanan/so-dokter',
             },
             {
                 title: 'Perawat',

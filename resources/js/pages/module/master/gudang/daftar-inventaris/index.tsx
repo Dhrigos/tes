@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -231,24 +231,6 @@ export default function Index() {
                             </div>
                             <Button onClick={openModal}>
                                 <Plus className="mr-2 h-4 w-4" /> Tambah
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    router.post(
-                                        '/datamaster/gudang/daftar-inventaris/sync-pull',
-                                        {},
-                                        {
-                                            preserveScroll: true,
-                                            onStart: () => toast.loading('Sinkronisasi berjalan...', { id: 'sync' }),
-                                            onFinish: () => toast.dismiss('sync'),
-                                            onSuccess: () => toast.success('Sinkronisasi selesai'),
-                                            onError: () => toast.error('Sinkronisasi gagal'),
-                                        },
-                                    );
-                                }}
-                            >
-                                <RefreshCw className="mr-2 h-4 w-4" /> Sinkron
                             </Button>
                         </div>
                     </CardHeader>
