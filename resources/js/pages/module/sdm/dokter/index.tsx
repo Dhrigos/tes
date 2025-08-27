@@ -19,6 +19,14 @@ import { toast } from 'sonner';
 
 interface Dokter {
     id: number;
+    nama?: string;
+    jadwals?: Array<{
+        hari: string;
+        jam_mulai: string | null;
+        jam_selesai: string | null;
+        kuota: number;
+        aktif: boolean;
+    }>;
     nik?: string;
     npwp?: string;
     poli?: number;
@@ -59,6 +67,7 @@ interface Dokter {
     namapoli?: {
         id: number;
         nama: string;
+        kode?: string;
     };
     namastatuspegawai?: {
         id: number;
@@ -150,6 +159,33 @@ export default function DokterIndex() {
     const [modalMode, setModalMode] = useState<'create' | 'edit' | 'show'>('create');
     const [selectedDokter, setSelectedDokter] = useState<Dokter | null>(null);
     const [currentStep, setCurrentStep] = useState(1);
+    const isReadOnly = modalMode === 'show';
+    // Verifikasi modal state
+    const [verifOpen, setVerifOpen] = useState(false);
+    const [verifDokter, setVerifDokter] = useState<Dokter | null>(null);
+    type PendidikanItem = {
+        jenjang: string;
+        institusi?: string;
+        tahun_lulus?: string;
+        nomor_ijazah?: string;
+        file_ijazah?: File | null;
+    };
+    type PelatihanItem = {
+        nama_pelatihan: string;
+        penyelenggara?: string;
+        tanggal_mulai?: string;
+        tanggal_selesai?: string;
+        nomor_sertifikat?: string;
+        file_sertifikat?: File | null;
+    };
+    const [pendidikans, setPendidikans] = useState<PendidikanItem[]>([
+        { jenjang: '', institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null },
+    ]);
+    const [pelatihans, setPelatihans] = useState<PelatihanItem[]>([]);
+    // Mulai tanpa baris pelatihan (opsional)
+    useEffect(() => {
+        setPelatihans([]);
+    }, []);
 
     // State untuk data dari API eksternal
     const [externalDokterData, setExternalDokterData] = useState<any>(null);
@@ -164,6 +200,35 @@ export default function DokterIndex() {
     const namaRef = useRef<HTMLInputElement | null>(null);
     const lastPickedNameRef = useRef<string>('');
 
+    const defaultPosisiDokter = posker.find((p) => (p.nama || '').toLowerCase().includes('dokter'))?.id.toString() || '';
+    // Helper pendidikan dinamis: gunakan urutan daftar `pendidikan` dari server; abaikan entri level-0 (nama mengandung "tidak")
+    const isLevelZeroName = (name?: string) => {
+        const n = (name || '').toLowerCase();
+        return !n || n.includes('tidak');
+    };
+    const buildEducationChainFromList = (highestIdOrName?: string) => {
+        const items = pendidikan || [];
+        if (!highestIdOrName)
+            return [] as Array<{ jenjang: string; institusi?: string; tahun_lulus?: string; nomor_ijazah?: string; file_ijazah?: File | null }>;
+        let targetIndex = items.findIndex((p) => p.id.toString() === highestIdOrName);
+        if (targetIndex === -1) {
+            const needle = highestIdOrName.toLowerCase();
+            targetIndex = items.findIndex((p) => (p.nama || '').toLowerCase() === needle);
+        }
+        if (targetIndex === -1)
+            return [] as Array<{ jenjang: string; institusi?: string; tahun_lulus?: string; nomor_ijazah?: string; file_ijazah?: File | null }>;
+        let startIndex = 0;
+        while (startIndex <= targetIndex && isLevelZeroName(items[startIndex]?.nama)) startIndex++;
+        const chain: Array<{ jenjang: string; institusi?: string; tahun_lulus?: string; nomor_ijazah?: string; file_ijazah?: File | null }> = [];
+        for (let i = startIndex; i <= targetIndex; i++) {
+            const name = items[i]?.nama;
+            if (!isLevelZeroName(name)) {
+                chain.push({ jenjang: name, institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null });
+            }
+        }
+        return chain;
+    };
+
     const [formData, setFormData] = useState({
         nama: '',
         kode: '',
@@ -174,20 +239,20 @@ export default function DokterIndex() {
         str: '',
         exp_str: '',
         sip: '',
-        exp_sip: '',
+        exp_spri: '',
         tgl_masuk: '',
-        status_pegawaian: '',
+        status_pegawaian: defaultPosisiDokter,
         provinsi: '',
         kabupaten: '',
         kecamatan: '',
         desa: '',
-        rt: '001',
-        rw: '002',
+        rt: '',
+        rw: '',
         kode_pos: '',
         alamat: '',
-        jenis_kelamin: '',
-        golongan_darah: '',
-        status_pernikahan: '',
+        seks: '',
+        goldar: '',
+        pernikahan: '',
         kewarganegaraan: '',
         agama: '',
         pendidikan: '',
@@ -197,7 +262,6 @@ export default function DokterIndex() {
         bahasa: '',
         tempat_lahir: '',
         tanggal_lahir: '',
-        posisi_kerja: '',
         foto: null as File | null,
     });
 
@@ -275,20 +339,20 @@ export default function DokterIndex() {
             str: '',
             exp_str: '',
             sip: '',
-            exp_sip: '',
+            exp_spri: '',
             tgl_masuk: '',
-            status_pegawaian: '',
+            status_pegawaian: defaultPosisiDokter,
             provinsi: '',
             kabupaten: '',
             kecamatan: '',
             desa: '',
-            rt: '001',
-            rw: '002',
+            rt: '',
+            rw: '',
             kode_pos: '',
             alamat: '',
-            jenis_kelamin: '',
-            golongan_darah: '',
-            status_pernikahan: '',
+            seks: '',
+            goldar: '',
+            pernikahan: '',
             kewarganegaraan: '',
             agama: '',
             pendidikan: '',
@@ -298,7 +362,6 @@ export default function DokterIndex() {
             bahasa: '',
             tempat_lahir: '',
             tanggal_lahir: '',
-            posisi_kerja: '',
             foto: null,
         });
         setImagePreview(null);
@@ -334,7 +397,7 @@ export default function DokterIndex() {
 
     const fillFormWithDokter = (dokter: Dokter) => {
         setFormData({
-            nama: dokter.user_name_input || '',
+            nama: dokter.nama || dokter.user_name_input || '',
             kode: dokter.kode,
             poli: dokter.poli?.toString() || '',
             nik: dokter.nik || '',
@@ -343,20 +406,20 @@ export default function DokterIndex() {
             str: dokter.str || '',
             exp_str: dokter.exp_str || '',
             sip: dokter.sip || '',
-            exp_sip: dokter.exp_spri || '',
+            exp_spri: dokter.exp_spri || '',
             tgl_masuk: dokter.tgl_masuk || '',
             status_pegawaian: dokter.status_pegawaian?.toString() || '',
             provinsi: dokter.provinsi_data?.code || dokter.provinsi_data?.id.toString() || '',
             kabupaten: dokter.kabupaten_data?.code || dokter.kabupaten_data?.id.toString() || '',
             kecamatan: dokter.kecamatan_data?.code || dokter.kecamatan_data?.id.toString() || '',
             desa: dokter.desa_data?.code || dokter.desa_data?.id.toString() || '',
-            rt: dokter.rt || '001',
-            rw: dokter.rw || '002',
+            rt: dokter.rt || '',
+            rw: dokter.rw || '',
             kode_pos: dokter.kode_pos || '',
             alamat: dokter.alamat || '',
-            jenis_kelamin: dokter.seks || '',
-            golongan_darah: dokter.goldar?.toString() || '',
-            status_pernikahan: dokter.pernikahan?.toString() || '',
+            seks: dokter.seks || '',
+            goldar: dokter.goldar?.toString() || '',
+            pernikahan: dokter.pernikahan?.toString() || '',
             kewarganegaraan: dokter.kewarganegaraan || '',
             agama: dokter.agama?.toString() || '',
             pendidikan: dokter.pendidikan?.toString() || '',
@@ -366,7 +429,6 @@ export default function DokterIndex() {
             bahasa: dokter.bahasa?.toString() || '',
             tempat_lahir: dokter.tempat_lahir || '',
             tanggal_lahir: dokter.tanggal_lahir || '',
-            posisi_kerja: dokter.status_pegawaian?.toString() || '',
             foto: null,
         });
         setImagePreview(dokter.foto ? `/storage/dokter/${dokter.foto}` : null);
@@ -403,6 +465,58 @@ export default function DokterIndex() {
         setExternalDokterData(null);
         setExternalSearchQuery('');
     };
+    // Verifikasi handlers
+    const handleOpenVerifikasi = (dokter: Dokter) => {
+        setVerifDokter(dokter);
+        const selectedPendidikanId = dokter.pendidikan?.toString() || formData.pendidikan || '';
+        const chain = buildEducationChainFromList(selectedPendidikanId);
+        setPendidikans(chain.length ? chain : [{ jenjang: '', institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null }]);
+        setPelatihans([]);
+        setVerifOpen(true);
+    };
+    const addPendidikan = () =>
+        setPendidikans((prev) => [...prev, { jenjang: '', institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null }]);
+    const removePendidikan = (idx: number) => setPendidikans((prev) => prev.filter((_, i) => i !== idx));
+    const updatePendidikan = (idx: number, key: keyof PendidikanItem, value: string | File | null) => {
+        setPendidikans((prev) => prev.map((item, i) => (i === idx ? { ...item, [key]: value } : item)));
+    };
+    const addPelatihan = () =>
+        setPelatihans((prev) => [
+            ...prev,
+            { nama_pelatihan: '', penyelenggara: '', tanggal_mulai: '', tanggal_selesai: '', nomor_sertifikat: '', file_sertifikat: null },
+        ]);
+    const removePelatihan = (idx: number) => setPelatihans((prev) => prev.filter((_, i) => i !== idx));
+    const updatePelatihan = (idx: number, key: keyof PelatihanItem, value: string | File | null) => {
+        setPelatihans((prev) => prev.map((item, i) => (i === idx ? { ...item, [key]: value } : item)));
+    };
+    const submitVerifikasi = () => {
+        if (!verifDokter) return;
+        const formData = new FormData();
+        formData.append('dokter_id', String(verifDokter.id));
+        pendidikans.forEach((p, i) => {
+            formData.append(`pendidikans[${i}][jenjang]`, p.jenjang);
+            if (p.institusi) formData.append(`pendidikans[${i}][institusi]`, p.institusi);
+            if (p.tahun_lulus) formData.append(`pendidikans[${i}][tahun_lulus]`, p.tahun_lulus);
+            if (p.nomor_ijazah) formData.append(`pendidikans[${i}][nomor_ijazah]`, p.nomor_ijazah);
+            if (p.file_ijazah instanceof File) formData.append(`pendidikans[${i}][file_ijazah]`, p.file_ijazah);
+        });
+        pelatihans.forEach((p, i) => {
+            formData.append(`pelatihans[${i}][nama_pelatihan]`, p.nama_pelatihan);
+            if (p.penyelenggara) formData.append(`pelatihans[${i}][penyelenggara]`, p.penyelenggara);
+            if (p.tanggal_mulai) formData.append(`pelatihans[${i}][tanggal_mulai]`, p.tanggal_mulai);
+            if (p.tanggal_selesai) formData.append(`pelatihans[${i}][tanggal_selesai]`, p.tanggal_selesai);
+            if (p.nomor_sertifikat) formData.append(`pelatihans[${i}][nomor_sertifikat]`, p.nomor_sertifikat);
+            if (p.file_sertifikat instanceof File) formData.append(`pelatihans[${i}][file_sertifikat]`, p.file_sertifikat);
+        });
+        router.post('/sdm/dokter/verifikasi', formData, {
+            onSuccess: () => {
+                toast.success('Verifikasi dokter berhasil disimpan');
+                setVerifOpen(false);
+                setVerifDokter(null);
+            },
+            onError: () => toast.error('Gagal menyimpan verifikasi'),
+        });
+    };
 
     // Form handlers
     const handleInputChange = (field: string, value: string) => {
@@ -426,7 +540,7 @@ export default function DokterIndex() {
 
         if (modalMode === 'show') return;
 
-        const url = modalMode === 'edit' ? `/module/sdm/dokter/${selectedDokter?.id}` : '/module/sdm/dokter';
+        const url = modalMode === 'edit' ? `/sdm/dokter/${selectedDokter?.id}` : '/sdm/dokter';
 
         const submitData = new FormData();
         if (modalMode === 'edit') {
@@ -463,7 +577,7 @@ export default function DokterIndex() {
 
     const handleDelete = (dokter: Dokter) => {
         if (confirm(`Apakah Anda yakin ingin menghapus dokter ${dokter.user_name_input || dokter.kode}?`)) {
-            router.delete(`/module/sdm/dokter/${dokter.id}`, {
+            router.delete(`/sdm/dokter/${dokter.id}`, {
                 onSuccess: () => {
                     toast.success('Data dokter berhasil dihapus!');
                 },
@@ -522,10 +636,137 @@ export default function DokterIndex() {
             case 'edit':
                 return 'Edit Data Dokter';
             case 'show':
-                return `Detail Dokter - ${selectedDokter?.user_name_input || 'N/A'}`;
+                return `Detail Dokter - ${selectedDokter?.nama || selectedDokter?.user_name_input || 'N/A'}`;
             default:
                 return 'Data Dokter';
         }
+    };
+
+    // Jadwal handlers
+    const [jadwalOpen, setJadwalOpen] = useState(false);
+    const [jadwalDokter, setJadwalDokter] = useState<Dokter | null>(null);
+    type JadwalItem = { hari: string; jam_mulai: string; jam_selesai: string; kuota: string; aktif: boolean };
+    const [jadwalItems, setJadwalItems] = useState<JadwalItem[]>([]);
+    const [syncKodePoli, setSyncKodePoli] = useState('');
+    const [syncTanggal, setSyncTanggal] = useState('');
+    const [syncLoading, setSyncLoading] = useState(false);
+    const weekDays = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+    const getHariIndonesia = (dateStr: string) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        const day = d.getDay(); // 0=Sunday
+        const map = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        return map[day] || '';
+    };
+    const syncJadwalFromWS = async () => {
+        if (!syncKodePoli || !syncTanggal) {
+            toast.error('Isi kode poli dan tanggal');
+            return;
+        }
+        try {
+            setSyncLoading(true);
+            const res = await fetch(`/api/get_dokter_ws/${encodeURIComponent(syncKodePoli)}/${encodeURIComponent(syncTanggal)}`);
+            const json = await res.json();
+            if (json?.status !== 'success' || !Array.isArray(json.data)) {
+                toast.error(json?.message || 'Gagal sinkron jadwal');
+                return;
+            }
+            // Ambil range jadwal pertama jika ada, map ke satu hari (tanpa hari spesifik, user bisa pilih)
+            const hariDefault = getHariIndonesia(syncTanggal);
+            const mapped = (json.data as Array<{ kode: number | string; nama: string; jadwal: string; kuota: number }>).map((d) => {
+                const [mulai, selesai] = (d.jadwal || '').split('-');
+                return {
+                    hari: hariDefault,
+                    jam_mulai: (mulai || '').trim(),
+                    jam_selesai: (selesai || '').trim(),
+                    kuota: String(d.kuota ?? 0),
+                    aktif: true,
+                } as JadwalItem;
+            });
+            // Update item yang sesuai hariDefault; jika multi baris, tetap update hari yang sama (ambil pertama)
+            setJadwalItems((prev) => {
+                const next = [...prev];
+                if (mapped.length > 0) {
+                    const upd = mapped[0];
+                    const idx = next.findIndex((it) => it.hari === upd.hari);
+                    if (idx >= 0) {
+                        next[idx] = upd;
+                    } else {
+                        next.push(upd);
+                    }
+                }
+                return next;
+            });
+            toast.success('Jadwal tersinkron dari WS');
+            // auto save setelah sinkron
+            postJadwalItems(mapped);
+        } catch (e) {
+            toast.error('Kesalahan jaringan saat sinkron');
+        } finally {
+            setSyncLoading(false);
+        }
+    };
+    const addJadwal = () => setJadwalItems((prev) => [...prev, { hari: '', jam_mulai: '', jam_selesai: '', kuota: '0', aktif: true }]);
+    const removeJadwal = (idx: number) => setJadwalItems((prev) => prev.filter((_, i) => i !== idx));
+    const updateJadwal = (idx: number, key: keyof JadwalItem, value: string | boolean) => {
+        setJadwalItems((prev) => prev.map((it, i) => (i === idx ? { ...it, [key]: value as any } : it)));
+    };
+    const openJadwalModal = (dokter: Dokter) => {
+        setJadwalDokter(dokter);
+        // Inisialisasi Senin..Minggu
+        const base = weekDays.map((h) => ({ hari: h, jam_mulai: '08:00', jam_selesai: '17:00', kuota: '0', aktif: false }) as JadwalItem);
+        // Timpa dengan data DB jika ada
+        (dokter.jadwals || []).forEach((j) => {
+            const idx = weekDays.findIndex((h) => h === (j.hari || ''));
+            if (idx >= 0) {
+                base[idx] = {
+                    hari: weekDays[idx],
+                    jam_mulai: j.jam_mulai || '',
+                    jam_selesai: j.jam_selesai || '',
+                    kuota: String(j.kuota ?? 0),
+                    aktif: !!j.aktif,
+                };
+            }
+        });
+        setJadwalItems(base);
+        // set default untuk sinkron: tanggal hari ini, kode poli dari dokter
+        try {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            setSyncTanggal(`${yyyy}-${mm}-${dd}`);
+        } catch {}
+        // ambil kode poli dari relasi namapoli (bukan id). fallback ke field poli jika perlu
+        const poliCode = (dokter.namapoli?.kode || dokter.poli?.toString?.() || '').toString();
+        setSyncKodePoli(poliCode);
+        setJadwalOpen(true);
+    };
+    const submitJadwal = () => {
+        if (!jadwalDokter) return;
+        postJadwalItems(jadwalItems);
+    };
+
+    const postJadwalItems = (items: JadwalItem[]) => {
+        if (!jadwalDokter) return;
+        const payload = new FormData();
+        payload.append('dokter_id', String(jadwalDokter.id));
+        items.forEach((it, i) => {
+            payload.append(`items[${i}][hari]`, it.hari);
+            if (it.jam_mulai) payload.append(`items[${i}][jam_mulai]`, it.jam_mulai);
+            if (it.jam_selesai) payload.append(`items[${i}][jam_selesai]`, it.jam_selesai);
+            payload.append(`items[${i}][kuota]`, it.kuota || '0');
+            payload.append(`items[${i}][aktif]`, it.aktif ? '1' : '0');
+        });
+        router.post('/sdm/dokter/jadwal', payload, {
+            onSuccess: () => {
+                toast.success('Jadwal dokter tersimpan');
+                setJadwalOpen(false);
+                setJadwalDokter(null);
+                router.reload({ only: ['dokters'] });
+            },
+            onError: () => toast.error('Gagal menyimpan jadwal'),
+        });
     };
 
     return (
@@ -586,7 +827,7 @@ export default function DokterIndex() {
                                     filteredDokters.map((dokter) => (
                                         <TableRow key={dokter.id}>
                                             <TableCell className="font-medium">{dokter.kode}</TableCell>
-                                            <TableCell>{dokter.user_name_input || '-'}</TableCell>
+                                            <TableCell>{dokter.nama || dokter.user_name_input || '-'}</TableCell>
                                             <TableCell>{dokter.namapoli?.nama || '-'}</TableCell>
                                             <TableCell>{dokter.sip || '-'}</TableCell>
                                             <TableCell>{dokter.telepon || '-'}</TableCell>
@@ -601,9 +842,31 @@ export default function DokterIndex() {
                                                     <Button size="sm" variant="outline" onClick={() => handleShow(dokter)} title="Lihat Detail">
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="outline" onClick={() => handleEdit(dokter)} title="Edit">
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
+                                                    {dokter.verifikasi === 2 && (
+                                                        <Button size="sm" variant="outline" onClick={() => handleEdit(dokter)} title="Edit">
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                    {dokter.verifikasi === 2 && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => openJadwalModal(dokter)}
+                                                            title="Atur Jadwal"
+                                                        >
+                                                            Jadwal
+                                                        </Button>
+                                                    )}
+                                                    {dokter.verifikasi === 1 && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleOpenVerifikasi(dokter)}
+                                                            title="Verifikasi"
+                                                        >
+                                                            <UserCheck className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                     <Button size="sm" variant="destructive" onClick={() => handleDelete(dokter)} title="Hapus">
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -691,6 +954,7 @@ export default function DokterIndex() {
                                                                 onChange={handleFileChange}
                                                                 className="hidden"
                                                                 id="dokter-foto"
+                                                                disabled={isReadOnly}
                                                             />
                                                             <label htmlFor="dokter-foto" className="cursor-pointer">
                                                                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -717,6 +981,7 @@ export default function DokterIndex() {
                                                                 onBlur={() => setTimeout(() => setIsNamaFocused(false), 120)}
                                                                 ref={namaRef}
                                                                 placeholder="Nama"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
 
@@ -758,6 +1023,7 @@ export default function DokterIndex() {
                                                         value={formData.nik}
                                                         onChange={(e) => handleInputChange('nik', e.target.value)}
                                                         placeholder="Nomor NIK"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
 
@@ -770,12 +1036,14 @@ export default function DokterIndex() {
                                                             value={formData.tempat_lahir}
                                                             onChange={(e) => handleInputChange('tempat_lahir', e.target.value)}
                                                             placeholder="Tempat"
+                                                            disabled={isReadOnly}
                                                         />
                                                         <Input
                                                             id="tanggal_lahir"
                                                             type="date"
                                                             value={formData.tanggal_lahir}
                                                             onChange={(e) => handleInputChange('tanggal_lahir', e.target.value)}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -793,12 +1061,17 @@ export default function DokterIndex() {
                                                         value={formData.kode}
                                                         onChange={(e) => handleInputChange('kode', e.target.value)}
                                                         placeholder="Kode Dokter"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
 
                                                 <div>
                                                     <Label htmlFor="poli">Poli</Label>
-                                                    <Select value={formData.poli} onValueChange={(value) => handleInputChange('poli', value)}>
+                                                    <Select
+                                                        value={formData.poli}
+                                                        onValueChange={(value) => handleInputChange('poli', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- Pilih Poli ---" />
                                                         </SelectTrigger>
@@ -819,6 +1092,7 @@ export default function DokterIndex() {
                                                         value={formData.npwp}
                                                         onChange={(e) => handleInputChange('npwp', e.target.value)}
                                                         placeholder="Nomor NPWP"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div>
@@ -828,6 +1102,7 @@ export default function DokterIndex() {
                                                         value={formData.kode_satu}
                                                         onChange={(e) => handleInputChange('kode_satu', e.target.value)}
                                                         placeholder="ID Satu Sehat"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                             </div>
@@ -841,11 +1116,13 @@ export default function DokterIndex() {
                                                             value={formData.str}
                                                             onChange={(e) => handleInputChange('str', e.target.value)}
                                                             placeholder="Nomor STR"
+                                                            disabled={isReadOnly}
                                                         />
                                                         <Input
                                                             type="date"
                                                             value={formData.exp_str}
                                                             onChange={(e) => handleInputChange('exp_str', e.target.value)}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -857,11 +1134,13 @@ export default function DokterIndex() {
                                                             value={formData.sip}
                                                             onChange={(e) => handleInputChange('sip', e.target.value)}
                                                             placeholder="Nomor SIP"
+                                                            disabled={isReadOnly}
                                                         />
                                                         <Input
                                                             type="date"
-                                                            value={formData.exp_sip}
-                                                            onChange={(e) => handleInputChange('exp_sip', e.target.value)}
+                                                            value={formData.exp_spri}
+                                                            onChange={(e) => handleInputChange('exp_spri', e.target.value)}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -878,17 +1157,19 @@ export default function DokterIndex() {
                                             <div>
                                                 <h3 className="mb-3 text-base font-semibold">Alamat Lengkap</h3>
                                                 <div className="space-y-3">
-                                                    <LaravoltIndonesiaExample
-                                                        provinces={provinsi}
-                                                        selectedProvince={formData.provinsi}
-                                                        selectedRegency={formData.kabupaten}
-                                                        selectedDistrict={formData.kecamatan}
-                                                        selectedVillage={formData.desa}
-                                                        onProvinceChange={(value) => handleInputChange('provinsi', value)}
-                                                        onRegencyChange={(value) => handleInputChange('kabupaten', value)}
-                                                        onDistrictChange={(value) => handleInputChange('kecamatan', value)}
-                                                        onVillageChange={(value) => handleInputChange('desa', value)}
-                                                    />
+                                                    <div className={isReadOnly ? 'pointer-events-none opacity-90' : ''}>
+                                                        <LaravoltIndonesiaExample
+                                                            provinces={provinsi}
+                                                            selectedProvince={formData.provinsi}
+                                                            selectedRegency={formData.kabupaten}
+                                                            selectedDistrict={formData.kecamatan}
+                                                            selectedVillage={formData.desa}
+                                                            onProvinceChange={(value) => handleInputChange('provinsi', value)}
+                                                            onRegencyChange={(value) => handleInputChange('kabupaten', value)}
+                                                            onDistrictChange={(value) => handleInputChange('kecamatan', value)}
+                                                            onVillageChange={(value) => handleInputChange('desa', value)}
+                                                        />
+                                                    </div>
                                                     <div className="grid grid-cols-6 gap-3">
                                                         <div className="col-span-2">
                                                             <Label htmlFor="rt">RT</Label>
@@ -897,6 +1178,7 @@ export default function DokterIndex() {
                                                                 value={formData.rt}
                                                                 onChange={(e) => handleInputChange('rt', e.target.value)}
                                                                 placeholder="001"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                         <div className="col-span-2">
@@ -906,6 +1188,7 @@ export default function DokterIndex() {
                                                                 value={formData.rw}
                                                                 onChange={(e) => handleInputChange('rw', e.target.value)}
                                                                 placeholder="002"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                         <div className="col-span-2">
@@ -915,6 +1198,7 @@ export default function DokterIndex() {
                                                                 value={formData.kode_pos}
                                                                 onChange={(e) => handleInputChange('kode_pos', e.target.value)}
                                                                 placeholder="Kode Pos"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                     </div>
@@ -926,6 +1210,7 @@ export default function DokterIndex() {
                                                             onChange={(e) => handleInputChange('alamat', e.target.value)}
                                                             placeholder="Masukkan alamat"
                                                             rows={3}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -936,10 +1221,11 @@ export default function DokterIndex() {
                                             <h3 className="mb-3 text-base font-semibold">Informasi Status & Kerja</h3>
                                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                                 <div>
-                                                    <Label htmlFor="jenis_kelamin">Jenis Kelamin</Label>
+                                                    <Label htmlFor="seks">Jenis Kelamin</Label>
                                                     <Select
-                                                        value={formData.jenis_kelamin}
-                                                        onValueChange={(value) => handleInputChange('jenis_kelamin', value)}
+                                                        value={formData.seks}
+                                                        onValueChange={(value) => handleInputChange('seks', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Jenis Kelamin" />
@@ -951,10 +1237,11 @@ export default function DokterIndex() {
                                                     </Select>
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="golongan_darah">Golongan Darah</Label>
+                                                    <Label htmlFor="goldar">Golongan Darah</Label>
                                                     <Select
-                                                        value={formData.golongan_darah}
-                                                        onValueChange={(value) => handleInputChange('golongan_darah', value)}
+                                                        value={formData.goldar}
+                                                        onValueChange={(value) => handleInputChange('goldar', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -970,10 +1257,11 @@ export default function DokterIndex() {
                                                     </Select>
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="status_pernikahan">Status Pernikahan</Label>
+                                                    <Label htmlFor="pernikahan">Status Pernikahan</Label>
                                                     <Select
-                                                        value={formData.status_pernikahan}
-                                                        onValueChange={(value) => handleInputChange('status_pernikahan', value)}
+                                                        value={formData.pernikahan}
+                                                        onValueChange={(value) => handleInputChange('pernikahan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -992,6 +1280,7 @@ export default function DokterIndex() {
                                                     <Select
                                                         value={formData.kewarganegaraan}
                                                         onValueChange={(value) => handleInputChange('kewarganegaraan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -1003,14 +1292,15 @@ export default function DokterIndex() {
                                                     </Select>
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="posisi_kerja">Posisi Kerja</Label>
+                                                    <Label htmlFor="status_pegawaian">Posisi Kerja</Label>
                                                     <Select
                                                         value={
-                                                            formData.posisi_kerja ||
+                                                            formData.status_pegawaian ||
                                                             posker.find((p) => (p.nama || '').toLowerCase().includes('dokter'))?.id.toString() ||
                                                             ''
                                                         }
-                                                        onValueChange={(value) => handleInputChange('posisi_kerja', value)}
+                                                        onValueChange={(value) => handleInputChange('status_pegawaian', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- Pilih Posisi ---" />
@@ -1031,6 +1321,7 @@ export default function DokterIndex() {
                                                         type="date"
                                                         value={formData.tgl_masuk}
                                                         onChange={(e) => handleInputChange('tgl_masuk', e.target.value)}
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div>
@@ -1038,6 +1329,7 @@ export default function DokterIndex() {
                                                     <Select
                                                         value={formData.pendidikan}
                                                         onValueChange={(value) => handleInputChange('pendidikan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -1058,6 +1350,7 @@ export default function DokterIndex() {
                                                         value={formData.telepon}
                                                         onChange={(e) => handleInputChange('telepon', e.target.value)}
                                                         placeholder="Telepon"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                             </div>
@@ -1072,7 +1365,11 @@ export default function DokterIndex() {
                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                             <div>
                                                 <Label htmlFor="agama">Agama</Label>
-                                                <Select value={formData.agama} onValueChange={(value) => handleInputChange('agama', value)}>
+                                                <Select
+                                                    value={formData.agama}
+                                                    onValueChange={(value) => handleInputChange('agama', value)}
+                                                    disabled={isReadOnly}
+                                                >
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="--- pilih ---" />
                                                     </SelectTrigger>
@@ -1088,7 +1385,11 @@ export default function DokterIndex() {
 
                                             <div>
                                                 <Label htmlFor="suku">Suku</Label>
-                                                <Select value={formData.suku} onValueChange={(value) => handleInputChange('suku', value)}>
+                                                <Select
+                                                    value={formData.suku}
+                                                    onValueChange={(value) => handleInputChange('suku', value)}
+                                                    disabled={isReadOnly}
+                                                >
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Pilih Suku" />
                                                     </SelectTrigger>
@@ -1103,7 +1404,11 @@ export default function DokterIndex() {
                                             </div>
                                             <div>
                                                 <Label htmlFor="bangsa">Bangsa</Label>
-                                                <Select value={formData.bangsa} onValueChange={(value) => handleInputChange('bangsa', value)}>
+                                                <Select
+                                                    value={formData.bangsa}
+                                                    onValueChange={(value) => handleInputChange('bangsa', value)}
+                                                    disabled={isReadOnly}
+                                                >
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Pilih Bangsa" />
                                                     </SelectTrigger>
@@ -1118,7 +1423,11 @@ export default function DokterIndex() {
                                             </div>
                                             <div>
                                                 <Label htmlFor="bahasa">Bahasa</Label>
-                                                <Select value={formData.bahasa} onValueChange={(value) => handleInputChange('bahasa', value)}>
+                                                <Select
+                                                    value={formData.bahasa}
+                                                    onValueChange={(value) => handleInputChange('bahasa', value)}
+                                                    disabled={isReadOnly}
+                                                >
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Pilih Bahasa" />
                                                     </SelectTrigger>
@@ -1152,11 +1461,227 @@ export default function DokterIndex() {
                                 </Button>
                             )}
 
-                            {currentStep === steps.length && (
+                            {currentStep === steps.length && !isReadOnly && (
                                 <Button type="submit" onClick={handleSubmit}>
                                     Simpan
                                 </Button>
                             )}
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal Verifikasi Dokter */}
+                <Dialog open={verifOpen} onOpenChange={setVerifOpen}>
+                    <DialogContent
+                        className="flex max-h-[90vh] w-[95vw] !max-w-5xl flex-col rounded-lg md:w-[80vw] lg:w-[70vw]"
+                        aria-describedby={undefined}
+                    >
+                        <DialogHeader className="flex flex-row items-center justify-between">
+                            <DialogTitle className="text-xl font-semibold">
+                                Verifikasi Dokter {verifDokter?.nama || verifDokter?.user_name_input || ''}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 space-y-8 overflow-y-auto p-6">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-base font-semibold">Jenjang Pendidikan</h3>
+                                    <Button size="sm" variant="outline" onClick={addPendidikan}>
+                                        Tambah
+                                    </Button>
+                                </div>
+                                {pendidikans.map((p, idx) => (
+                                    <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                                        <div className="md:col-span-2">
+                                            <Label>Jenjang</Label>
+                                            <Input
+                                                value={p.jenjang}
+                                                onChange={(e) => updatePendidikan(idx, 'jenjang', e.target.value)}
+                                                placeholder="S.Ked/Spesialis"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Label>Institusi</Label>
+                                            <Input
+                                                value={p.institusi || ''}
+                                                onChange={(e) => updatePendidikan(idx, 'institusi', e.target.value)}
+                                                placeholder="Universitas"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tahun Lulus</Label>
+                                            <Input
+                                                value={p.tahun_lulus || ''}
+                                                onChange={(e) => updatePendidikan(idx, 'tahun_lulus', e.target.value)}
+                                                placeholder="YYYY"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>No. Ijazah</Label>
+                                            <Input
+                                                value={p.nomor_ijazah || ''}
+                                                onChange={(e) => updatePendidikan(idx, 'nomor_ijazah', e.target.value)}
+                                                placeholder="Nomor"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Label>File Ijazah (opsional)</Label>
+                                            <input
+                                                type="file"
+                                                accept="application/pdf,image/*"
+                                                onChange={(e) => updatePendidikan(idx, 'file_ijazah', e.target.files?.[0] || null)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Button type="button" variant="destructive" size="sm" onClick={() => removePendidikan(idx)}>
+                                                Hapus
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-base font-semibold">Sertifikat Pelatihan</h3>
+                                    <Button size="sm" variant="outline" onClick={addPelatihan}>
+                                        Tambah
+                                    </Button>
+                                </div>
+                                {pelatihans.map((p, idx) => (
+                                    <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                                        <div className="md:col-span-2">
+                                            <Label>Nama Pelatihan</Label>
+                                            <Input
+                                                value={p.nama_pelatihan}
+                                                onChange={(e) => updatePelatihan(idx, 'nama_pelatihan', e.target.value)}
+                                                placeholder="Nama pelatihan"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Label>Penyelenggara</Label>
+                                            <Input
+                                                value={p.penyelenggara || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'penyelenggara', e.target.value)}
+                                                placeholder="Institusi"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tgl Mulai</Label>
+                                            <Input
+                                                type="date"
+                                                value={p.tanggal_mulai || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'tanggal_mulai', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tgl Selesai</Label>
+                                            <Input
+                                                type="date"
+                                                value={p.tanggal_selesai || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'tanggal_selesai', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>No. Sertifikat</Label>
+                                            <Input
+                                                value={p.nomor_sertifikat || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'nomor_sertifikat', e.target.value)}
+                                                placeholder="Nomor"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Label>File Sertifikat (opsional)</Label>
+                                            <input
+                                                type="file"
+                                                accept="application/pdf,image/*"
+                                                onChange={(e) => updatePelatihan(idx, 'file_sertifikat', e.target.files?.[0] || null)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Button type="button" variant="destructive" size="sm" onClick={() => removePelatihan(idx)}>
+                                                Hapus
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setVerifOpen(false)}>
+                                Batal
+                            </Button>
+                            <Button type="button" onClick={submitVerifikasi}>
+                                Simpan Verifikasi
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal Jadwal Dokter */}
+                <Dialog open={jadwalOpen} onOpenChange={setJadwalOpen}>
+                    <DialogContent
+                        className="flex max-h-[90vh] w-[95vw] !max-w-4xl flex-col rounded-lg md:w-[80vw] lg:w-[60vw]"
+                        aria-describedby={undefined}
+                    >
+                        <DialogHeader className="flex flex-row items-center justify-between">
+                            <DialogTitle className="text-xl font-semibold">
+                                Jadwal Dokter {jadwalDokter?.nama || jadwalDokter?.user_name_input || ''}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                            {jadwalItems.map((it, idx) => (
+                                <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                                    <div>
+                                        <Label>Hari</Label>
+                                        <div className="py-2">{it.hari}</div>
+                                    </div>
+                                    <div>
+                                        <Label>Jam Mulai</Label>
+                                        <Input type="time" value={it.jam_mulai} onChange={(e) => updateJadwal(idx, 'jam_mulai', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <Label>Jam Selesai</Label>
+                                        <Input
+                                            type="time"
+                                            value={it.jam_selesai}
+                                            onChange={(e) => updateJadwal(idx, 'jam_selesai', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Kuota/Hari</Label>
+                                        <Input type="number" min={0} value={it.kuota} onChange={(e) => updateJadwal(idx, 'kuota', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <Label>Aktif</Label>
+                                        <Select value={it.aktif ? '1' : '0'} onValueChange={(v) => updateJadwal(idx, 'aktif', v === '1')}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">Aktif</SelectItem>
+                                                <SelectItem value="0">Nonaktif</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <Button type="button" variant="destructive" size="sm" onClick={() => removeJadwal(idx)}>
+                                            Hapus
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                            {/* Tombol tambah baris dihapus sesuai permintaan */}
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setJadwalOpen(false)}>
+                                Batal
+                            </Button>
+                            <Button type="button" onClick={syncJadwalFromWS} disabled={syncLoading}>
+                                {syncLoading ? 'Sinkron...' : 'Sinkron WS'}
+                            </Button>
+                            <Button type="button" onClick={submitJadwal}>
+                                Simpan Jadwal
+                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

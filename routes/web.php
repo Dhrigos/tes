@@ -35,11 +35,14 @@ use App\Http\Controllers\Module\Master\Data\Medis\Instruksi_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Penggunaan_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Inventaris_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Satuan_Inventaris_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Satuan_Obat_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Harga_Jual_Utama_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Supplier_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_online_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
@@ -47,6 +50,7 @@ use App\Http\Controllers\Module\SDM\Dokter_Controller;
 use App\Http\Controllers\Module\SDM\Staff_Controller;
 use App\Http\Controllers\Module\Pasien\PasienController;
 use App\Http\Controllers\Module\SDM\Perawat_Controller;
+use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 
@@ -66,6 +70,14 @@ Route::middleware(['auth'])->prefix('sdm')->as('sdm.')->group(function () {
     Route::post('/perawat', [Perawat_Controller::class, 'store'])->name('perawat.store');
     Route::put('/perawat/{perawat}', [Perawat_Controller::class, 'update'])->name('perawat.update');
     Route::delete('/perawat/{perawat}', [Perawat_Controller::class, 'destroy'])->name('perawat.destroy');
+    // Perawat - verifikasi
+    Route::post('/perawat/verifikasi', [Perawat_Controller::class, 'verifikasi'])->name('perawat.verifikasi');
+
+    // Dokter - verifikasi
+    Route::post('/dokter/verifikasi', [Dokter_Controller::class, 'verifikasi'])->name('dokter.verifikasi');
+    // Dokter - jadwal
+    Route::post('/dokter/jadwal', [Dokter_Controller::class, 'jadwal'])->name('dokter.jadwal');
+    Route::delete('/dokter/jadwal', [Dokter_Controller::class, 'hapusJadwal'])->name('dokter.jadwal.hapus');
 
     // Staff
     Route::get('/staff', [Staff_Controller::class, 'index'])->name('staff.index');
@@ -81,6 +93,8 @@ Route::middleware(['auth'])->prefix('sdm')->as('sdm.')->group(function () {
 
 
 // Datamaster
+
+
 Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(function () {
 
     // Grup untuk data umum
@@ -282,15 +296,31 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::put('/supplier/{supplier}', [Supplier_Controller::class, 'update'])->name('supplier.update');
         Route::delete('/supplier/{supplier}', [Supplier_Controller::class, 'destroy'])->name('supplier.destroy');
 
-        Route::get('/setting-harga-jual', [Setting_Harga_Jual_Controller::class, 'index'])->name('setting-harga-jual.index');
-        Route::post('/setting-harga-jual', [Setting_Harga_Jual_Controller::class, 'store'])->name('setting-harga-jual.store');
-        Route::put('/setting-harga-jual/{settingHargaJual}', [Setting_Harga_Jual_Controller::class, 'update'])->name('setting-harga-jual.update');
-        Route::delete('/setting-harga-jual/{settingHargaJual}', [Setting_Harga_Jual_Controller::class, 'destroy'])->name('setting-harga-jual.destroy');
+        // Setting Harga Jual sekarang dikelola melalui Harga Jual Utama
+
+        Route::get('/harga-jual-utama', [Harga_Jual_Utama_Controller::class, 'index'])->name('harga-jual-utama.index');
+        Route::post('/harga-jual-utama', [Harga_Jual_Utama_Controller::class, 'store'])->name('harga-jual-utama.store');
+        Route::put('/harga-jual-utama/{hargaJualUtama}', [Harga_Jual_Utama_Controller::class, 'update'])->name('harga-jual-utama.update');
+        Route::delete('/harga-jual-utama/{hargaJualUtama}', [Harga_Jual_Utama_Controller::class, 'destroy'])->name('harga-jual-utama.destroy');
+        Route::put('/harga-jual-utama/{hargaJualUtama}/activate', [Harga_Jual_Utama_Controller::class, 'activate'])->name('harga-jual-utama.activate');
 
         Route::get('/daftar-harga-jual',  [Daftar_Harga_Jual_Controller::class, 'index'])->name('daftar-harga-jual.index');
         Route::post('/daftar-harga-jual', [Daftar_Harga_Jual_Controller::class, 'store'])->name('daftar-harga-jual.store');
         Route::put('/daftar-harga-jual/{daftarHargaJual}', [Daftar_Harga_Jual_Controller::class, 'update'])->name('daftar-harga-jual.update');
         Route::delete('/daftar-harga-jual/{daftarHargaJual}', [Daftar_Harga_Jual_Controller::class, 'destroy'])->name('daftar-harga-jual.destroy');
+
+        // API routes untuk dialog setting harga jual
+        Route::get('/setting-harga-jual/get-settings', [Setting_Harga_Jual_Controller::class, 'getSettings'])
+            ->name('setting-harga-jual.get-settings');
+        Route::post('/setting-harga-jual', [Setting_Harga_Jual_Controller::class, 'store'])
+            ->name('setting-harga-jual.store');
+        Route::post('/setting-harga-jual-utama', [Setting_Harga_Jual_Controller::class, 'storeUtama'])
+            ->name('setting-harga-jual-utama.store');
+
+        // Routes untuk setting harga jual utama (jika masih diperlukan sebagai page terpisah)
+        Route::get('/setting-harga-jual-utama', [Setting_Harga_Jual_Utama_Controller::class, 'index'])->name('setting-harga-jual-utama.index');
+        Route::put('/setting-harga-jual-utama/{settingHargaJualUtama}', [Setting_Harga_Jual_Utama_Controller::class, 'update'])->name('setting-harga-jual-utama.update');
+        Route::delete('/setting-harga-jual-utama/{settingHargaJualUtama}', [Setting_Harga_Jual_Utama_Controller::class, 'destroy'])->name('setting-harga-jual-utama.destroy');
 
         Route::get('/satuan-inventaris', [Satuan_Inventaris_Controller::class, 'index'])->name('satuan-inventaris.index');
         Route::post('/satuan-inventaris', [Satuan_Inventaris_Controller::class, 'store'])->name('satuan-inventaris.store');
@@ -301,8 +331,16 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::post('/kategori-inventaris', [Kategori_Inventaris_Controller::class, 'store'])->name('kategori-inventaris.store');
         Route::put('/kategori-inventaris/{kategoriInventaris}', [Kategori_Inventaris_Controller::class, 'update'])->name('kategori-inventaris.update');
         Route::delete('/kategori-inventaris/{kategoriInventaris}', [Kategori_Inventaris_Controller::class, 'destroy'])->name('kategori-inventaris.destroy');
+
+        Route::get('/daftar-obat', [Daftar_Obat_Controller::class, 'index'])->name('daftar-obat.index');
+        Route::post('/daftar-obat', [Daftar_Obat_Controller::class, 'store'])->name('daftar-obat.store');
+        Route::put('/daftar-obat/{daftarObat}', [Daftar_Obat_Controller::class, 'update'])->name('daftar-obat.update');
+        Route::delete('/daftar-obat/{daftarObat}', [Daftar_Obat_Controller::class, 'destroy'])->name('daftar-obat.destroy');
+        Route::post('/daftar-obat/sync-pull', [Daftar_Obat_Controller::class, 'syncPull'])->name('daftar-obat.sync-pull');
     });
 });
+
+
 
 
 
@@ -327,26 +365,24 @@ Route::get('/pendaftaran', [Pendaftaran_Controller::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('pendaftaran');
 
+
+// API master data
+Route::prefix('api/master')->group(function () {
+    Route::get('/pasien', [Pendaftaran_Controller::class, 'getPasienList']);
+    Route::get('/poli', [Pendaftaran_Controller::class, 'getPoliList']);
+    Route::get('/penjamin', [Pendaftaran_Controller::class, 'getPenjaminList']);
+    Route::post('/dokter/by-poli', [Pendaftaran_Controller::class, 'getDokterByPoli']);
+});
 Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran-online');
 Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'add'])->name('pendaftaran-online.add');
 
+Route::middleware(['auth', 'verified'])->prefix('pembelian')->as('pembelian.')->group(function () {
+    Route::get('/', [Pembelian_Controller::class, 'index'])->name('index');
+    Route::post('/add', [Pembelian_Controller::class, 'store'])->name('add');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
-    // Module SDM - Dokter
-    Route::prefix('module/sdm/dokter')->group(function () {
-        Route::get('/', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'index'])->name('dokter.index');
-        Route::post('/', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'store'])->name('dokter.store');
-        Route::put('/{id}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'update'])->name('dokter.update');
-        Route::delete('/{id}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'destroy'])->name('dokter.destroy');
-        Route::post('/verifikasi', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'verifikasi'])->name('dokter.verifikasi');
-
-        // Cascading dropdown untuk alamat
-        Route::get('/kabupaten/{provinceId}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'getKabupaten']);
-        Route::get('/kecamatan/{cityId}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'getKecamatan']);
-        Route::get('/desa/{districtId}', [App\Http\Controllers\Module\SDM\Dokter_Controller::class, 'getDesa']);
-    });
 });
 
 require __DIR__ . '/settings.php';

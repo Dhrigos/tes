@@ -1,6 +1,16 @@
 <?php
 
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Satu_Sehat_Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
+use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
+use App\Http\Controllers\Module\Master\Data\Umum\Penjamin_Controller;
+use App\Http\Controllers\Module\Pasien\PasienController;
+use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
+use App\Http\Controllers\Module\SDM\Dokter_Controller;
+use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
+use App\Http\Controllers\Settings\Web_Setting_Controller;
+use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -12,3 +22,44 @@ Route::get('/get_spesialis', [Pcare_Controller::class, 'get_spesialis']);
 Route::get('/get_sub_spesialis/{kode}', [Pcare_Controller::class, 'get_sub_spesialis']);
 Route::get('/get_peserta/{no}', [Pcare_Controller::class, 'get_peserta']);
 Route::get('/get_dokter', [Pcare_Controller::class, 'get_dokter']);
+
+Route::get('/get_dokter_ws/{kode_poli}/{tanggal}', [Ws_Pcare_Controller::class, 'get_dokter']);
+
+Route::get('/get_kfa_obat/{type}/{nama}', [Satu_Sehat_Controller::class, 'get_kfa_obat']);
+
+
+// API untuk Setting Harga Jual (tanpa CSRF, sementara tanpa auth untuk test)
+Route::get('/setting-harga-jual/get-settings', [\App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller::class, 'getSettings']);
+Route::post('/setting-harga-jual', [\App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller::class, 'store']);
+Route::post('/setting-harga-jual-utama', [\App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller::class, 'storeUtama']);
+
+
+Route::get('/pendaftaran/master-data', [Pendaftaran_Controller::class, 'getMasterData']);
+// API master data
+Route::prefix('api/master')->group(function () {
+    Route::get('/pasien', [Pendaftaran_Controller::class, 'getPasienList']);
+    Route::get('/poli', [Pendaftaran_Controller::class, 'getPoliList']);
+    Route::get('/penjamin', [Pendaftaran_Controller::class, 'getPenjaminList']);
+    Route::post('/dokter/by-poli', [Pendaftaran_Controller::class, 'getDokterByPoli']);
+});
+
+Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
+Route::post('/pembelian/store', [Pembelian_Controller::class, 'store']);
+Route::post('/pembelian/generate-inventaris', [Pembelian_Controller::class, 'generatePembelianInventaris']);
+
+// Test route
+Route::get('/test-setting', function () {
+    return response()->json(['status' => 'API is working', 'time' => now()]);
+});
+
+// Web Settings API Routes
+Route::prefix('web-settings')->group(function () {
+    Route::get('/show', [Web_Setting_Controller::class, 'show']);
+    Route::post('/update', [Web_Setting_Controller::class, 'update']);
+    Route::post('/toggle', [Web_Setting_Controller::class, 'updateToggle']);
+    Route::get('/toggle-states', [Web_Setting_Controller::class, 'getToggleStates']);
+    Route::post('/set-satusehat', [Web_Setting_Controller::class, 'set_satusehat']);
+    Route::post('/set-bpjs', [Web_Setting_Controller::class, 'set_bpjs']);
+    Route::post('/set-active-gudang', [Web_Setting_Controller::class, 'setActiveGudangUtama']);
+    Route::post('/reset-active-gudang', [Web_Setting_Controller::class, 'resetActiveGudangUtama']);
+});

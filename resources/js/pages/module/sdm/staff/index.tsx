@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Edit, Plus, Search, Stethoscope, Trash2, User, Users } from 'lucide-react';
+import { Edit, Eye, Plus, Search, Stethoscope, Trash2, User, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -136,6 +136,7 @@ export default function StaffIndex() {
     const [modalMode, setModalMode] = useState<'create' | 'edit' | 'show'>('create');
     const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
     const [currentStep, setCurrentStep] = useState(1);
+    const isReadOnly = modalMode === 'show';
 
     const [formData, setFormData] = useState({
         nama: '',
@@ -147,8 +148,8 @@ export default function StaffIndex() {
         kabupaten: '',
         kecamatan: '',
         desa: '',
-        rt: '001',
-        rw: '002',
+        rt: '',
+        rw: '',
         kode_pos: '',
         alamat: '',
         seks: '',
@@ -199,8 +200,8 @@ export default function StaffIndex() {
             kabupaten: '',
             kecamatan: '',
             desa: '',
-            rt: '001',
-            rw: '002',
+            rt: '',
+            rw: '',
             kode_pos: '',
             alamat: '',
             seks: '',
@@ -225,7 +226,7 @@ export default function StaffIndex() {
 
     const fillFormWithStaff = (staff: Staff) => {
         setFormData({
-            nama: staff.user_name_input || '',
+            nama: staff.user_name_input || staff.nama || '',
             nik: staff.nik || '',
             npwp: staff.npwp || '',
             tgl_masuk: staff.tgl_masuk || '',
@@ -234,8 +235,8 @@ export default function StaffIndex() {
             kabupaten: staff.kabupaten_data?.code || staff.kabupaten_data?.id.toString() || '',
             kecamatan: staff.kecamatan_data?.code || staff.kecamatan_data?.id.toString() || '',
             desa: staff.desa_data?.code || staff.desa_data?.id.toString() || '',
-            rt: staff.rt || '001',
-            rw: staff.rw || '002',
+            rt: staff.rt || '',
+            rw: staff.rw || '',
             kode_pos: staff.kode_pos || '',
             alamat: staff.alamat || '',
             seks: staff.seks || '',
@@ -454,12 +455,17 @@ export default function StaffIndex() {
                                 {filteredStaffs.length > 0 ? (
                                     filteredStaffs.map((staff) => (
                                         <TableRow key={staff.id}>
-                                            <TableCell className="font-medium">{staff.nama || '-'}</TableCell>
+                                            <TableCell className="font-medium">
+                                                {staff.user_name_input || staff.namauser?.name || staff.nama || '-'}
+                                            </TableCell>
                                             <TableCell>{staff.nik || '-'}</TableCell>
                                             <TableCell>{staff.telepon || '-'}</TableCell>
                                             <TableCell>{staff.namastatuspegawai?.nama || '-'}</TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-2">
+                                                    <Button size="sm" variant="outline" onClick={() => handleShow(staff)} title="Lihat Detail">
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
                                                     <Button size="sm" variant="outline" onClick={() => handleEdit(staff)} title="Edit">
                                                         <Edit className="h-4 w-4" />
                                                     </Button>
@@ -550,6 +556,7 @@ export default function StaffIndex() {
                                                                 onChange={handleFileChange}
                                                                 className="hidden"
                                                                 id="staff-foto"
+                                                                disabled={isReadOnly}
                                                             />
                                                             <label htmlFor="staff-foto" className="cursor-pointer">
                                                                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -568,6 +575,7 @@ export default function StaffIndex() {
                                                         value={formData.nama}
                                                         onChange={(e) => handleInputChange('nama', e.target.value)}
                                                         placeholder="Nama Lengkap"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
 
@@ -579,6 +587,7 @@ export default function StaffIndex() {
                                                         value={formData.nik}
                                                         onChange={(e) => handleInputChange('nik', e.target.value)}
                                                         placeholder="Nomor NIK"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
 
@@ -591,12 +600,14 @@ export default function StaffIndex() {
                                                             value={formData.tempat_lahir}
                                                             onChange={(e) => handleInputChange('tempat_lahir', e.target.value)}
                                                             placeholder="Tempat"
+                                                            disabled={isReadOnly}
                                                         />
                                                         <Input
                                                             id="tanggal_lahir"
                                                             type="date"
                                                             value={formData.tanggal_lahir}
                                                             onChange={(e) => handleInputChange('tanggal_lahir', e.target.value)}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -607,18 +618,23 @@ export default function StaffIndex() {
                                         <div className="space-y-4 md:space-y-6 lg:w-2/3 lg:border-l lg:pl-6">
                                             <h6 className="mb-4 text-base font-semibold">Informasi Pribadi</h6>
                                             <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-                                                <div>
+                                                <div className="md:col-span-2">
                                                     <Label htmlFor="npwp">Nomor NPWP</Label>
                                                     <Input
                                                         id="npwp"
                                                         value={formData.npwp}
                                                         onChange={(e) => handleInputChange('npwp', e.target.value)}
                                                         placeholder="Nomor NPWP"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div>
                                                     <Label htmlFor="seks">Jenis Kelamin</Label>
-                                                    <Select value={formData.seks} onValueChange={(value) => handleInputChange('seks', value)}>
+                                                    <Select
+                                                        value={formData.seks}
+                                                        onValueChange={(value) => handleInputChange('seks', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Jenis Kelamin" />
                                                         </SelectTrigger>
@@ -635,12 +651,16 @@ export default function StaffIndex() {
                                                         value={formData.telepon}
                                                         onChange={(e) => handleInputChange('telepon', e.target.value)}
                                                         placeholder="Telepon"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
-                                                <div></div>
                                                 <div>
                                                     <Label htmlFor="suku">Suku</Label>
-                                                    <Select value={formData.suku} onValueChange={(value) => handleInputChange('suku', value)}>
+                                                    <Select
+                                                        value={formData.suku}
+                                                        onValueChange={(value) => handleInputChange('suku', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Pilih Suku" />
                                                         </SelectTrigger>
@@ -655,7 +675,11 @@ export default function StaffIndex() {
                                                 </div>
                                                 <div>
                                                     <Label htmlFor="agama">Agama</Label>
-                                                    <Select value={formData.agama} onValueChange={(value) => handleInputChange('agama', value)}>
+                                                    <Select
+                                                        value={formData.agama}
+                                                        onValueChange={(value) => handleInputChange('agama', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
@@ -670,9 +694,13 @@ export default function StaffIndex() {
                                                 </div>
                                                 <div>
                                                     <Label htmlFor="bahasa">Bahasa</Label>
-                                                    <Select value={formData.bahasa} onValueChange={(value) => handleInputChange('bahasa', value)}>
+                                                    <Select
+                                                        value={formData.bahasa}
+                                                        onValueChange={(value) => handleInputChange('bahasa', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
-                                                            <SelectValue placeholder="Pilih Bahasa" />
+                                                            <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {bahasa.map((b) => (
@@ -685,9 +713,13 @@ export default function StaffIndex() {
                                                 </div>
                                                 <div>
                                                     <Label htmlFor="bangsa">Bangsa</Label>
-                                                    <Select value={formData.bangsa} onValueChange={(value) => handleInputChange('bangsa', value)}>
+                                                    <Select
+                                                        value={formData.bangsa}
+                                                        onValueChange={(value) => handleInputChange('bangsa', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
-                                                            <SelectValue placeholder="Pilih Bangsa" />
+                                                            <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {bangsa.map((b) => (
@@ -730,6 +762,7 @@ export default function StaffIndex() {
                                                                 value={formData.rt}
                                                                 onChange={(e) => handleInputChange('rt', e.target.value)}
                                                                 placeholder="001"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                         <div className="col-span-2">
@@ -739,6 +772,7 @@ export default function StaffIndex() {
                                                                 value={formData.rw}
                                                                 onChange={(e) => handleInputChange('rw', e.target.value)}
                                                                 placeholder="002"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                         <div className="col-span-2">
@@ -748,6 +782,7 @@ export default function StaffIndex() {
                                                                 value={formData.kode_pos}
                                                                 onChange={(e) => handleInputChange('kode_pos', e.target.value)}
                                                                 placeholder="Kode Pos"
+                                                                disabled={isReadOnly}
                                                             />
                                                         </div>
                                                     </div>
@@ -759,6 +794,7 @@ export default function StaffIndex() {
                                                             onChange={(e) => handleInputChange('alamat', e.target.value)}
                                                             placeholder="Masukkan alamat"
                                                             rows={3}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -771,7 +807,11 @@ export default function StaffIndex() {
                                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                                 <div>
                                                     <Label htmlFor="goldar">Golongan Darah</Label>
-                                                    <Select value={formData.goldar} onValueChange={(value) => handleInputChange('goldar', value)}>
+                                                    <Select
+                                                        value={formData.goldar}
+                                                        onValueChange={(value) => handleInputChange('goldar', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
@@ -790,6 +830,7 @@ export default function StaffIndex() {
                                                     <Select
                                                         value={formData.pernikahan}
                                                         onValueChange={(value) => handleInputChange('pernikahan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -808,6 +849,7 @@ export default function StaffIndex() {
                                                     <Select
                                                         value={formData.kewarganegaraan}
                                                         onValueChange={(value) => handleInputChange('kewarganegaraan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -823,9 +865,10 @@ export default function StaffIndex() {
                                                     <Select
                                                         value={formData.status_pegawaian}
                                                         onValueChange={(value) => handleInputChange('status_pegawaian', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
-                                                            <SelectValue placeholder="--- Pilih Status Pegawai ---" />
+                                                            <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {posker.map((p) => (
@@ -843,6 +886,7 @@ export default function StaffIndex() {
                                                         type="date"
                                                         value={formData.tgl_masuk}
                                                         onChange={(e) => handleInputChange('tgl_masuk', e.target.value)}
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div>
@@ -850,6 +894,7 @@ export default function StaffIndex() {
                                                     <Select
                                                         value={formData.pendidikan}
                                                         onValueChange={(value) => handleInputChange('pendidikan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -871,24 +916,41 @@ export default function StaffIndex() {
                         </div>
 
                         <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => (currentStep > 1 ? setCurrentStep(currentStep - 1) : setModalOpen(false))}
-                            >
-                                Kembali
-                            </Button>
-
-                            {currentStep < steps.length && (
-                                <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
-                                    Lanjut
-                                </Button>
-                            )}
-
-                            {currentStep === steps.length && (
-                                <Button type="submit" onClick={handleSubmit}>
-                                    Simpan
-                                </Button>
+                            {isReadOnly ? (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => (currentStep > 1 ? setCurrentStep(currentStep - 1) : setModalOpen(false))}
+                                    >
+                                        Kembali
+                                    </Button>
+                                    {currentStep < steps.length && (
+                                        <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
+                                            Lanjut
+                                        </Button>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => (currentStep > 1 ? setCurrentStep(currentStep - 1) : setModalOpen(false))}
+                                    >
+                                        Kembali
+                                    </Button>
+                                    {currentStep < steps.length && (
+                                        <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
+                                            Lanjut
+                                        </Button>
+                                    )}
+                                    {currentStep === steps.length && (
+                                        <Button type="submit" onClick={handleSubmit}>
+                                            Simpan
+                                        </Button>
+                                    )}
+                                </>
                             )}
                         </DialogFooter>
                     </DialogContent>

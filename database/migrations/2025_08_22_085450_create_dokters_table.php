@@ -45,9 +45,7 @@ return new class extends Migration
             $table->integer('bahasa')->nullable();
             $table->integer('bangsa')->nullable();
             $table->integer('verifikasi')->nullable();
-            $table->integer('users')->nullable();
-            $table->integer('user_id_input')->nullable();
-            $table->string('user_name_input')->nullable();
+            $table->integer('users')->nullable();            
             $table->timestamps();
         });
     }

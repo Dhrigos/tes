@@ -54,6 +54,11 @@ const mainNavItems = [
         ],
     },
     {
+        title: 'Pembelian',
+        icon: LayoutGrid,
+        href: '/pembelian',
+    },
+    {
         title: 'SDM',
         icon: LayoutGrid,
         children: [
@@ -110,7 +115,7 @@ const mainNavItems = [
                     { title: 'Nama Makanan', href: '/datamaster/medis/makanan' },
                     { title: 'Penggunaan Obat', href: '/datamaster/medis/penggunaan-obat' },
                     { title: 'Poli', href: '/datamaster/medis/poli' },
-                    { title: 'Perawtan dan Tindakan', href: '/datamaster/medis/tindakan' },
+                    { title: 'Perawatan dan Tindakan', href: '/datamaster/medis/tindakan' },
                     { title: 'Radiologi Jenis dan Pemeriksaan', href: '/datamaster/medis/radiologi' },
                     { title: 'Sarana', href: '/datamaster/medis/sarana' },
                     { title: 'Spesialis', href: '/datamaster/medis/spesialis' },
@@ -122,10 +127,10 @@ const mainNavItems = [
                     { title: 'Satuan Obat', href: '/datamaster/gudang/satuan-obat' },
                     { title: 'Kategori Obat', href: '/datamaster/gudang/kategori-obat' },
                     { title: 'Supplier', href: '/datamaster/gudang/supplier' },
-                    { title: 'Setting Harga Jual', href: '/datamaster/gudang/setting-harga-jual' },
                     { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
                     { title: 'Satuan Inventaris', href: '/datamaster/gudang/satuan-inventaris' },
                     { title: 'Kategori Inventaris', href: '/datamaster/gudang/kategori-inventaris' },
+                    { title: 'Daftar Obat', href: '/datamaster/gudang/daftar-obat' },
                 ],
             },
         ],

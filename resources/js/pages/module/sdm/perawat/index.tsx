@@ -1,6 +1,7 @@
 'use client';
 
 import LaravoltIndonesiaExample from '@/components/LaravoltIndonesiaExample';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -47,7 +48,7 @@ interface Perawat {
     users?: number;
     user_id_input?: number;
     user_name_input?: string;
-    verifikasi?: string;
+    verifikasi?: number;
     // Relasi
     namauser?: {
         id: number;
@@ -141,6 +142,54 @@ export default function PerawatIndex() {
     const [modalMode, setModalMode] = useState<'create' | 'edit' | 'show'>('create');
     const [selectedPerawat, setSelectedPerawat] = useState<Perawat | null>(null);
     const [currentStep, setCurrentStep] = useState(1);
+    const isReadOnly = modalMode === 'show';
+
+    // Verifikasi modal state (selaras dengan dokter)
+    const [verifOpen, setVerifOpen] = useState(false);
+    const [verifPerawat, setVerifPerawat] = useState<Perawat | null>(null);
+    type PendidikanItem = {
+        jenjang: string;
+        institusi?: string;
+        tahun_lulus?: string;
+        nomor_ijazah?: string;
+        file_ijazah?: File | null;
+    };
+    type PelatihanItem = {
+        nama_pelatihan: string;
+        penyelenggara?: string;
+        tanggal_mulai?: string;
+        tanggal_selesai?: string;
+        nomor_sertifikat?: string;
+        file_sertifikat?: File | null;
+    };
+    const [pendidikans, setPendidikans] = useState<PendidikanItem[]>([
+        { jenjang: '', institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null },
+    ]);
+    const [pelatihans, setPelatihans] = useState<PelatihanItem[]>([]);
+    const isLevelZeroName = (name?: string) => {
+        const n = (name || '').toLowerCase();
+        return !n || n.includes('tidak');
+    };
+    const buildEducationChainFromList = (highestIdOrName?: string) => {
+        const items = pendidikan || [];
+        if (!highestIdOrName) return [] as PendidikanItem[];
+        let targetIndex = items.findIndex((p) => p.id.toString() === highestIdOrName);
+        if (targetIndex === -1) {
+            const needle = highestIdOrName.toLowerCase();
+            targetIndex = items.findIndex((p) => (p.nama || '').toLowerCase() === needle);
+        }
+        if (targetIndex === -1) return [] as PendidikanItem[];
+        let startIndex = 0;
+        while (startIndex <= targetIndex && isLevelZeroName(items[startIndex]?.nama)) startIndex++;
+        const chain: PendidikanItem[] = [];
+        for (let i = startIndex; i <= targetIndex; i++) {
+            const name = items[i]?.nama;
+            if (!isLevelZeroName(name)) {
+                chain.push({ jenjang: name, institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null });
+            }
+        }
+        return chain;
+    };
 
     const [formData, setFormData] = useState({
         nama: '',
@@ -152,8 +201,8 @@ export default function PerawatIndex() {
         kabupaten: '',
         kecamatan: '',
         desa: '',
-        rt: '001',
-        rw: '002',
+        rt: '',
+        rw: '',
         kode_pos: '',
         alamat: '',
         seks: '',
@@ -206,8 +255,8 @@ export default function PerawatIndex() {
             kabupaten: '',
             kecamatan: '',
             desa: '',
-            rt: '001',
-            rw: '002',
+            rt: '',
+            rw: '',
             kode_pos: '',
             alamat: '',
             seks: '',
@@ -232,17 +281,17 @@ export default function PerawatIndex() {
 
     const fillFormWithPerawat = (perawat: Perawat) => {
         setFormData({
-            nama: perawat.user_name_input || '',
+            nama: perawat.nama || '',
             nik: perawat.nik || '',
             npwp: perawat.npwp || '',
             tgl_masuk: perawat.tgl_masuk || '',
-            status_pegawaian: perawat.status_pegawaian?.toString() || '',
+            status_pegawaian: perawat.namastatuspegawai?.id.toString() || '',
             provinsi: perawat.provinsi_data?.code || perawat.provinsi_data?.id.toString() || '',
             kabupaten: perawat.kabupaten_data?.code || perawat.kabupaten_data?.id.toString() || '',
             kecamatan: perawat.kecamatan_data?.code || perawat.kecamatan_data?.id.toString() || '',
             desa: perawat.desa_data?.code || perawat.desa_data?.id.toString() || '',
-            rt: perawat.rt || '001',
-            rw: perawat.rw || '002',
+            rt: perawat.rt || '',
+            rw: perawat.rw || '',
             kode_pos: perawat.kode_pos || '',
             alamat: perawat.alamat || '',
             seks: perawat.seks || '',
@@ -296,6 +345,58 @@ export default function PerawatIndex() {
         setModalOpen(true);
     };
 
+    // Verifikasi handlers
+    const handleOpenVerifikasi = (perawat: Perawat) => {
+        setVerifPerawat(perawat);
+        const selectedPendidikanId = perawat.pendidikan?.toString() || formData.pendidikan || '';
+        const chain = buildEducationChainFromList(selectedPendidikanId);
+        setPendidikans(chain.length ? chain : [{ jenjang: '', institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null }]);
+        setPelatihans([]);
+        setVerifOpen(true);
+    };
+    const addPendidikan = () =>
+        setPendidikans((prev) => [...prev, { jenjang: '', institusi: '', tahun_lulus: '', nomor_ijazah: '', file_ijazah: null }]);
+    const removePendidikan = (idx: number) => setPendidikans((prev) => prev.filter((_, i) => i !== idx));
+    const updatePendidikan = (idx: number, key: keyof PendidikanItem, value: string | File | null) => {
+        setPendidikans((prev) => prev.map((item, i) => (i === idx ? { ...item, [key]: value } : item)));
+    };
+    const addPelatihan = () =>
+        setPelatihans((prev) => [
+            ...prev,
+            { nama_pelatihan: '', penyelenggara: '', tanggal_mulai: '', tanggal_selesai: '', nomor_sertifikat: '', file_sertifikat: null },
+        ]);
+    const removePelatihan = (idx: number) => setPelatihans((prev) => prev.filter((_, i) => i !== idx));
+    const updatePelatihan = (idx: number, key: keyof PelatihanItem, value: string | File | null) => {
+        setPelatihans((prev) => prev.map((item, i) => (i === idx ? { ...item, [key]: value } : item)));
+    };
+    const submitVerifikasi = () => {
+        if (!verifPerawat) return;
+        const fd = new FormData();
+        fd.append('perawat_id', String(verifPerawat.id));
+        pendidikans.forEach((p, i) => {
+            fd.append(`pendidikans[${i}][jenjang]`, p.jenjang);
+            if (p.institusi) fd.append(`pendidikans[${i}][institusi]`, p.institusi);
+            if (p.tahun_lulus) fd.append(`pendidikans[${i}][tahun_lulus]`, p.tahun_lulus);
+            if (p.nomor_ijazah) fd.append(`pendidikans[${i}][nomor_ijazah]`, p.nomor_ijazah);
+            if (p.file_ijazah instanceof File) fd.append(`pendidikans[${i}][file_ijazah]`, p.file_ijazah);
+        });
+        pelatihans.forEach((p, i) => {
+            fd.append(`pelatihans[${i}][nama_pelatihan]`, p.nama_pelatihan);
+            if (p.penyelenggara) fd.append(`pelatihans[${i}][penyelenggara]`, p.penyelenggara);
+            if (p.tanggal_mulai) fd.append(`pelatihans[${i}][tanggal_mulai]`, p.tanggal_mulai);
+            if (p.tanggal_selesai) fd.append(`pelatihans[${i}][tanggal_selesai]`, p.tanggal_selesai);
+            if (p.nomor_sertifikat) fd.append(`pelatihans[${i}][nomor_sertifikat]`, p.nomor_sertifikat);
+            if (p.file_sertifikat instanceof File) fd.append(`pelatihans[${i}][file_sertifikat]`, p.file_sertifikat);
+        });
+        router.post('/sdm/perawat/verifikasi', fd, {
+            onSuccess: () => {
+                setVerifOpen(false);
+                setVerifPerawat(null);
+            },
+            onError: () => toast.error('Gagal menyimpan verifikasi'),
+        });
+    };
+
     // Form handlers
     const handleInputChange = (field: string, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -329,7 +430,6 @@ export default function PerawatIndex() {
 
         router.post(url, submitData, {
             onSuccess: () => {
-                toast.success(modalMode === 'edit' ? 'Data perawat berhasil diperbarui!' : 'Data perawat berhasil ditambahkan!');
                 setModalOpen(false);
                 setSelectedPerawat(null);
                 resetForm();
@@ -345,7 +445,7 @@ export default function PerawatIndex() {
         if (confirm(`Apakah Anda yakin ingin menghapus perawat ${perawat.user_name_input || perawat.nik}?`)) {
             router.delete(`/sdm/perawat/${perawat.id}`, {
                 onSuccess: () => {
-                    toast.success('Data perawat berhasil dihapus!');
+                    // Flash success dari server akan ditampilkan via useEffect
                 },
                 onError: () => {
                     toast.error('Terjadi kesalahan saat menghapus data!');
@@ -383,7 +483,6 @@ export default function PerawatIndex() {
     const steps = [
         { id: 1, label: 'Data Dasar' },
         { id: 2, label: 'Data Profesi' },
-        { id: 3, label: 'Kontak & Status' },
     ];
 
     const nextStep = () => {
@@ -466,16 +565,33 @@ export default function PerawatIndex() {
                                             <TableCell className="font-medium">{perawat.nama || '-'}</TableCell>
                                             <TableCell>{perawat.nik || '-'}</TableCell>
                                             <TableCell>{perawat.telepon || '-'}</TableCell>
-                                            <TableCell>{perawat.nama || '-'}</TableCell>
-                                            <TableCell>{perawat.verifikasi || '-'}</TableCell>
+                                            <TableCell>{perawat.namastatuspegawai?.nama || '-'}</TableCell>
                                             <TableCell>
-                                                <div className="flex items-center justify-center gap-2">
+                                                <Badge variant={perawat.verifikasi === 2 ? 'default' : 'secondary'}>
+                                                    {perawat.verifikasi === 2 ? 'Terverifikasi' : 'Belum Verifikasi'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
                                                     <Button size="sm" variant="outline" onClick={() => handleShow(perawat)} title="Lihat Detail">
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="outline" onClick={() => handleEdit(perawat)} title="Edit">
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
+                                                    {perawat.verifikasi === 2 && (
+                                                        <Button size="sm" variant="outline" onClick={() => handleEdit(perawat)} title="Edit">
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                    {/* Perawat tidak memiliki pengaturan jadwal di halaman ini */}
+                                                    {perawat.verifikasi === 1 && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleOpenVerifikasi(perawat)}
+                                                            title="Verifikasi"
+                                                        >
+                                                            <UserCheck className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                     <Button size="sm" variant="destructive" onClick={() => handleDelete(perawat)} title="Hapus">
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -495,7 +611,7 @@ export default function PerawatIndex() {
                     </CardContent>
                 </Card>
 
-                {/* Modal Tambah Staff */}
+                {/* Modal Tambah Perawat */}
                 <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                     <DialogContent
                         className="flex max-h-[90vh] w-[95vw] !max-w-5xl flex-col rounded-lg md:w-[80vw] lg:w-[70vw]"
@@ -503,7 +619,7 @@ export default function PerawatIndex() {
                     >
                         <DialogHeader className="flex flex-row items-center justify-between">
                             <DialogTitle className="text-xl font-semibold">
-                                {modalMode === 'create' ? 'Tambah Staff' : modalMode === 'edit' ? 'Edit Staff' : 'Detail Staff'}
+                                {modalMode === 'create' ? 'Tambah Perawat' : modalMode === 'edit' ? 'Edit Perawat' : 'Detail Perawat'}
                             </DialogTitle>
                         </DialogHeader>
 
@@ -546,11 +662,11 @@ export default function PerawatIndex() {
                             </div>
 
                             <form onSubmit={handleSubmit} className="space-y-8">
-                                {/* STEP 1: Foto, Nama, NIK, NPWP, TTL */}
+                                {/* STEP 1: Data Dasar */}
                                 {currentStep === 1 && (
-                                    <div className="flex flex-col gap-8 lg:flex-row">
-                                        {/* Kolom Kiri: Foto + Data Utama */}
-                                        <div className="lg:w-1/2">
+                                    <div className="flex flex-col gap-6 lg:flex-row">
+                                        {/* Foto (1/3 width) */}
+                                        <div className="space-y-4 lg:w-1/3">
                                             <div className="flex flex-col items-center">
                                                 <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed">
                                                     {imagePreview ? (
@@ -563,6 +679,7 @@ export default function PerawatIndex() {
                                                                 onChange={handleFileChange}
                                                                 className="hidden"
                                                                 id="staff-foto"
+                                                                disabled={isReadOnly}
                                                             />
                                                             <label htmlFor="staff-foto" className="cursor-pointer">
                                                                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -573,73 +690,178 @@ export default function PerawatIndex() {
                                                         </div>
                                                     )}
                                                 </div>
-                                            </div>
-                                            <div className="mt-4 grid grid-cols-1 gap-5">
-                                                <div>
+                                                {/* Nama di bawah foto */}
+                                                <div className="mt-4 w-full">
                                                     <Label htmlFor="nama">Nama Lengkap</Label>
                                                     <Input
                                                         id="nama"
                                                         value={formData.nama}
                                                         onChange={(e) => handleInputChange('nama', e.target.value)}
                                                         placeholder="Nama Lengkap"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
-                                                <div>
+
+                                                {/* NIK di bawah nama */}
+                                                <div className="mt-4 w-full">
                                                     <Label htmlFor="nik">Nomor NIK</Label>
                                                     <Input
                                                         id="nik"
                                                         value={formData.nik}
                                                         onChange={(e) => handleInputChange('nik', e.target.value)}
                                                         placeholder="Nomor NIK"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
-                                                <div>
+
+                                                {/* TTL di bawah NIK */}
+                                                <div className="mt-4 w-full">
+                                                    <Label htmlFor="tempat_lahir">Tempat & Tanggal Lahir</Label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <Input
+                                                            id="tempat_lahir"
+                                                            value={formData.tempat_lahir}
+                                                            onChange={(e) => handleInputChange('tempat_lahir', e.target.value)}
+                                                            placeholder="Tempat"
+                                                            disabled={isReadOnly}
+                                                        />
+                                                        <Input
+                                                            id="tanggal_lahir"
+                                                            type="date"
+                                                            value={formData.tanggal_lahir}
+                                                            onChange={(e) => handleInputChange('tanggal_lahir', e.target.value)}
+                                                            disabled={isReadOnly}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Identitas + Info Pribadi (2/3 width) */}
+                                        <div className="space-y-4 md:space-y-6 lg:w-2/3 lg:border-l lg:pl-6">
+                                            <h6 className="mb-4 text-base font-semibold">Informasi Pribadi</h6>
+                                            <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
+                                                <div className="md:col-span-2">
                                                     <Label htmlFor="npwp">Nomor NPWP</Label>
                                                     <Input
                                                         id="npwp"
                                                         value={formData.npwp}
                                                         onChange={(e) => handleInputChange('npwp', e.target.value)}
                                                         placeholder="Nomor NPWP"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Pembatas antara kolom kiri dan kanan */}
-                                        <div className="hidden items-stretch px-4 lg:flex">
-                                            <div className="h-full border-l border-gray-300"></div>
-                                        </div>
-
-                                        {/* Kolom Kanan: Tempat & Tanggal Lahir */}
-                                        <div className="lg:w-1/2 lg:pl-8">
-                                            <div className="grid grid-cols-1 gap-5">
-                                                <div>
-                                                    <Label htmlFor="tempat_lahir">Tempat Lahir</Label>
-                                                    <Input
-                                                        id="tempat_lahir"
-                                                        value={formData.tempat_lahir}
-                                                        onChange={(e) => handleInputChange('tempat_lahir', e.target.value)}
-                                                        placeholder="Tempat Lahir"
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="tanggal_lahir">Tanggal Lahir</Label>
+                                                    <Label htmlFor="seks">Jenis Kelamin</Label>
+                                                    <Select
+                                                        value={formData.seks}
+                                                        onValueChange={(value) => handleInputChange('seks', value)}
+                                                        disabled={isReadOnly}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Jenis Kelamin" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="L">Laki-laki</SelectItem>
+                                                            <SelectItem value="P">Perempuan</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <Label htmlFor="telepon">Telepon</Label>
                                                     <Input
-                                                        id="tanggal_lahir"
-                                                        type="date"
-                                                        value={formData.tanggal_lahir}
-                                                        onChange={(e) => handleInputChange('tanggal_lahir', e.target.value)}
+                                                        id="telepon"
+                                                        value={formData.telepon}
+                                                        onChange={(e) => handleInputChange('telepon', e.target.value)}
+                                                        placeholder="Telepon"
+                                                        disabled={isReadOnly}
                                                     />
+                                                </div>
+                                                <div>
+                                                    <Label htmlFor="suku">Suku</Label>
+                                                    <Select
+                                                        value={formData.suku}
+                                                        onValueChange={(value) => handleInputChange('suku', value)}
+                                                        disabled={isReadOnly}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Pilih Suku" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {suku.map((s) => (
+                                                                <SelectItem key={s.id} value={s.id.toString()}>
+                                                                    {s.nama}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <Label htmlFor="agama">Agama</Label>
+                                                    <Select
+                                                        value={formData.agama}
+                                                        onValueChange={(value) => handleInputChange('agama', value)}
+                                                        disabled={isReadOnly}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="--- pilih ---" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {agama.map((a) => (
+                                                                <SelectItem key={a.id} value={a.id.toString()}>
+                                                                    {a.nama}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <Label htmlFor="bahasa">Bahasa</Label>
+                                                    <Select
+                                                        value={formData.bahasa}
+                                                        onValueChange={(value) => handleInputChange('bahasa', value)}
+                                                        disabled={isReadOnly}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="--- pilih ---" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {bahasa.map((b) => (
+                                                                <SelectItem key={b.id} value={b.id.toString()}>
+                                                                    {b.nama}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <Label htmlFor="bangsa">Bangsa</Label>
+                                                    <Select
+                                                        value={formData.bangsa}
+                                                        onValueChange={(value) => handleInputChange('bangsa', value)}
+                                                        disabled={isReadOnly}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="--- pilih ---" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {bangsa.map((b) => (
+                                                                <SelectItem key={b.id} value={b.id.toString()}>
+                                                                    {b.nama}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* STEP 2: Alamat */}
+                                {/* STEP 2: Data Profesi & Alamat */}
                                 {currentStep === 2 && (
                                     <div className="flex">
-                                        {/* Left Column - Address (match pasien layout) */}
+                                        {/* Left Column - Address */}
                                         <div className="w-1/2 space-y-4 pr-5">
                                             <div>
                                                 <h3 className="mb-3 text-base font-semibold">Alamat Lengkap</h3>
@@ -655,35 +877,36 @@ export default function PerawatIndex() {
                                                         onDistrictChange={(value) => handleInputChange('kecamatan', value)}
                                                         onVillageChange={(value) => handleInputChange('desa', value)}
                                                     />
-                                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                                        <div className="grid grid-cols-6 gap-3 md:col-span-2">
-                                                            <div className="col-span-2">
-                                                                <Label htmlFor="rt">RT</Label>
-                                                                <Input
-                                                                    id="rt"
-                                                                    value={formData.rt}
-                                                                    onChange={(e) => handleInputChange('rt', e.target.value)}
-                                                                    placeholder="001"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-2">
-                                                                <Label htmlFor="rw">RW</Label>
-                                                                <Input
-                                                                    id="rw"
-                                                                    value={formData.rw}
-                                                                    onChange={(e) => handleInputChange('rw', e.target.value)}
-                                                                    placeholder="002"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-2">
-                                                                <Label htmlFor="kode_pos">Kode Pos</Label>
-                                                                <Input
-                                                                    id="kode_pos"
-                                                                    value={formData.kode_pos}
-                                                                    onChange={(e) => handleInputChange('kode_pos', e.target.value)}
-                                                                    placeholder="Kode Pos"
-                                                                />
-                                                            </div>
+                                                    <div className="grid grid-cols-6 gap-3">
+                                                        <div className="col-span-2">
+                                                            <Label htmlFor="rt">RT</Label>
+                                                            <Input
+                                                                id="rt"
+                                                                value={formData.rt}
+                                                                onChange={(e) => handleInputChange('rt', e.target.value)}
+                                                                placeholder="001"
+                                                                disabled={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <Label htmlFor="rw">RW</Label>
+                                                            <Input
+                                                                id="rw"
+                                                                value={formData.rw}
+                                                                onChange={(e) => handleInputChange('rw', e.target.value)}
+                                                                placeholder="002"
+                                                                disabled={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <Label htmlFor="kode_pos">Kode Pos</Label>
+                                                            <Input
+                                                                id="kode_pos"
+                                                                value={formData.kode_pos}
+                                                                onChange={(e) => handleInputChange('kode_pos', e.target.value)}
+                                                                placeholder="Kode Pos"
+                                                                disabled={isReadOnly}
+                                                            />
                                                         </div>
                                                     </div>
                                                     <div>
@@ -694,30 +917,24 @@ export default function PerawatIndex() {
                                                             onChange={(e) => handleInputChange('alamat', e.target.value)}
                                                             placeholder="Masukkan alamat"
                                                             rows={3}
+                                                            disabled={isReadOnly}
                                                         />
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* Right Column - kosong agar mirip struktur pasien (bisa diisi nanti) */}
+
+                                        {/* Right Column - Status & Kerja */}
                                         <div className="w-1/2 border-l pl-5">
                                             <h3 className="mb-3 text-base font-semibold">Informasi Status & Kerja</h3>
                                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                                 <div>
-                                                    <Label htmlFor="seks">Jenis Kelamin</Label>
-                                                    <Select value={formData.seks} onValueChange={(value) => handleInputChange('seks', value)}>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Jenis Kelamin" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="L">Laki-laki</SelectItem>
-                                                            <SelectItem value="P">Perempuan</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
                                                     <Label htmlFor="goldar">Golongan Darah</Label>
-                                                    <Select value={formData.goldar} onValueChange={(value) => handleInputChange('goldar', value)}>
+                                                    <Select
+                                                        value={formData.goldar}
+                                                        onValueChange={(value) => handleInputChange('goldar', value)}
+                                                        disabled={isReadOnly}
+                                                    >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
@@ -736,6 +953,7 @@ export default function PerawatIndex() {
                                                     <Select
                                                         value={formData.pernikahan}
                                                         onValueChange={(value) => handleInputChange('pernikahan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -754,6 +972,7 @@ export default function PerawatIndex() {
                                                     <Select
                                                         value={formData.kewarganegaraan}
                                                         onValueChange={(value) => handleInputChange('kewarganegaraan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -769,9 +988,10 @@ export default function PerawatIndex() {
                                                     <Select
                                                         value={formData.status_pegawaian}
                                                         onValueChange={(value) => handleInputChange('status_pegawaian', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
-                                                            <SelectValue placeholder="--- Pilih Status Pegawai ---" />
+                                                            <SelectValue placeholder="--- pilih ---" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {posker.map((p) => (
@@ -789,6 +1009,7 @@ export default function PerawatIndex() {
                                                         type="date"
                                                         value={formData.tgl_masuk}
                                                         onChange={(e) => handleInputChange('tgl_masuk', e.target.value)}
+                                                        disabled={isReadOnly}
                                                     />
                                                 </div>
                                                 <div>
@@ -796,6 +1017,7 @@ export default function PerawatIndex() {
                                                     <Select
                                                         value={formData.pendidikan}
                                                         onValueChange={(value) => handleInputChange('pendidikan', value)}
+                                                        disabled={isReadOnly}
                                                     >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="--- pilih ---" />
@@ -809,85 +1031,6 @@ export default function PerawatIndex() {
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
-                                                <div>
-                                                    <Label htmlFor="telepon">Telepon</Label>
-                                                    <Input
-                                                        id="telepon"
-                                                        value={formData.telepon}
-                                                        onChange={(e) => handleInputChange('telepon', e.target.value)}
-                                                        placeholder="Telepon"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* STEP 3: Sisanya (Profesi + Demografis) */}
-                                {currentStep === 3 && (
-                                    <div className="space-y-4 md:space-y-6">
-                                        {/* Demografis */}
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                            <div>
-                                                <Label htmlFor="agama">Agama</Label>
-                                                <Select value={formData.agama} onValueChange={(value) => handleInputChange('agama', value)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="--- pilih ---" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {agama.map((a) => (
-                                                            <SelectItem key={a.id} value={a.id.toString()}>
-                                                                {a.nama}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div>
-                                                <Label htmlFor="suku">Suku</Label>
-                                                <Select value={formData.suku} onValueChange={(value) => handleInputChange('suku', value)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Pilih Suku" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {suku.map((s) => (
-                                                            <SelectItem key={s.id} value={s.id.toString()}>
-                                                                {s.nama}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="bangsa">Bangsa</Label>
-                                                <Select value={formData.bangsa} onValueChange={(value) => handleInputChange('bangsa', value)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Pilih Bangsa" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {bangsa.map((b) => (
-                                                            <SelectItem key={b.id} value={b.id.toString()}>
-                                                                {b.nama}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="bahasa">Bahasa</Label>
-                                                <Select value={formData.bahasa} onValueChange={(value) => handleInputChange('bahasa', value)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Pilih Bahasa" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {bahasa.map((b) => (
-                                                            <SelectItem key={b.id} value={b.id.toString()}>
-                                                                {b.nama}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
                                             </div>
                                         </div>
                                     </div>
@@ -896,25 +1039,189 @@ export default function PerawatIndex() {
                         </div>
 
                         <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => (currentStep > 1 ? setCurrentStep(currentStep - 1) : setModalOpen(false))}
-                            >
-                                Kembali
+                            {isReadOnly ? (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => (currentStep > 1 ? setCurrentStep(currentStep - 1) : setModalOpen(false))}
+                                    >
+                                        Kembali
+                                    </Button>
+                                    {currentStep < steps.length && (
+                                        <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
+                                            Lanjut
+                                        </Button>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => (currentStep > 1 ? setCurrentStep(currentStep - 1) : setModalOpen(false))}
+                                    >
+                                        Kembali
+                                    </Button>
+                                    {currentStep < steps.length && (
+                                        <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
+                                            Lanjut
+                                        </Button>
+                                    )}
+                                    {currentStep === steps.length && (
+                                        <Button type="submit" onClick={handleSubmit}>
+                                            Simpan
+                                        </Button>
+                                    )}
+                                </>
+                            )}
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal Verifikasi Perawat */}
+                <Dialog open={verifOpen} onOpenChange={setVerifOpen}>
+                    <DialogContent
+                        className="flex max-h-[90vh] w-[95vw] !max-w-5xl flex-col rounded-lg md:w-[80vw] lg:w-[70vw]"
+                        aria-describedby={undefined}
+                    >
+                        <DialogHeader className="flex flex-row items-center justify-between">
+                            <DialogTitle className="text-xl font-semibold">
+                                Verifikasi Perawat {verifPerawat?.nama || verifPerawat?.user_name_input || ''}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 space-y-8 overflow-y-auto p-6">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-base font-semibold">Jenjang Pendidikan</h3>
+                                    <Button size="sm" variant="outline" onClick={addPendidikan}>
+                                        Tambah
+                                    </Button>
+                                </div>
+                                {pendidikans.map((p, idx) => (
+                                    <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                                        <div className="md:col-span-2">
+                                            <Label>Jenjang</Label>
+                                            <Input
+                                                value={p.jenjang}
+                                                onChange={(e) => updatePendidikan(idx, 'jenjang', e.target.value)}
+                                                placeholder="S.Kep/Profesi/Spesialis"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Label>Institusi</Label>
+                                            <Input
+                                                value={p.institusi || ''}
+                                                onChange={(e) => updatePendidikan(idx, 'institusi', e.target.value)}
+                                                placeholder="Universitas"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tahun Lulus</Label>
+                                            <Input
+                                                value={p.tahun_lulus || ''}
+                                                onChange={(e) => updatePendidikan(idx, 'tahun_lulus', e.target.value)}
+                                                placeholder="YYYY"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>No. Ijazah</Label>
+                                            <Input
+                                                value={p.nomor_ijazah || ''}
+                                                onChange={(e) => updatePendidikan(idx, 'nomor_ijazah', e.target.value)}
+                                                placeholder="Nomor"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Label>File Ijazah (opsional)</Label>
+                                            <input
+                                                type="file"
+                                                accept="application/pdf,image/*"
+                                                onChange={(e) => updatePendidikan(idx, 'file_ijazah', e.target.files?.[0] || null)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Button type="button" variant="destructive" size="sm" onClick={() => removePendidikan(idx)}>
+                                                Hapus
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-base font-semibold">Sertifikat Pelatihan</h3>
+                                    <Button size="sm" variant="outline" onClick={addPelatihan}>
+                                        Tambah
+                                    </Button>
+                                </div>
+                                {pelatihans.map((p, idx) => (
+                                    <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                                        <div className="md:col-span-2">
+                                            <Label>Nama Pelatihan</Label>
+                                            <Input
+                                                value={p.nama_pelatihan}
+                                                onChange={(e) => updatePelatihan(idx, 'nama_pelatihan', e.target.value)}
+                                                placeholder="Nama pelatihan"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Label>Penyelenggara</Label>
+                                            <Input
+                                                value={p.penyelenggara || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'penyelenggara', e.target.value)}
+                                                placeholder="Institusi"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tgl Mulai</Label>
+                                            <Input
+                                                type="date"
+                                                value={p.tanggal_mulai || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'tanggal_mulai', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tgl Selesai</Label>
+                                            <Input
+                                                type="date"
+                                                value={p.tanggal_selesai || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'tanggal_selesai', e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>No. Sertifikat</Label>
+                                            <Input
+                                                value={p.nomor_sertifikat || ''}
+                                                onChange={(e) => updatePelatihan(idx, 'nomor_sertifikat', e.target.value)}
+                                                placeholder="Nomor"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Label>File Sertifikat (opsional)</Label>
+                                            <input
+                                                type="file"
+                                                accept="application/pdf,image/*"
+                                                onChange={(e) => updatePelatihan(idx, 'file_sertifikat', e.target.files?.[0] || null)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Button type="button" variant="destructive" size="sm" onClick={() => removePelatihan(idx)}>
+                                                Hapus
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setVerifOpen(false)}>
+                                Batal
                             </Button>
-
-                            {currentStep < steps.length && (
-                                <Button type="button" onClick={() => setCurrentStep(currentStep + 1)}>
-                                    Lanjut
-                                </Button>
-                            )}
-
-                            {currentStep === steps.length && (
-                                <Button type="submit" onClick={handleSubmit}>
-                                    Simpan
-                                </Button>
-                            )}
+                            <Button type="button" onClick={submitVerifikasi}>
+                                Simpan Verifikasi
+                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

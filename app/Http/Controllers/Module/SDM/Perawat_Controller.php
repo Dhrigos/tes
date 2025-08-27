@@ -19,6 +19,8 @@ use Laravolt\Indonesia\Models\Province;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
+use App\Models\Module\SDM\PerawatPendidikan;
+use App\Models\Module\SDM\PerawatPelatihan;
 
 
 class Perawat_controller extends Controller
@@ -147,6 +149,7 @@ class Perawat_controller extends Controller
             'kabupaten_kode' => $kabupatenKode,
             'kecamatan_kode' => $kecamatanKode,
             'desa_kode' => $desaKode,
+            'verifikasi' => 1, // Default belum verifikasi
         ]);
 
         // Hapus field yang tidak ada di fillable (hanya unset jika ada)
@@ -169,7 +172,141 @@ class Perawat_controller extends Controller
         return back()->with('success', 'Data perawat berhasil ditambahkan!');
     }
 
+    public function update(Request $request, $id)
+    {
+        $perawat = Perawat::findOrFail($id);
 
+        $validatedData = $request->validate([
+            'nama' => 'sometimes|required|string|max:255',
+            'nik' => 'nullable|string|max:16',
+            'npwp' => 'nullable|string|max:20',
+            'tgl_masuk' => 'nullable|date',
+            'status_pegawaian' => 'nullable|integer',
+            'tempat_lahir' => 'nullable|string|max:100',
+            'tanggal_lahir' => 'nullable|date',
+            'alamat' => 'nullable|string',
+            'rt' => 'nullable|string|max:3',
+            'rw' => 'nullable|string|max:3',
+            'kode_pos' => 'nullable|string|max:5',
+            'kewarganegaraan' => 'nullable|string|max:50',
+            'seks' => 'nullable|string|in:L,P',
+            'agama' => 'nullable|integer',
+            'pendidikan' => 'nullable|integer',
+            'goldar' => 'nullable|integer',
+            'pernikahan' => 'nullable|integer',
+            'telepon' => 'nullable|string|max:15',
+            'profile' => 'nullable|file|image|max:2048',
+            // Bisa menerima ID (integer) atau CODE (string angka)
+            'provinsi' => 'nullable',
+            'kabupaten' => 'nullable',
+            'kecamatan' => 'nullable',
+            'desa' => 'nullable',
+            'suku' => 'nullable|integer',
+            'bahasa' => 'nullable|integer',
+            'bangsa' => 'nullable|integer',
+        ]);
+
+        // Mapping alamat: terima langsung *_kode atau fallback dari provinsi/kabupaten/kecamatan/desa (ID/CODE)
+        $provinsiInput = $request->input('provinsi_kode') ?? $request->input('provinsi');
+        $kabupatenInput = $request->input('kabupaten_kode') ?? $request->input('kabupaten');
+        $kecamatanInput = $request->input('kecamatan_kode') ?? $request->input('kecamatan');
+        $desaInput = $request->input('desa_kode') ?? $request->input('desa');
+
+        $provinsiKode = $this->resolveProvinceCode($provinsiInput);
+        $kabupatenKode = $this->resolveCityCode($kabupatenInput);
+        $kecamatanKode = $this->resolveDistrictCode($kecamatanInput);
+        $desaKode = $this->resolveVillageCode($desaInput);
+
+        $perawatData = array_merge($validatedData, [
+            'provinsi_kode' => $provinsiKode,
+            'kabupaten_kode' => $kabupatenKode,
+            'kecamatan_kode' => $kecamatanKode,
+            'desa_kode' => $desaKode,
+        ]);
+
+        // Hapus field yang tidak ada di fillable
+        unset($perawatData['provinsi'], $perawatData['kabupaten'], $perawatData['kecamatan'], $perawatData['desa']);
+
+        // Handle upload profile photo
+        if ($request->hasFile('profile')) {
+            $path = $request->file('profile')->store('public/perawat');
+            $perawatData['profile'] = basename($path);
+        }
+
+        $perawat->update($perawatData);
+
+
+
+        return back()->with('success', 'Data perawat berhasil diperbarui!');
+    }
+
+    public function destroy($id)
+    {
+        $perawat = Perawat::findOrFail($id);
+        $perawat->delete();
+        return back()->with('success', 'Data perawat berhasil dihapus!');
+    }
+
+    public function verifikasi(Request $request)
+    {
+        $validated = $request->validate([
+            'perawat_id' => 'required|exists:perawats,id',
+            'pendidikans' => 'array',
+            'pendidikans.*.jenjang' => 'required|string|max:100',
+            'pendidikans.*.institusi' => 'nullable|string|max:255',
+            'pendidikans.*.tahun_lulus' => 'nullable|string|max:10',
+            'pendidikans.*.nomor_ijazah' => 'nullable|string|max:100',
+            'pendidikans.*.file_ijazah' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+            'pelatihans' => 'array',
+            'pelatihans.*.nama_pelatihan' => 'required|string|max:255',
+            'pelatihans.*.penyelenggara' => 'nullable|string|max:255',
+            'pelatihans.*.tanggal_mulai' => 'nullable|date',
+            'pelatihans.*.tanggal_selesai' => 'nullable|date|after_or_equal:pelatihans.*.tanggal_mulai',
+            'pelatihans.*.nomor_sertifikat' => 'nullable|string|max:100',
+            'pelatihans.*.file_sertifikat' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+        ]);
+
+        $perawat = Perawat::findOrFail($validated['perawat_id']);
+
+        if ($request->has('pendidikans')) {
+            foreach ($request->pendidikans as $item) {
+                $data = [
+                    'perawat_id' => $perawat->id,
+                    'jenjang' => $item['jenjang'] ?? '',
+                    'institusi' => $item['institusi'] ?? null,
+                    'tahun_lulus' => $item['tahun_lulus'] ?? null,
+                    'nomor_ijazah' => $item['nomor_ijazah'] ?? null,
+                ];
+                if (isset($item['file_ijazah']) && $item['file_ijazah'] instanceof \Illuminate\Http\UploadedFile) {
+                    $path = $item['file_ijazah']->store('public/perawat/ijazah');
+                    $data['file_ijazah'] = basename($path);
+                }
+                PerawatPendidikan::create($data);
+            }
+        }
+
+        if ($request->has('pelatihans')) {
+            foreach ($request->pelatihans as $item) {
+                $data = [
+                    'perawat_id' => $perawat->id,
+                    'nama_pelatihan' => $item['nama_pelatihan'] ?? '',
+                    'penyelenggara' => $item['penyelenggara'] ?? null,
+                    'tanggal_mulai' => $item['tanggal_mulai'] ?? null,
+                    'tanggal_selesai' => $item['tanggal_selesai'] ?? null,
+                    'nomor_sertifikat' => $item['nomor_sertifikat'] ?? null,
+                ];
+                if (isset($item['file_sertifikat']) && $item['file_sertifikat'] instanceof \Illuminate\Http\UploadedFile) {
+                    $path = $item['file_sertifikat']->store('public/perawat/sertifikat');
+                    $data['file_sertifikat'] = basename($path);
+                }
+                PerawatPelatihan::create($data);
+            }
+        }
+
+        $perawat->update(['verifikasi' => 2]);
+
+        return back()->with('success', 'Data verifikasi perawat berhasil disimpan.');
+    }
 
     private function resolveProvinceCode($value)
     {

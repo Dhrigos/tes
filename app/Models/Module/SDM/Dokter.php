@@ -12,6 +12,7 @@ class Dokter extends Model
 {
     protected $table = 'dokters';
     protected $fillable = [
+        'nama',
         'nik',
         'npwp',
         'poli',
@@ -45,8 +46,6 @@ class Dokter extends Model
         'bangsa',
         'verifikasi',
         'users',
-        'user_id_input',
-        'user_name_input',
     ];
 
 
@@ -63,15 +62,30 @@ class Dokter extends Model
         return $this->belongsTo(Posker::class, 'status_pegawaian');
     }
 
+    public function pendidikans()
+    {
+        return $this->hasMany(\App\Models\Module\SDM\DokterPendidikan::class, 'dokter_id');
+    }
+
+    public function pelatihans()
+    {
+        return $this->hasMany(\App\Models\Module\SDM\DokterPelatihan::class, 'dokter_id');
+    }
+
+    public function jadwals()
+    {
+        return $this->hasMany(\App\Models\Module\SDM\DokterJadwal::class, 'dokter_id');
+    }
+
     // public function verifikasi()
     // {
     //     return $this->hasOne(dokter_verifikasi::class);
     // }
 
-    // public function jadwal()
-    // {
-    //     return $this->hasMany(dokter_jadwal::class, 'dokter_id');
-    // }
+    public function jadwal()
+    {
+        return $this->hasMany(DokterJadwal::class, 'dokter_id');
+    }
 
     // public function pendaftaran()
     // {

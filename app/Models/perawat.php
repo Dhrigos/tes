@@ -39,6 +39,7 @@ class perawat extends Model
         'bahasa',
         'bangsa',
         'profile',
+        'verifikasi',
     ];
 
     public function namastatuspegawai()

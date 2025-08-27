@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('perawats', function (Blueprint $table) {
-            $table->string('verifikasi')->nullable();
+            $table->integer('verifikasi')->nullable();
         });
     }
 

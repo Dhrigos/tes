@@ -1,48 +1,32 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react";
-import { usePage, router, Head } from "@inertiajs/react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, RefreshCw } from "lucide-react";
-import AppLayout from "@/layouts/app-layout";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { toast } from "sonner"; // ✅ pakai sonner
-import { type BreadcrumbItem } from "@/types";
-
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { Head, router, usePage } from '@inertiajs/react';
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner'; // ✅ pakai sonner
 
 interface daftarHargaJuals {
-        id: number,
-        kode_obat_alkes: number,
-        kode: string,
-        nama_obat_alkes: string,
-        nama: string,
-        nama_pic: string,
-        telepon_pic: string,
-        harga_dasar: string,
-        harga_jual_1: string,
-        harga_jual_2: string,
-        harga_jual_3: string,
-        diskon: string,
-        ppn: string,
-        tanggal_obat_masuk: string,
-        user_input_id: string,
-        user_input_name: string,
+    id: number;
+    kode_obat_alkes: number;
+    kode: string;
+    nama_obat_alkes: string;
+    nama: string;
+    nama_pic: string;
+    telepon_pic: string;
+    harga_dasar: string;
+    harga_jual_1: string;
+    harga_jual_2: string;
+    harga_jual_3: string;
+    diskon: string;
+    ppn: string;
+    tanggal_obat_masuk: string;
 }
 
 interface PageProps {
@@ -54,9 +38,9 @@ interface PageProps {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: "Data Master", href: "" },
-    { title: "Gudang", href: "" },
-    { title: "Daftar Harga Jual", href: "" },
+    { title: 'Data Master', href: '' },
+    { title: 'Gudang', href: '' },
+    { title: 'Daftar Harga Jual', href: '' },
 ];
 
 export default function Index() {
@@ -78,45 +62,41 @@ export default function Index() {
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
 
-    const [nama, setNama] = useState("");
-    const [hargaDasar, setHargaDasar] = useState("");
-    const [hargaJual1, setHargaJual1] = useState("");
-    const [hargaJual2, setHargaJual2] = useState("");
-    const [hargaJual3, setHargaJual3] = useState("");
-    const [diskon, setDiskon] = useState("");
-    const [ppn, setPpn] = useState("");
-    const [tanggalObatMasuk, setTanggalObatMasuk] = useState("");
-    const [userInputId, setUserInputId] = useState("");
-    const [userInputName, setUserInputName] = useState("");
-    const [pic, setPic] = useState("");
-    const [noTelp, setNoTelp] = useState("");
+    const [kodeObatAlkes, setKodeObatAlkes] = useState('');
+    const [nama, setNama] = useState('');
+    const [hargaDasar, setHargaDasar] = useState('');
+    const [hargaJual1, setHargaJual1] = useState('');
+    const [hargaJual2, setHargaJual2] = useState('');
+    const [hargaJual3, setHargaJual3] = useState('');
+    const [diskon, setDiskon] = useState('');
+    const [ppn, setPpn] = useState('');
+    const [tanggalObatMasuk, setTanggalObatMasuk] = useState('');
+
+    const [pic, setPic] = useState('');
+    const [noTelp, setNoTelp] = useState('');
 
     // Modal Hapus
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<number | null>(null);
-    const [deleteNama, setDeleteNama] = useState("");
+    const [deleteNama, setDeleteNama] = useState('');
 
     // Pencarian
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState('');
 
     const filtereddaftarHargaJuals = daftarHargaJuals.filter((a) => {
         const q = search.toLowerCase();
         return (
             a.nama_obat_alkes.toLowerCase().includes(q) ||
             a.kode_obat_alkes.toString().toLowerCase().includes(q) ||
-
             a.harga_dasar.toLowerCase().includes(q) ||
             a.harga_jual_1.toLowerCase().includes(q) ||
             a.harga_jual_2.toLowerCase().includes(q) ||
             a.harga_jual_3.toLowerCase().includes(q) ||
             a.diskon.toLowerCase().includes(q) ||
             a.ppn.toLowerCase().includes(q) ||
-            a.tanggal_obat_masuk.toLowerCase().includes(q) ||
-            a.user_input_id.toLowerCase().includes(q) ||
-            a.user_input_name.toLowerCase().includes(q)
+            a.tanggal_obat_masuk.toLowerCase().includes(q)
         );
-    }
-    );
+    });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -124,56 +104,76 @@ export default function Index() {
         if (editId) {
             router.put(
                 `/datamaster/gudang/daftar-harga-jual/${editId}`,
-                { nama_obat_alkes: nama, nama_pic: pic, telepon_pic: noTelp, harga_dasar: hargaDasar, harga_jual_1: hargaJual1, harga_jual_2: hargaJual2, harga_jual_3: hargaJual3, diskon, ppn, tanggal_obat_masuk: tanggalObatMasuk, user_input_id: userInputId, user_input_name: userInputName },
+                {
+                    kode_obat_alkes: kodeObatAlkes,
+                    nama_obat_alkes: nama,
+                    harga_dasar: hargaDasar,
+                    harga_jual_1: hargaJual1,
+                    harga_jual_2: hargaJual2,
+                    harga_jual_3: hargaJual3,
+                    diskon,
+                    ppn,
+                    tanggal_obat_masuk: tanggalObatMasuk,
+                },
                 {
                     preserveScroll: true,
                     onSuccess: () => {
                         setOpen(false);
 
-                        setNama("");
-                        setHargaDasar("");
-                        setHargaJual1("");
-                        setHargaJual2("");
-                        setHargaJual3("");
-                        setDiskon("");
-                        setPpn("");
-                        setTanggalObatMasuk("");
-                        setUserInputId("");
-                        setUserInputName("");
-                        setPic("");
-                        setNoTelp("");
+                        setKodeObatAlkes('');
+                        setNama('');
+                        setHargaDasar('');
+                        setHargaJual1('');
+                        setHargaJual2('');
+                        setHargaJual3('');
+                        setDiskon('');
+                        setPpn('');
+                        setTanggalObatMasuk('');
+
+                        setPic('');
+                        setNoTelp('');
                         setEditId(null);
                     },
-                }
+                },
             );
         } else {
             router.post(
-                "/datamaster/gudang/daftar-harga-jual",
-                { nama_obat_alkes: nama, nama_pic: pic, telepon_pic: noTelp, harga_dasar: hargaDasar, harga_jual_1: hargaJual1, harga_jual_2: hargaJual2, harga_jual_3: hargaJual3, diskon, ppn, tanggal_obat_masuk: tanggalObatMasuk, user_input_id: userInputId, user_input_name: userInputName },
+                '/datamaster/gudang/daftar-harga-jual',
+                {
+                    kode_obat_alkes: kodeObatAlkes,
+                    nama_obat_alkes: nama,
+                    harga_dasar: hargaDasar,
+                    harga_jual_1: hargaJual1,
+                    harga_jual_2: hargaJual2,
+                    harga_jual_3: hargaJual3,
+                    diskon,
+                    ppn,
+                    tanggal_obat_masuk: tanggalObatMasuk,
+                },
                 {
                     preserveScroll: true,
                     onSuccess: () => {
                         setOpen(false);
 
-                        setNama("");
-                        setHargaDasar("");
-                        setHargaJual1("");
-                        setHargaJual2("");
-                        setHargaJual3("");
-                        setDiskon("");
-                        setPpn("");
-                        setTanggalObatMasuk("");
-                        setUserInputId("");
-                        setUserInputName("");
-                        setPic("");
-                        setNoTelp("");
+                        setKodeObatAlkes('');
+                        setNama('');
+                        setHargaDasar('');
+                        setHargaJual1('');
+                        setHargaJual2('');
+                        setHargaJual3('');
+                        setDiskon('');
+                        setPpn('');
+                        setTanggalObatMasuk('');
+
+                        setPic('');
+                        setNoTelp('');
                         setEditId(null);
                     },
                     onError: (e) => {
-                        console.error("Error saving Daftar Harga Jual", e);
+                        console.error('Error saving Daftar Harga Jual', e);
                         // modal tetap terbuka
                     },
-                }
+                },
             );
         }
     };
@@ -181,18 +181,18 @@ export default function Index() {
     const handleOpenEdit = (daftarHargaJuals: daftarHargaJuals) => {
         setEditId(daftarHargaJuals.id);
 
-        setNama(daftarHargaJuals.nama_obat_alkes || "");
-        setHargaDasar(daftarHargaJuals.harga_dasar || "");
-        setHargaJual1(daftarHargaJuals.harga_jual_1 || "");
-        setHargaJual2(daftarHargaJuals.harga_jual_2 || "");
-        setHargaJual3(daftarHargaJuals.harga_jual_3 || "");
-        setDiskon(daftarHargaJuals.diskon || "");
-        setPpn(daftarHargaJuals.ppn || "");
-        setTanggalObatMasuk(daftarHargaJuals.tanggal_obat_masuk || "");
-        setUserInputId(daftarHargaJuals.user_input_id || "");
-        setUserInputName(daftarHargaJuals.user_input_name || "");
-        setPic(daftarHargaJuals.nama_pic || "");
-        setNoTelp(daftarHargaJuals.telepon_pic || "");
+        setKodeObatAlkes(daftarHargaJuals.kode_obat_alkes?.toString() || '');
+        setNama(daftarHargaJuals.nama_obat_alkes || '');
+        setHargaDasar(daftarHargaJuals.harga_dasar || '');
+        setHargaJual1(daftarHargaJuals.harga_jual_1 || '');
+        setHargaJual2(daftarHargaJuals.harga_jual_2 || '');
+        setHargaJual3(daftarHargaJuals.harga_jual_3 || '');
+        setDiskon(daftarHargaJuals.diskon || '');
+        setPpn(daftarHargaJuals.ppn || '');
+        setTanggalObatMasuk(daftarHargaJuals.tanggal_obat_masuk || '');
+
+        setPic(daftarHargaJuals.nama_pic || '');
+        setNoTelp(daftarHargaJuals.telepon_pic || '');
         setOpen(true);
     };
 
@@ -209,7 +209,7 @@ export default function Index() {
                 onSuccess: () => {
                     setDeleteOpen(false);
                     setDeleteId(null);
-                    setDeleteNama("");
+                    setDeleteNama('');
                 },
             });
         }
@@ -224,33 +224,32 @@ export default function Index() {
                         <CardTitle>Data Daftar Harga Jual</CardTitle>
                         <div className="flex items-center gap-2">
                             <div className="relative">
-                                <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
+                                <Search className="absolute top-2.5 left-2 h-4 w-4 text-gray-400" />
                                 <Input
                                     placeholder="Cari Daftar Harga Jual..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="pl-8 w-48"
+                                    className="w-48 pl-8"
                                 />
                             </div>
                             <Button
                                 onClick={() => {
                                     setEditId(null);
-                                    setNama("");
-                                    setHargaDasar("");
-                                    setHargaJual1("");
-                                    setHargaJual2("");
-                                    setHargaJual3("");
-                                    setDiskon("");
-                                    setPpn("");
-                                    setTanggalObatMasuk("");
-                                    setUserInputId("");
-                                    setUserInputName("");
-                                    setPic("");
-                                    setNoTelp("");
+                                    setKodeObatAlkes('');
+                                    setNama('');
+                                    setHargaDasar('');
+                                    setHargaJual1('');
+                                    setHargaJual2('');
+                                    setHargaJual3('');
+                                    setDiskon('');
+                                    setPpn('');
+                                    setTanggalObatMasuk('');
+                                    setPic('');
+                                    setNoTelp('');
                                     setOpen(true);
                                 }}
                             >
-                                <Plus className="w-4 h-4 mr-2" /> Tambah
+                                <Plus className="mr-2 h-4 w-4" /> Tambah
                             </Button>
                         </div>
                     </CardHeader>
@@ -261,13 +260,12 @@ export default function Index() {
                                 <TableRow>
                                     <TableHead className="w-16">#</TableHead>
 
-                                    <TableHead>Nama Obat/Alkes</TableHead>
-                                    <TableHead>Harga Dasar</TableHead>
-                                    <TableHead>Harga Jual 1</TableHead>
-                                    <TableHead>Harga Jual 2</TableHead>
-                                    <TableHead>Harga Jual 3</TableHead>
-                                    <TableHead>Diskon</TableHead>
-                                    <TableHead>PPN</TableHead>
+                                    <TableHead className="text-center">Nama Obat / Alkes</TableHead>
+                                    <TableHead className="text-center">Harga Dasar</TableHead>
+                                    <TableHead className="text-center">HJ Rawat Jalan</TableHead>
+                                    <TableHead className="text-center">HJ Asuransi</TableHead>
+                                    <TableHead className="text-center">HJ Umum</TableHead>
+                                    <TableHead className="text-center">Tanggal Input</TableHead>
                                     <TableHead className="w-40 text-right">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -284,20 +282,12 @@ export default function Index() {
                                             <TableCell>{item.harga_jual_3}</TableCell>
                                             <TableCell>{item.diskon}</TableCell>
                                             <TableCell>{item.ppn}</TableCell>
-                                            <TableCell className="text-right space-x-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleOpenEdit(item)}
-                                                >
-                                                    <Pencil className="w-4 h-4" />
+                                            <TableCell className="space-x-2 text-right">
+                                                <Button size="sm" variant="outline" onClick={() => handleOpenEdit(item)}>
+                                                    <Pencil className="h-4 w-4" />
                                                 </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() => handleOpenDelete(item)}
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
+                                                <Button size="sm" variant="destructive" onClick={() => handleOpenDelete(item)}>
+                                                    <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -319,52 +309,16 @@ export default function Index() {
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{editId ? "Edit Daftar Harga Jual" : "Tambah Daftar Harga Jual"}</DialogTitle>
+                        <DialogTitle>{editId ? 'Edit Daftar Harga Jual' : 'Tambah Daftar Harga Jual'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
-
-                        <Input
-                            placeholder="Nama Obat/Alkes"
-                            value={nama}
-                            onChange={(e) => setNama(e.target.value)}
-                            required
-                        />
-                        <Input
-                            placeholder="Harga Dasar"
-                            value={hargaDasar}
-                            onChange={(e) => setHargaDasar(e.target.value)}
-                            required
-                        />
-                        <Input
-                            placeholder="Harga Jual 1"
-                            value={hargaJual1}
-                            onChange={(e) => setHargaJual1(e.target.value)}
-                            required
-                        />
-                        <Input
-                            placeholder="Harga Jual 2"
-                            value={hargaJual2}
-                            onChange={(e) => setHargaJual2(e.target.value)}
-                            required
-                        />
-                        <Input
-                            placeholder="Harga Jual 3"
-                            value={hargaJual3}
-                            onChange={(e) => setHargaJual3(e.target.value)}
-                            required
-                        />
-                        <Input
-                            placeholder="Diskon (%)"
-                            value={diskon}
-                            onChange={(e) => setDiskon(e.target.value)}
-                            required
-                        />
-                        <Input
-                            placeholder="PPN (%)"
-                            value={ppn}
-                            onChange={(e) => setPpn(e.target.value)}
-                            required
-                        />
+                        <Input placeholder="Nama Obat/Alkes" value={nama} onChange={(e) => setNama(e.target.value)} required />
+                        <Input placeholder="Harga Dasar" value={hargaDasar} onChange={(e) => setHargaDasar(e.target.value)} required />
+                        <Input placeholder="Harga Jual 1" value={hargaJual1} onChange={(e) => setHargaJual1(e.target.value)} required />
+                        <Input placeholder="Harga Jual 2" value={hargaJual2} onChange={(e) => setHargaJual2(e.target.value)} required />
+                        <Input placeholder="Harga Jual 3" value={hargaJual3} onChange={(e) => setHargaJual3(e.target.value)} required />
+                        <Input placeholder="Diskon (%)" value={diskon} onChange={(e) => setDiskon(e.target.value)} required />
+                        <Input placeholder="PPN (%)" value={ppn} onChange={(e) => setPpn(e.target.value)} required />
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Batal
@@ -382,8 +336,7 @@ export default function Index() {
                         <DialogTitle>Konfirmasi Hapus</DialogTitle>
                     </DialogHeader>
                     <p>
-                        Apakah Anda yakin ingin menghapus Daftar Harga Jual{" "}
-                        <span className="font-semibold">{deleteNama}</span>?
+                        Apakah Anda yakin ingin menghapus Daftar Harga Jual <span className="font-semibold">{deleteNama}</span>?
                     </p>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>
@@ -396,5 +349,5 @@ export default function Index() {
                 </DialogContent>
             </Dialog>
         </AppLayout>
-    )
+    );
 }

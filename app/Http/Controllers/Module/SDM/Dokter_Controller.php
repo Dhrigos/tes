@@ -23,13 +23,17 @@ use Laravolt\Indonesia\Models\Province;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
+use Illuminate\Support\Facades\Storage;
+use App\Models\Module\SDM\DokterPendidikan;
+use App\Models\Module\SDM\DokterPelatihan;
+use App\Models\Module\SDM\DokterJadwal;
 
 class Dokter_Controller extends Controller
 {
     public function index()
     {
         // Load data dokter dengan relasi
-        $dokters = Dokter::with(['namapoli', 'namastatuspegawai'])
+        $dokters = Dokter::with(['namapoli', 'namastatuspegawai', 'jadwals'])
             ->orderBy('created_at', 'desc')
             ->paginate(50);
 
@@ -93,6 +97,7 @@ class Dokter_Controller extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
+            'nama' => 'required|string|max:255',
             'nik' => 'nullable|string|max:16',
             'npwp' => 'nullable|string|max:20',
             'poli' => 'nullable|integer',
@@ -127,23 +132,19 @@ class Dokter_Controller extends Controller
             'foto' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        // Mapping alamat dari ID ke kode
-        $provinsiKode = $request->provinsi ? Province::find($request->provinsi)?->code : null;
-        $kabupatenKode = $request->kabupaten ? City::find($request->kabupaten)?->code : null;
-        $kecamatanKode = $request->kecamatan ? District::find($request->kecamatan)?->code : null;
-        $desaKode = $request->desa ? Village::find($request->desa)?->code : null;
+        // Mapping alamat dari kode langsung bila dikirim, jika tidak fallback dari ID
+        $provinsiKode = $request->input('provinsi_kode') ?? ($request->provinsi ? Province::find($request->provinsi)?->code : null);
+        $kabupatenKode = $request->input('kabupaten_kode') ?? ($request->kabupaten ? City::find($request->kabupaten)?->code : null);
+        $kecamatanKode = $request->input('kecamatan_kode') ?? ($request->kecamatan ? District::find($request->kecamatan)?->code : null);
+        $desaKode = $request->input('desa_kode') ?? ($request->desa ? Village::find($request->desa)?->code : null);
 
-        // Cek kelengkapan data untuk verifikasi
-        $isDataComplete = $this->checkDataCompleteness($validatedData);
 
         $dokterData = array_merge($validatedData, [
             'provinsi_kode' => $provinsiKode,
             'kabupaten_kode' => $kabupatenKode,
             'kecamatan_kode' => $kecamatanKode,
             'desa_kode' => $desaKode,
-            'verifikasi' => $isDataComplete ? 2 : 1,
-            'user_id_input' => Auth::id(),
-            'user_name_input' => Auth::user()->name,
+            'verifikasi' => 1,
         ]);
 
         // Hapus field yang tidak ada di fillable
@@ -159,9 +160,133 @@ class Dokter_Controller extends Controller
             $dokter->update(['foto' => $filename]);
         }
 
-        $message = $isDataComplete ? 'Data dokter berhasil ditambahkan dan terverifikasi!' : 'Data dokter berhasil ditambahkan, namun masih perlu dilengkapi!';
+        $message = 'Data dokter berhasil ditambahkan, namun masih perlu dilengkapi!';
 
         return back()->with('success', $message);
+    }
+
+    public function verifikasi(Request $request)
+    {
+        $validated = $request->validate([
+            'dokter_id' => 'required|exists:dokters,id',
+            'pendidikans' => 'array',
+            'pendidikans.*.jenjang' => 'required|string|max:100',
+            'pendidikans.*.institusi' => 'nullable|string|max:255',
+            'pendidikans.*.tahun_lulus' => 'nullable|string|max:10',
+            'pendidikans.*.nomor_ijazah' => 'nullable|string|max:100',
+            'pendidikans.*.file_ijazah' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+            'pelatihans' => 'array',
+            'pelatihans.*.nama_pelatihan' => 'required|string|max:255',
+            'pelatihans.*.penyelenggara' => 'nullable|string|max:255',
+            'pelatihans.*.tanggal_mulai' => 'nullable|date',
+            'pelatihans.*.tanggal_selesai' => 'nullable|date|after_or_equal:pelatihans.*.tanggal_mulai',
+            'pelatihans.*.nomor_sertifikat' => 'nullable|string|max:100',
+            'pelatihans.*.file_sertifikat' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:4096',
+        ]);
+
+        $dokter = Dokter::findOrFail($validated['dokter_id']);
+
+        // Simpan pendidikans
+        if ($request->has('pendidikans')) {
+            foreach ($request->pendidikans as $item) {
+                $data = [
+                    'dokter_id' => $dokter->id,
+                    'jenjang' => $item['jenjang'] ?? '',
+                    'institusi' => $item['institusi'] ?? null,
+                    'tahun_lulus' => $item['tahun_lulus'] ?? null,
+                    'nomor_ijazah' => $item['nomor_ijazah'] ?? null,
+                ];
+                if (isset($item['file_ijazah']) && $item['file_ijazah'] instanceof \Illuminate\Http\UploadedFile) {
+                    $path = $item['file_ijazah']->store('public/dokter/ijazah');
+                    $data['file_ijazah'] = basename($path);
+                }
+                DokterPendidikan::create($data);
+            }
+        }
+
+        // Simpan pelatihans
+        if ($request->has('pelatihans')) {
+            foreach ($request->pelatihans as $item) {
+                $data = [
+                    'dokter_id' => $dokter->id,
+                    'nama_pelatihan' => $item['nama_pelatihan'] ?? '',
+                    'penyelenggara' => $item['penyelenggara'] ?? null,
+                    'tanggal_mulai' => $item['tanggal_mulai'] ?? null,
+                    'tanggal_selesai' => $item['tanggal_selesai'] ?? null,
+                    'nomor_sertifikat' => $item['nomor_sertifikat'] ?? null,
+                ];
+                if (isset($item['file_sertifikat']) && $item['file_sertifikat'] instanceof \Illuminate\Http\UploadedFile) {
+                    $path = $item['file_sertifikat']->store('public/dokter/sertifikat');
+                    $data['file_sertifikat'] = basename($path);
+                }
+                DokterPelatihan::create($data);
+            }
+        }
+
+        // Update status verifikasi
+        $dokter->update(['verifikasi' => 2]);
+
+        return back()->with('success', 'Data verifikasi dokter berhasil disimpan.');
+    }
+
+    public function jadwal(Request $request)
+    {
+        $validated = $request->validate([
+            'dokter_id' => 'required|exists:dokters,id',
+            'items' => 'array',
+            'items.*.hari' => 'required|string|max:20',
+            'items.*.jam_mulai' => 'nullable',
+            'items.*.jam_selesai' => 'nullable',
+            'items.*.kuota' => 'nullable',
+            'items.*.aktif' => 'boolean',
+        ]);
+
+        $dokterId = $validated['dokter_id'];
+        $items = $request->input('items', []);
+
+        foreach ($items as $item) {
+            $jamMulai = $item['jam_mulai'] ?? null;
+            $jamSelesai = $item['jam_selesai'] ?? null;
+            // Normalisasi format waktu ke H:i jika ada
+            if (!empty($jamMulai)) {
+                $ts = strtotime($jamMulai);
+                $jamMulai = $ts ? date('H:i', $ts) : null;
+            }
+            if (!empty($jamSelesai)) {
+                $ts = strtotime($jamSelesai);
+                $jamSelesai = $ts ? date('H:i', $ts) : null;
+            }
+            // Validasi manual: jam_selesai harus > jam_mulai jika keduanya ada
+            if ($jamMulai && $jamSelesai && strtotime($jamSelesai) <= strtotime($jamMulai)) {
+                return back()->with('error', 'Jam selesai harus lebih besar dari jam mulai.');
+            }
+
+            DokterJadwal::updateOrCreate(
+                ['dokter_id' => $dokterId, 'hari' => $item['hari']],
+                [
+                    'jam_mulai' => $jamMulai,
+                    'jam_selesai' => $jamSelesai,
+                    'kuota' => isset($item['kuota']) ? (int) $item['kuota'] : 0,
+                    'aktif' => (bool) ($item['aktif'] ?? false),
+                ]
+            );
+        }
+
+        return back()->with('success', 'Jadwal dokter berhasil disimpan.');
+    }
+
+    public function hapusJadwal(Request $request)
+    {
+        $validated = $request->validate([
+            'dokter_id' => 'required|exists:dokters,id',
+            'hari' => 'required|string|max:20',
+        ]);
+
+        DokterJadwal::where('dokter_id', $validated['dokter_id'])
+            ->where('hari', $validated['hari'])
+            ->delete();
+
+        return back()->with('success', 'Jadwal dokter dihapus.');
     }
 
     public function update(Request $request, $id)
@@ -169,6 +294,7 @@ class Dokter_Controller extends Controller
         $dokter = Dokter::findOrFail($id);
 
         $validatedData = $request->validate([
+            'nama' => 'sometimes|required|string|max:255',
             'nik' => 'nullable|string|max:16',
             'npwp' => 'nullable|string|max:20',
             'poli' => 'nullable|integer',
@@ -203,21 +329,26 @@ class Dokter_Controller extends Controller
             'foto' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        // Mapping alamat dari ID ke kode
-        $provinsiKode = $request->provinsi ? Province::find($request->provinsi)?->code : null;
-        $kabupatenKode = $request->kabupaten ? City::find($request->kabupaten)?->code : null;
-        $kecamatanKode = $request->kecamatan ? District::find($request->kecamatan)?->code : null;
-        $desaKode = $request->desa ? Village::find($request->desa)?->code : null;
+        // Mapping alamat dari kode langsung bila dikirim, jika tidak fallback dari ID
+        $provinsiKode = $request->input('provinsi_kode') ?? ($request->provinsi ? Province::find($request->provinsi)?->code : null);
+        $kabupatenKode = $request->input('kabupaten_kode') ?? ($request->kabupaten ? City::find($request->kabupaten)?->code : null);
+        $kecamatanKode = $request->input('kecamatan_kode') ?? ($request->kecamatan ? District::find($request->kecamatan)?->code : null);
+        $desaKode = $request->input('desa_kode') ?? ($request->desa ? Village::find($request->desa)?->code : null);
 
         // Cek kelengkapan data untuk verifikasi
         $isDataComplete = $this->checkDataCompleteness($validatedData);
+        // Cek kelengkapan data untuk verifikasi (ikut mempertimbangkan data pendidikan)
+        $isDataComplete = $this->checkDataCompleteness($validatedData, $dokter);
+        $currentVerification = (int) ($dokter->verifikasi ?? 1);
+        // Jika sudah verifikasi=2, pertahankan 2; jika masih 1, hitung ulang
+        $newVerification = $currentVerification === 2 ? 2 : ($isDataComplete ? 2 : 1);
 
         $dokterData = array_merge($validatedData, [
             'provinsi_kode' => $provinsiKode,
             'kabupaten_kode' => $kabupatenKode,
             'kecamatan_kode' => $kecamatanKode,
             'desa_kode' => $desaKode,
-            'verifikasi' => $isDataComplete ? 2 : 1,
+            'verifikasi' => $newVerification,
         ]);
 
         // Hapus field yang tidak ada di fillable
@@ -233,7 +364,9 @@ class Dokter_Controller extends Controller
             $dokter->update(['foto' => $filename]);
         }
 
-        $message = $isDataComplete ? 'Data dokter berhasil diperbarui dan terverifikasi!' : 'Data dokter berhasil diperbarui, namun masih perlu dilengkapi!';
+        $message = $newVerification === 2
+            ? 'Data dokter berhasil diperbarui dan terverifikasi!'
+            : 'Data dokter berhasil diperbarui, namun masih perlu dilengkapi!';
 
         return back()->with('success', $message);
     }
@@ -307,7 +440,7 @@ class Dokter_Controller extends Controller
         }
     }
 
-    private function checkDataCompleteness($data)
+    private function checkDataCompleteness($data, $dokter = null)
     {
         $requiredFields = [
             'nik',
@@ -323,6 +456,15 @@ class Dokter_Controller extends Controller
             if (empty($data[$field])) {
                 return false;
             }
+        }
+
+        // Wajib ada data pendidikan: gunakan field 'pendidikan' (non-0) atau relasi pendidikans sudah terisi
+        $pendidikanValue = $data['pendidikan'] ?? null;
+        $hasPendidikanFromField = ! is_null($pendidikanValue) && (int) $pendidikanValue !== 0;
+        $hasPendidikanFromRelation = $dokter ? $dokter->pendidikans()->exists() : false;
+
+        if (! $hasPendidikanFromField && ! $hasPendidikanFromRelation) {
+            return false;
         }
 
         return true;

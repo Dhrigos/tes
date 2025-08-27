@@ -19,7 +19,5 @@ class Daftar_Harga_Jual extends Model
         'diskon',
         'ppn',
         'tanggal_obat_masuk',
-        'user_input_id',
-        'user_input_name',
     ];
 }

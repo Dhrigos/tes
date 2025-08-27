@@ -9,12 +9,15 @@ class Setting_Harga_Jual extends Model
 {
     use HasFactory;
 
+    protected $table = 'setting__harga__juals';
+
     protected $fillable = [
         'harga_jual_1',
         'harga_jual_2',
         'harga_jual_3',
         'embalase_poin',
-        'user_input_id',
-        'user_input_name'
     ];
+
+    // Enable timestamps
+    public $timestamps = true;
 }
