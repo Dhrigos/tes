@@ -734,7 +734,7 @@ export default function PembelianIndex() {
 
                                 {/* Modal for Add/Edit Item */}
                                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                                    <DialogContent className="max-h-[85vh] w-[98vw] max-w-7xl overflow-y-auto">
+                                    <DialogContent className="max-h-[85vh] w-[98vw] max-w-7xl overflow-y-auto sm:max-w-5xl">
                                         <DialogHeader>
                                             <DialogTitle>
                                                 {editingItem ? 'Edit Item' : 'Tambah Item'}{' '}
