@@ -1,12 +1,17 @@
 <?php
 
 namespace App\Models\Module\Master\Data\Umum;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+use App\Models\Module\Master\Data\Medis\Poli;
 use Illuminate\Database\Eloquent\Model;
 
 class Loket extends Model
 {
-        use HasFactory;
+    protected $table = "lokets";
     protected $fillable = ['nama', 'poli_id'];
 
+    public function poli()
+    {
+        return $this->belongsTo(Poli::class);
+    }
 }

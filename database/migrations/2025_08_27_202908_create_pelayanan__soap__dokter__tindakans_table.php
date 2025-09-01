@@ -13,12 +13,12 @@ return new class extends Migration {
             $table->string('nama');
             $table->string('no_rawat');
             $table->string('seks');
-            $table->string('penjamin');
-            $table->date('tanggal_lahir');
-            $table->string('jenis_tindakan');
-            $table->string('jenis_pelaksana');
-            $table->string('harga');
-            $table->string('status_kasir');
+            $table->string('penjamin')->nullable();
+            $table->date('tanggal_lahir')->nullable();
+            $table->string('jenis_tindakan')->nullable();
+            $table->string('jenis_pelaksana')->nullable();
+            $table->string('harga')->nullable();
+            $table->string('status_kasir')->nullable();
             $table->timestamps();
         });
     }

@@ -5,16 +5,13 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format } from 'date-fns';
-import { Activity, FileText, Phone, Plus, Stethoscope, UserCheck, UserIcon, Users, X } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { Activity, AlertCircle, CheckCircle, Clock, FileText, Plus, Search, Stethoscope, UserCheck, UserIcon, Users, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast, Toaster } from 'sonner';
 
-// Tambahan untuk layout/header/footer dari kode sebelumnya (tidak menghapus apapun)
+// Layout imports
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-
-// Types
 
 // Date formatting utility
 const formatDate = (dateString: string) => {
@@ -24,18 +21,34 @@ const formatDate = (dateString: string) => {
             month: '2-digit',
             day: '2-digit',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
         });
     } catch (error) {
         return dateString;
     }
 };
+
+// Convert day name to Indonesian
+const convertDayToIndonesian = (day: string) => {
+    const dayMap: { [key: string]: string } = {
+        senin: 'Senin',
+        selasa: 'Selasa',
+        rabu: 'Rabu',
+        kamis: 'Kamis',
+        jumat: 'Jumat',
+        sabtu: 'Sabtu',
+        minggu: 'Minggu',
+    };
+    return dayMap[day.toLowerCase()] || day;
+};
+
+// Interfaces
 interface Pasien {
     id: number;
     nama: string;
     no_rm: string;
-    no_bpjs?: string;
     nik: string;
+    no_bpjs?: string;
     kodeprovide?: string;
 }
 
@@ -46,15 +59,14 @@ interface Poli {
 }
 
 interface Dokter {
-  id: number;
-  nama: string; // ← tambahkan ini
-  users?: number;
-  namauser?: {
     id: number;
-    name: string;
-  };
+    nama: string;
+    users?: number;
+    namauser?: {
+        id: number;
+        name: string;
+    };
 }
-
 
 interface Penjamin {
     id: number;
@@ -89,7 +101,14 @@ interface RekapDokter {
     status_periksa: number;
 }
 
-// Breadcrumbs untuk AppLayout (tambahan saja)
+interface Statistics {
+    total_terdaftar: number;
+    jumlah_dokter: number;
+    total_pasien: number;
+    pasien_selesai: number;
+}
+
+// Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Pendaftaran', href: '' },
     { title: 'Dashboard', href: '' },
@@ -104,12 +123,12 @@ const PendaftaranDashboard = () => {
     const [dokterList, setDokterList] = useState<Dokter[]>([]);
     const [penjaminList, setPenjaminList] = useState<Penjamin[]>([]);
     const [rekapDokter, setRekapDokter] = useState<RekapDokter[]>([]);
-
-    // Statistics
-    const [totalPasienTerdaftar, setTotalPasienTerdaftar] = useState(0);
-    const [jumlahDokter, setJumlahDokter] = useState(0);
-    const [totalPasien, setTotalPasien] = useState(0);
-    const [pasienSelesai, setPasienSelesai] = useState(0);
+    const [statistics, setStatistics] = useState<Statistics>({
+        total_terdaftar: 0,
+        jumlah_dokter: 0,
+        total_pasien: 0,
+        pasien_selesai: 0,
+    });
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -123,8 +142,15 @@ const PendaftaranDashboard = () => {
     const [selectedPoli, setSelectedPoli] = useState('');
     const [selectedDokter, setSelectedDokter] = useState('');
     const [selectedPenjamin, setSelectedPenjamin] = useState('');
-    const [tanggalKujungan, setTanggalKujungan] = useState<Date>(new Date());
-    const [waktuKunjungan, setWaktuKunjungan] = useState('10:30');
+    const [tanggalKujungan, setTanggalKujungan] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [waktuKunjungan, setWaktuKunjungan] = useState('08:00');
+    const [hariKunjungan, setHariKunjungan] = useState('');
+    const [hariList, setHariList] = useState<string[]>([]);
+
+    // Search states
+    const [searchPasien, setSearchPasien] = useState('');
+    const [filteredPasienList, setFilteredPasienList] = useState<Pasien[]>([]);
+    const [searchingPasien, setSearchingPasien] = useState(false);
 
     // Action states
     const [selectedAction, setSelectedAction] = useState<{
@@ -137,112 +163,223 @@ const PendaftaranDashboard = () => {
     // Loading state
     const [loading, setLoading] = useState(false);
 
-    // Fetch initial data
+    // Fetch data on mount
     useEffect(() => {
-        fetchAllData();
+        fetchInitialData();
     }, []);
 
-    const fetchAllData = async () => {
+    // Auto set hari based on tanggal
+    useEffect(() => {
+        if (tanggalKujungan) {
+            const date = new Date(tanggalKujungan);
+            const dayNames = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+            const dayName = dayNames[date.getDay()];
+            setHariKunjungan(dayName);
+        }
+    }, [tanggalKujungan]);
+
+    // Fetch doctors when poli, hari, or waktu changes
+    useEffect(() => {
+        if (selectedPoli && hariKunjungan && waktuKunjungan) {
+            fetchDokterByPoli(selectedPoli, hariKunjungan, waktuKunjungan);
+        } else {
+            setDokterList([]);
+            setSelectedDokter('');
+        }
+    }, [selectedPoli, hariKunjungan, waktuKunjungan]);
+
+    // Filter pasien list based on search with debounce
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (searchPasien.trim() === '') {
+                setFilteredPasienList(pasienList);
+            } else {
+                const filtered = pasienList.filter(
+                    (pasien) =>
+                        pasien.nama.toLowerCase().includes(searchPasien.toLowerCase()) ||
+                        pasien.no_rm.toLowerCase().includes(searchPasien.toLowerCase()) ||
+                        pasien.nik.toLowerCase().includes(searchPasien.toLowerCase()) ||
+                        (pasien.no_bpjs && pasien.no_bpjs.toLowerCase().includes(searchPasien.toLowerCase())),
+                );
+                setFilteredPasienList(filtered);
+
+                // Jika hasil filter kosong dan ada pencarian, coba cari dari API
+                if (filtered.length === 0 && searchPasien.length >= 3) {
+                    searchPasienAPI(searchPasien);
+                }
+            }
+        }, 300); // Debounce 300ms
+
+        return () => clearTimeout(timeoutId);
+    }, [searchPasien, pasienList]);
+
+    const fetchInitialData = async () => {
         setLoading(true);
         try {
-            // Simulate API calls
-            await Promise.all([fetchPendaftaran(), fetchPasien(), fetchPoli(), fetchPenjamin(), fetchStatistics(), fetchRekapDokter()]);
+            await Promise.all([fetchMasterData(), fetchHariList(), fetchPendaftaranData()]);
         } catch (error) {
+            console.error('Error fetching initial data:', error);
             toast.error('Gagal memuat data');
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchPendaftaran = async () => {
-        // Simulate API call
-        setPendaftaranData([]);
-    };
-
-    const fetchPasien = async () => {
-        // Simulate API call
-        setPasienList([]);
-    };
-
-    const fetchPoli = async () => {
-        // Simulate API call
-        setPoliList([]);
-    };
-
-    const fetchPenjamin = async () => {
-        // Simulate API call
-        setPenjaminList([]);
-    };
-
-    useEffect(() => {
-  fetch("/api/pendaftaran/master-data")
-    .then((res) => res.json())
-    .then((data) => {
-      setPasienList(data.pasien);
-      setDokterList(data.dokter);
-      setPoliList(data.poli);
-      setPenjaminList(data.penjamin);
-    })
-    .catch((err) => console.error("Error fetching master data:", err));
-}, []);
-
-
-    const fetchStatistics = async () => {
-        // Simulate API call
-        setTotalPasienTerdaftar(0);
-        setJumlahDokter(0);
-        setTotalPasien(0);
-        setPasienSelesai(0);
-    };
-
-    const fetchRekapDokter = async () => {
-        // Simulate API call
-        setRekapDokter([]);
-    };
-
-    const fetchDokterByPoli = async (poliId: string, datetime: string) => {
+    const fetchMasterData = async () => {
         try {
-            // Simulate API call to get doctors by poli and datetime
-            setDokterList([]);
+            const response = await fetch('/api/pendaftaran/master-data');
+            const data = await response.json();
+
+            if (data.success) {
+                setPasienList(data.pasien || []);
+                setPoliList(data.poli || []);
+                setPenjaminList(data.penjamin || []);
+            } else {
+                toast.error(data.message || 'Gagal memuat data master');
+            }
         } catch (error) {
+            console.error('Error fetching master data:', error);
+            toast.error('Gagal memuat data master');
+        }
+    };
+
+    const searchPasienAPI = async (searchTerm: string) => {
+        setSearchingPasien(true);
+        try {
+            const response = await fetch(`/api/master/pasien/search?search=${encodeURIComponent(searchTerm)}&limit=20`);
+            const data = await response.json();
+
+            if (data.success) {
+                setPasienList(data.data || []);
+            }
+        } catch (error) {
+            console.error('Error searching pasien:', error);
+            toast.error('Gagal mencari pasien');
+        } finally {
+            setSearchingPasien(false);
+        }
+    };
+
+    const fetchHariList = async () => {
+        try {
+            const response = await fetch('/api/master/hari');
+            const data = await response.json();
+
+            if (data.success) {
+                setHariList(data.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching hari list:', error);
+        }
+    };
+
+    const fetchPendaftaranData = async () => {
+        try {
+            const response = await fetch('/api/module/pendaftaran/data');
+            const data = await response.json();
+
+            if (data.success) {
+                setPendaftaranData(data.data.pendaftaran || []);
+                setRekapDokter(data.data.rekap_dokter || []);
+                setStatistics(data.data.statistics || statistics);
+            }
+        } catch (error) {
+            console.error('Error fetching pendaftaran data:', error);
+        }
+    };
+
+    const fetchDokterByPoli = async (poliId: string, hari: string, jam: string) => {
+        try {
+            const response = await fetch('/api/master/dokter/by-poli', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    poli_id: parseInt(poliId),
+                    hari: hari,
+                    jam: jam,
+                }),
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                setDokterList(data.data || []);
+            } else {
+                setDokterList([]);
+                console.log('No doctors available for this schedule');
+            }
+        } catch (error) {
+            console.error('Error fetching doctors:', error);
+            setDokterList([]);
             toast.error('Gagal memuat data dokter');
         }
     };
 
-    // Handle form submissions
+    // Form handlers
     const handleAddPendaftaran = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
+        e.preventDefault();
 
-  const payload = {
-    pasien_id: selectedPasien,
-    poli_id: selectedPoli,
-    dokter_id: selectedDokter,
-    penjamin_id: selectedPenjamin,
-    tanggal_kunjungan: `${format(tanggalKujungan, "yyyy-MM-dd")} ${waktuKunjungan}:00`,
-  };
+        if (!selectedPasien || !selectedPoli || !selectedDokter || !selectedPenjamin) {
+            toast.error('Mohon lengkapi semua field yang diperlukan');
+            return;
+        }
 
-  try {
-    const res = await fetch("/api/pendaftaran", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+        // Validasi pasien yang dipilih
+        const selectedPasienData = pasienList.find((p) => p.id.toString() === selectedPasien);
+        if (!selectedPasienData) {
+            toast.error('Data pasien tidak valid, silakan pilih ulang');
+            return;
+        }
 
-    if (!res.ok) throw new Error("Gagal simpan data");
+        setLoading(true);
 
-    toast.success("Pendaftaran berhasil ditambahkan");
-    setShowAddModal(false);
-  } catch (err) {
-    toast.error("Terjadi kesalahan");
-  } finally {
-    setLoading(false);
-  }
-};
+        const payload = {
+            pasien_id: parseInt(selectedPasien),
+            poli_id: parseInt(selectedPoli),
+            dokter_id: parseInt(selectedDokter),
+            penjamin_id: parseInt(selectedPenjamin),
+            tanggal: tanggalKujungan,
+            jam: waktuKunjungan,
+            pasien_info: {
+                nama: selectedPasienData.nama,
+                no_rm: selectedPasienData.no_rm,
+                nik: selectedPasienData.nik,
+                no_bpjs: selectedPasienData.no_bpjs,
+            },
+        };
 
+        try {
+            const response = await fetch('/api/pendaftaran', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(`Pendaftaran berhasil ditambahkan untuk ${selectedPasienData.nama} (RM: ${selectedPasienData.no_rm})`);
+                setShowAddModal(false);
+                resetForm();
+                fetchPendaftaranData();
+            } else {
+                throw new Error(result.message || 'Gagal menyimpan pendaftaran');
+            }
+        } catch (error: any) {
+            console.error('Error saving pendaftaran:', error);
+            toast.error(error.message || 'Terjadi kesalahan saat menyimpan');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleBatalPendaftaran = async () => {
-        if (!selectedAction || !alasanBatal) {
+        if (!selectedAction || !alasanBatal.trim()) {
             toast.error('Mohon masukkan alasan pembatalan');
             return;
         }
@@ -253,6 +390,7 @@ const PendaftaranDashboard = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
                     batalid_delete: selectedAction.id,
@@ -260,16 +398,19 @@ const PendaftaranDashboard = () => {
                 }),
             });
 
-            if (response.ok) {
+            const result = await response.json();
+
+            if (result.success) {
                 toast.success('Pendaftaran berhasil dibatalkan');
                 setShowBatalModal(false);
                 resetActionState();
-                fetchAllData();
+                fetchPendaftaranData();
             } else {
-                throw new Error('Gagal membatalkan pendaftaran');
+                throw new Error(result.message || 'Gagal membatalkan pendaftaran');
             }
-        } catch (error) {
-            toast.error('Gagal membatalkan pendaftaran');
+        } catch (error: any) {
+            console.error('Error cancelling pendaftaran:', error);
+            toast.error(error.message || 'Gagal membatalkan pendaftaran');
         } finally {
             setLoading(false);
         }
@@ -284,22 +425,64 @@ const PendaftaranDashboard = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
                     hadirid_delete: selectedAction.id,
                 }),
             });
 
-            if (response.ok) {
+            const result = await response.json();
+
+            if (result.success) {
                 toast.success('Status kehadiran berhasil diupdate');
                 setShowHadirModal(false);
                 resetActionState();
-                fetchAllData();
+                fetchPendaftaranData();
             } else {
-                throw new Error('Gagal mengupdate status kehadiran');
+                throw new Error(result.message || 'Gagal mengupdate status kehadiran');
             }
-        } catch (error) {
-            toast.error('Gagal mengupdate status kehadiran');
+        } catch (error: any) {
+            console.error('Error updating attendance:', error);
+            toast.error(error.message || 'Gagal mengupdate status kehadiran');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUbahDokter = async () => {
+        if (!selectedAction || !selectedDokter) {
+            toast.error('Mohon pilih dokter baru');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await fetch('/api/pendaftaran/dokter/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    rubahdokter_id: selectedAction.id,
+                    dokter_id_update: selectedDokter,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success('Dokter berhasil diupdate');
+                setShowUbahDokterModal(false);
+                resetActionState();
+                fetchPendaftaranData();
+            } else {
+                throw new Error(result.message || 'Gagal mengupdate dokter');
+            }
+        } catch (error: any) {
+            console.error('Error updating doctor:', error);
+            toast.error(error.message || 'Gagal mengupdate dokter');
         } finally {
             setLoading(false);
         }
@@ -310,22 +493,17 @@ const PendaftaranDashboard = () => {
         setSelectedPoli('');
         setSelectedDokter('');
         setSelectedPenjamin('');
-        setTanggalKujungan(new Date());
-        setWaktuKunjungan('10:30');
+        setTanggalKujungan(new Date().toISOString().split('T')[0]);
+        setWaktuKunjungan('08:00');
+        setHariKunjungan('');
+        setSearchPasien('');
     };
 
     const resetActionState = () => {
         setSelectedAction(null);
         setAlasanBatal('');
+        setSelectedDokter('');
     };
-
-    // Handle poli change to fetch doctors
-    useEffect(() => {
-        if (selectedPoli && tanggalKujungan) {
-            const datetime = format(tanggalKujungan, 'yyyy-MM-dd') + ' ' + waktuKunjungan + ':00';
-            fetchDokterByPoli(selectedPoli, datetime);
-        }
-    }, [selectedPoli, tanggalKujungan, waktuKunjungan]);
 
     const getStatusPendaftaran = (status: number) => {
         switch (status) {
@@ -344,147 +522,155 @@ const PendaftaranDashboard = () => {
         switch (status) {
             case 1:
                 return (
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                         <Activity className="mr-1 h-4 w-4" />
-                        Menunggu pemeriksaan perawat
+                        Menunggu
                     </Badge>
                 );
             case 2:
                 return (
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                         <Stethoscope className="mr-1 h-4 w-4" />
-                        Sedang diperiksa dokter
+                        Diperiksa
                     </Badge>
                 );
             case 3:
                 return (
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-800">
                         <X className="mr-1 h-4 w-4" />
-                        Tidak ada pasien
+                        Kosong
                     </Badge>
                 );
             default:
-                return <Badge variant="secondary">Status tidak diketahui</Badge>;
+                return <Badge variant="secondary">Tidak diketahui</Badge>;
         }
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             {/* Main Content */}
-            <div className="  px-4 py-6 sm:px-6 lg:px-8">
+            <div className="px-4 py-6 sm:px-6 lg:px-8">
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    {/* Card 1 */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                     <Card>
-                        <CardContent className="p-4">
+                        <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-xs font-medium text-muted-foreground">Total Pasien Terdaftar</p>
-                                    <p className="text-2xl font-bold">{totalPasienTerdaftar}</p>
+                                    <p className="text-sm font-medium text-muted-foreground">Total Pasien Terdaftar</p>
+                                    <p className="text-2xl font-bold">{statistics.total_terdaftar}</p>
                                 </div>
-                                <div className="rounded-lg p-2">
-                                    <Users className="h-6 w-6" />
-                                </div>
+                                <Users className="h-8 w-8 text-blue-500" />
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Card 2 */}
                     <Card>
-                        <CardContent className="p-4">
+                        <CardContent className="p-6">
                             <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                    <div className="grid grid-cols-2 gap-2 text-center">
-                                        <div>
-                                            <p className="text-xl font-bold">{jumlahDokter}</p>
-                                            <p className="text-xs text-muted-foreground">Jumlah Dokter</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xl font-bold">{totalPasien}</p>
-                                            <p className="text-xs text-muted-foreground">Total Pasien</p>
-                                        </div>
-                                    </div>
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Jumlah Dokter</p>
+                                    <p className="text-2xl font-bold">{statistics.jumlah_dokter}</p>
                                 </div>
-                                <div className="rounded-lg p-2">
-                                    <Stethoscope className="h-6 w-6" />
-                                </div>
+                                <Stethoscope className="h-8 w-8 text-green-500" />
                             </div>
-                            <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => setShowRekapModal(true)}>
-                                Selengkapnya
-                            </Button>
                         </CardContent>
                     </Card>
 
-                    {/* Card 3 */}
                     <Card>
-                        <CardContent className="p-4">
+                        <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-xs font-medium text-muted-foreground">Total Pasien Selesai Dilayani</p>
-                                    <p className="text-2xl font-bold">{pasienSelesai}</p>
+                                    <p className="text-sm font-medium text-muted-foreground">Total Pasien</p>
+                                    <p className="text-2xl font-bold">{statistics.total_pasien}</p>
                                 </div>
-                                <div className="rounded-lg p-2">
-                                    <UserCheck className="h-6 w-6" />
+                                <Users className="h-8 w-8 text-orange-500" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Pasien Selesai</p>
+                                    <p className="text-2xl font-bold">{statistics.pasien_selesai}</p>
                                 </div>
+                                <UserCheck className="h-8 w-8 text-purple-500" />
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
+                {/* Action Buttons */}
+                <div className="mt-6 flex justify-between">
+                    <Button onClick={() => setShowRekapModal(true)} variant="outline">
+                        <FileText className="mr-2 h-4 w-4" />
+                        Lihat Rekap Dokter
+                    </Button>
+                    <Button onClick={() => setShowAddModal(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Tambah Pasien
+                    </Button>
+                </div>
+
                 {/* Data Table */}
-                <Card className="mt-6 rounded-2xl shadow-md">
+                <Card className="mt-6">
                     <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <CardTitle>Data Pendaftaran Hari Ini</CardTitle>
-                            <Button onClick={() => setShowAddModal(true)}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Tambah Pasien
-                            </Button>
-                        </div>
+                        <CardTitle>Data Pendaftaran Hari Ini</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {loading ? (
-                            <div className="p-8 text-center text-muted-foreground">
-                                Memuat data...
-                            </div>
+                            <div className="p-8 text-center text-muted-foreground">Memuat data...</div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full border-collapse">
                                     <thead>
-                                        <tr className="border-b border-border">
-                                            <th className="p-4 text-left font-semibold">Pasien</th>
-                                            <th className="p-4 text-left font-semibold">Pendaftaran</th>
-                                            <th className="p-4 text-left font-semibold">No.Registrasi</th>
-                                            <th className="p-4 text-left font-semibold">Tanggal Registrasi</th>
-                                            <th className="p-4 text-left font-semibold">No.RM</th>
-                                            <th className="p-4 text-left font-semibold">No.Antrian</th>
-                                            <th className="p-4 text-left font-semibold">Poli</th>
-                                            <th className="p-4 text-left font-semibold">Penjamin</th>
-                                            <th className="p-4 text-left font-semibold">Dokter</th>
-                                            <th className="p-4 text-left font-semibold">Tindakan</th>
+                                        <tr className="border-b">
+                                            <th className="p-3 text-left font-semibold">Pasien</th>
+                                            <th className="p-3 text-left font-semibold">Status</th>
+                                            <th className="p-3 text-left font-semibold">No.Register</th>
+                                            <th className="p-3 text-left font-semibold">Tanggal</th>
+                                            <th className="p-3 text-left font-semibold">No.RM</th>
+                                            <th className="p-3 text-left font-semibold">Antrian</th>
+                                            <th className="p-3 text-left font-semibold">Poli</th>
+                                            <th className="p-3 text-left font-semibold">Penjamin</th>
+                                            <th className="p-3 text-left font-semibold">Dokter</th>
+                                            <th className="p-3 text-left font-semibold">Tindakan</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {pendaftaranData.length > 0 ? (
                                             pendaftaranData.map((item) => (
-                                                <tr key={item.id} className="border-b border-border">
-                                                    <td className="p-4">{item.pasien.nama}</td>
-                                                    <td className="p-4">{getStatusPendaftaran(item.status.Status_aplikasi)}</td>
-                                                    <td className="p-4">{item.nomor_register}</td>
-                                                    <td className="p-4">{formatDate(item.tanggal_kujungan)}</td>
-                                                    <td className="p-4">{item.nomor_rm}</td>
-                                                    <td className="p-4">{item.antrian}</td>
-                                                    <td className="p-4">{item.poli.nama}</td>
-                                                    <td className="p-4">{item.penjamin.nama}</td>
-                                                    <td className="p-4">{item.dokter.nama}</td>
-                                                    <td className="p-4">
+                                                <tr key={item.id} className="border-b hover:bg-muted/50">
+                                                    <td className="p-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium">{item.pasien.nama}</span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                RM: {item.pasien.no_rm} | NIK: {item.pasien.nik}
+                                                                {item.pasien.no_bpjs && ` | BPJS: ${item.pasien.no_bpjs}`}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <Badge variant="outline">{getStatusPendaftaran(item.status.Status_aplikasi)}</Badge>
+                                                    </td>
+                                                    <td className="p-3">{item.nomor_register}</td>
+                                                    <td className="p-3">{formatDate(item.tanggal_kujungan)}</td>
+                                                    <td className="p-3">{item.nomor_rm}</td>
+                                                    <td className="p-3">
+                                                        <Badge className="bg-blue-100 text-blue-800">{item.antrian}</Badge>
+                                                    </td>
+                                                    <td className="p-3">{item.poli.nama}</td>
+                                                    <td className="p-3">{item.penjamin.nama}</td>
+                                                    <td className="p-3">{item.dokter.namauser?.name || item.dokter.nama}</td>
+                                                    <td className="p-3">
                                                         <div className="flex flex-wrap gap-1">
                                                             {item.status.status_pendaftaran === 1 && (
                                                                 <>
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        className="text-destructive"
+                                                                        className="text-destructive hover:bg-red-50"
                                                                         onClick={() => {
                                                                             setSelectedAction({
                                                                                 id: item.status.id,
@@ -500,7 +686,7 @@ const PendaftaranDashboard = () => {
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        className="text-primary"
+                                                                        className="text-green-600 hover:bg-green-50"
                                                                         onClick={() => {
                                                                             setSelectedAction({
                                                                                 id: item.status.id,
@@ -510,22 +696,26 @@ const PendaftaranDashboard = () => {
                                                                             setShowHadirModal(true);
                                                                         }}
                                                                     >
-                                                                        <Phone className="mr-1 h-4 w-4" />
+                                                                        <UserCheck className="mr-1 h-4 w-4" />
                                                                         Hadir
                                                                     </Button>
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        className="mt-1"
+                                                                        className="hover:bg-blue-50"
                                                                         onClick={() => {
                                                                             setSelectedAction({
                                                                                 id: item.id,
                                                                                 nama: item.pasien.nama,
                                                                                 type: 'dokter',
                                                                             });
-                                                                            // Fetch current poli doctors for change doctor modal
-                                                                            if (item.poli && tanggalKujungan && waktuKunjungan) {
-                                                                                fetchDokterByPoli(item.poli.toString(), `${tanggalKujungan} ${waktuKunjungan}:00`);
+                                                                            // Load dokter untuk poli yang sama
+                                                                            if (hariKunjungan && waktuKunjungan) {
+                                                                                fetchDokterByPoli(
+                                                                                    item.poli.id.toString(),
+                                                                                    hariKunjungan,
+                                                                                    waktuKunjungan,
+                                                                                );
                                                                             }
                                                                             setShowUbahDokterModal(true);
                                                                         }}
@@ -539,7 +729,7 @@ const PendaftaranDashboard = () => {
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
-                                                                    className="text-destructive"
+                                                                    className="text-destructive hover:bg-red-50"
                                                                     onClick={() => {
                                                                         setSelectedAction({
                                                                             id: item.status.id,
@@ -572,181 +762,393 @@ const PendaftaranDashboard = () => {
                 </Card>
             </div>
 
-            {/* Add Patient Modal - improved UI */}
+            {/* Add Patient Modal */}
             <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-    <DialogContent className="w-[70vw] !max-w-3xl rounded-lg">
-        <div className="flex items-start gap-4">
-            <div className="rounded-md bg-muted p-2">
-                <Plus className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-                <h3 className="text-lg font-semibold text-foreground">Tambah Pasien</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Isi data pasien dan jadwal kunjungan.</p>
-            </div>
-        </div>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Plus className="h-5 w-5" />
+                            Tambah Pendaftaran Pasien
+                        </DialogTitle>
+                    </DialogHeader>
 
-        <form onSubmit={handleAddPendaftaran} className="mt-6 space-y-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {/* Pasien */}
-                <div className="md:col-span-2">
-                    <Label htmlFor="pasien">Pasien</Label>
-                    <Select value={selectedPasien} onValueChange={setSelectedPasien}>
-                        <SelectTrigger className="w-full" aria-label="Pilih Pasien">
-                            <SelectValue placeholder="Pilih Pasien" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {pasienList.length > 0 ? (
-                                pasienList.map((pasien) => (
-                                    <SelectItem key={pasien.id} value={pasien.id.toString()}>
-                                        {pasien.nama} — {pasien.no_rm}
-                                    </SelectItem>
-                                ))
-                            ) : (
-                                <div className="p-2 text-sm text-muted-foreground">Tidak ada pasien</div>
-                            )}
-                        </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-xs text-muted-foreground">Pilih pasien yang sudah terdaftar di sistem.</p>
-                </div>
+                    <form onSubmit={handleAddPendaftaran} className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            {/* Pasien */}
+                            <div className="md:col-span-2">
+                                <div className="mb-2 flex items-center justify-between">
+                                    <Label htmlFor="pasien">Pasien</Label>
+                                    <span className="text-xs text-muted-foreground">Total: {pasienList.length} pasien</span>
+                                </div>
+                                <Select value={selectedPasien} onValueChange={setSelectedPasien} disabled={loading}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={loading ? 'Memuat data pasien...' : 'Pilih Pasien'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <div className="p-2">
+                                            <div className="relative">
+                                                <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                                                <Input
+                                                    placeholder="Cari pasien berdasarkan nama, RM, NIK, atau BPJS..."
+                                                    value={searchPasien}
+                                                    onChange={(e) => setSearchPasien(e.target.value)}
+                                                    className="mb-2 pl-8"
+                                                />
+                                            </div>
+                                            {searchPasien && (
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <p className="text-xs text-muted-foreground">Ditemukan {filteredPasienList.length} pasien</p>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setSearchPasien('')}
+                                                        className="h-6 px-2 text-xs"
+                                                    >
+                                                        Reset
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {filteredPasienList.length > 0 ? (
+                                            filteredPasienList.map((pasien) => (
+                                                <SelectItem key={pasien.id} value={pasien.id.toString()}>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium">{pasien.nama}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <div className="p-2 text-center text-muted-foreground">
+                                                {searchingPasien
+                                                    ? 'Mencari pasien...'
+                                                    : searchPasien
+                                                      ? 'Tidak ada pasien ditemukan'
+                                                      : 'Memuat data pasien...'}
+                                            </div>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                {pasienList.length === 0 && !loading && (
+                                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                        <p className="text-sm text-amber-800">
+                                            <strong>Perhatian:</strong> Tidak ada data pasien tersedia. Silakan tambahkan data pasien terlebih dahulu.
+                                        </p>
+                                    </div>
+                                )}
+                                {searchPasien && filteredPasienList.length === 0 && pasienList.length > 0 && (
+                                    <p className="mt-1 text-xs text-amber-600">Tidak ada pasien yang cocok dengan pencarian</p>
+                                )}
 
-                {/* Poli */}
-                <div>
-                    <Label htmlFor="poli">Poli</Label>
-                    <Select value={selectedPoli} onValueChange={setSelectedPoli}>
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Pilih Poli" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {poliList.length > 0 ? (
-                                poliList.map((poli) => (
-                                    <SelectItem key={poli.id} value={poli.id.toString()}>
-                                        {poli.nama}
-                                    </SelectItem>
-                                ))
-                            ) : (
-                                <div className="p-2 text-sm text-muted-foreground">Tidak ada poli</div>
-                            )}
-                        </SelectContent>
-                    </Select>
-                </div>
+                                {/* Informasi Pasien dan Ringkasan Pendaftaran */}
+                                <div className="mt-4 grid grid-cols-1 gap-4 md:col-span-2 xl:grid-cols-2">
+                                    {/* Tampilkan informasi pasien yang dipilih */}
+                                    {selectedPasien && (
+                                        <div className="rounded-lg border bg-blue-50 p-3 transition-all duration-200 hover:shadow-md">
+                                            <div className="mb-2 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <UserCheck className="h-4 w-4 text-blue-600" />
+                                                    <p className="text-sm font-medium text-blue-900">Pasien Terpilih:</p>
+                                                </div>
+                                                <Badge className="bg-blue-100 text-xs text-blue-800">Terpilih</Badge>
+                                            </div>
+                                            {(() => {
+                                                const pasien = pasienList.find((p) => p.id.toString() === selectedPasien);
+                                                return pasien ? (
+                                                    <div className="space-y-1 text-sm text-blue-800">
+                                                        <p>
+                                                            <strong>Nama:</strong> {pasien.nama}
+                                                        </p>
+                                                        <p>
+                                                            <strong>No. RM:</strong> {pasien.no_rm}
+                                                        </p>
+                                                        <p>
+                                                            <strong>NIK:</strong> {pasien.nik}
+                                                        </p>
+                                                        {pasien.no_bpjs && (
+                                                            <p>
+                                                                <strong>No. BPJS:</strong> {pasien.no_bpjs}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                        </div>
+                                    )}
 
-                {/* Jadwal Kunjungan */}
-                <div>
-                    <Label htmlFor="tanggal">Jadwal Kunjungan</Label>
-                    <div className="flex gap-2">
-                        <Input
-                            type="date"
-                            value={format(tanggalKujungan, 'yyyy-MM-dd')}
-                            onChange={(e) => setTanggalKujungan(new Date(e.target.value))}
-                            className="flex-1"
-                        />
-                        <Input
-                            type="time"
-                            value={waktuKunjungan}
-                            onChange={(e) => setWaktuKunjungan(e.target.value)}
-                            className="w-32"
-                        />
-                    </div>
-                </div>
+                                    {/* Ringkasan Pendaftaran */}
+                                    {selectedPasien ? (
+                                        selectedPoli && selectedDokter && selectedPenjamin ? (
+                                            <div className="rounded-lg border border-green-200 bg-green-50 p-3 transition-all duration-200 hover:shadow-md">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                                        <p className="text-sm font-medium text-green-900">Ringkasan Pendaftaran:</p>
+                                                    </div>
+                                                    <Badge className="bg-green-100 text-xs text-green-800">Lengkap</Badge>
+                                                </div>
+                                                <div className="space-y-1 text-sm text-green-800">
+                                                    <p>
+                                                        <strong>Poli:</strong> {poliList.find((p) => p.id.toString() === selectedPoli)?.nama}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Dokter:</strong> {dokterList.find((d) => d.id.toString() === selectedDokter)?.nama}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Penjamin:</strong>{' '}
+                                                        {penjaminList.find((p) => p.id.toString() === selectedPenjamin)?.nama}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Tanggal:</strong> {tanggalKujungan} ({convertDayToIndonesian(hariKunjungan)})
+                                                    </p>
+                                                    <p>
+                                                        <strong>Waktu:</strong> {waktuKunjungan}
+                                                    </p>
+                                                </div>
+                                                <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                                                    <div
+                                                        className="h-2 rounded-full bg-green-600 transition-all duration-300"
+                                                        style={{ width: '100%' }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-all duration-200 hover:shadow-sm">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="h-4 w-4 text-gray-600" />
+                                                        <p className="text-sm font-medium text-gray-900">Ringkasan Pendaftaran:</p>
+                                                    </div>
+                                                    <Badge className="bg-yellow-100 text-xs text-yellow-800">Progress</Badge>
+                                                </div>
+                                                <div className="space-y-1 text-sm text-gray-600">
+                                                    <p>Lengkapi data pendaftaran untuk melihat ringkasan</p>
+                                                    <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                                                        <div
+                                                            className="h-2 rounded-full bg-blue-600 transition-all duration-300"
+                                                            style={{
+                                                                width: `${[
+                                                                    selectedPasien ? 25 : 0,
+                                                                    selectedPoli ? 25 : 0,
+                                                                    selectedDokter ? 25 : 0,
+                                                                    selectedPenjamin ? 25 : 0,
+                                                                ].reduce((a, b) => a + b, 0)}%`,
+                                                            }}
+                                                        ></div>
+                                                    </div>
+                                                    <div className="mt-2 space-y-1">
+                                                        <div
+                                                            className={`flex items-center gap-2 ${selectedPoli ? 'text-green-600' : 'text-gray-400'}`}
+                                                        >
+                                                            {selectedPoli ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                                            <span>
+                                                                Poli:{' '}
+                                                                {selectedPoli
+                                                                    ? poliList.find((p) => p.id.toString() === selectedPoli)?.nama
+                                                                    : 'Belum dipilih'}
+                                                            </span>
+                                                        </div>
+                                                        <div
+                                                            className={`flex items-center gap-2 ${selectedDokter ? 'text-green-600' : 'text-gray-400'}`}
+                                                        >
+                                                            {selectedDokter ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                                            <span>
+                                                                Dokter:{' '}
+                                                                {selectedDokter
+                                                                    ? dokterList.find((d) => d.id.toString() === selectedDokter)?.nama
+                                                                    : 'Belum dipilih'}
+                                                            </span>
+                                                        </div>
+                                                        <div
+                                                            className={`flex items-center gap-2 ${selectedPenjamin ? 'text-green-600' : 'text-gray-400'}`}
+                                                        >
+                                                            {selectedPenjamin ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                                            <span>
+                                                                Penjamin:{' '}
+                                                                {selectedPenjamin
+                                                                    ? penjaminList.find((p) => p.id.toString() === selectedPenjamin)?.nama
+                                                                    : 'Belum dipilih'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-all duration-200 hover:shadow-sm">
+                                            <div className="mb-2 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <AlertCircle className="h-4 w-4 text-gray-600" />
+                                                    <p className="text-sm font-medium text-gray-900">Ringkasan Pendaftaran:</p>
+                                                </div>
+                                                <Badge className="bg-gray-100 text-xs text-gray-800">Belum Dimulai</Badge>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <span>Pilih pasien terlebih dahulu</span>
+                                            </div>
+                                            <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                                                <div
+                                                    className="h-2 rounded-full bg-gray-400 transition-all duration-300"
+                                                    style={{ width: '0%' }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
-                {/* Dokter */}
-                <div>
-                    <Label htmlFor="dokter">Dokter</Label>
-<Select value={selectedDokter} onValueChange={setSelectedDokter}>
-  <SelectTrigger className="w-full">
-    <SelectValue placeholder="Pilih Dokter" />
-  </SelectTrigger>
-  <SelectContent>
-    {dokterList.length > 0 ? (
-      dokterList.map((dokter) => (
-        <SelectItem key={dokter.id} value={dokter.id.toString()}>
-          {/* Pastikan properti ini sesuai dengan struktur response */}
-          {dokter.namauser?.name || dokter.nama || `Dokter #${dokter.id}`}
-        </SelectItem>
-      ))
-    ) : (
-      <div className="p-2 text-sm text-muted-foreground">Tidak ada dokter</div>
-    )}
-  </SelectContent>
-</Select>
+                            {/* Tanggal Kunjungan */}
+                            <div>
+                                <Label htmlFor="tanggal">Tanggal Kunjungan</Label>
+                                <Input
+                                    type="date"
+                                    value={tanggalKujungan}
+                                    onChange={(e) => setTanggalKujungan(e.target.value)}
+                                    min={new Date().toISOString().split('T')[0]}
+                                />
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Hari: {hariKunjungan ? convertDayToIndonesian(hariKunjungan) : '-'}
+                                </p>
+                            </div>
 
-                </div>
+                            {/* Waktu Kunjungan */}
+                            <div>
+                                <Label htmlFor="waktu">Waktu Kunjungan</Label>
+                                <Input type="time" value={waktuKunjungan} onChange={(e) => setWaktuKunjungan(e.target.value)} />
+                            </div>
 
-                {/* Penjamin */}
-                <div>
-                    <Label htmlFor="penjamin">Penjamin Pasien</Label>
-                    <Select value={selectedPenjamin} onValueChange={setSelectedPenjamin}>
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Pilih Penjamin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {penjaminList.length > 0 ? (
-                                penjaminList.map((penjamin) => (
-                                    <SelectItem key={penjamin.id} value={penjamin.id.toString()}>
-                                        {penjamin.nama}
-                                    </SelectItem>
-                                ))
-                            ) : (
-                                <div className="p-2 text-sm text-muted-foreground">Tidak ada penjamin</div>
-                            )}
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+                            {/* Poli */}
+                            <div>
+                                <Label htmlFor="poli">Poli</Label>
+                                <Select value={selectedPoli} onValueChange={setSelectedPoli}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih Poli" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {poliList.map((poli) => (
+                                            <SelectItem key={poli.id} value={poli.id.toString()}>
+                                                {poli.nama}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-            <DialogFooter className="flex items-center justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
-                    Batal
-                </Button>
-                <Button type="submit" disabled={loading}>
-                    {loading ? 'Menyimpan...' : 'Tambah'}
-                </Button>
-            </DialogFooter>
-        </form>
-    </DialogContent>
-</Dialog>
+                            {/* Dokter */}
+                            <div>
+                                <Label htmlFor="dokter">Dokter</Label>
+                                <Select
+                                    value={selectedDokter}
+                                    onValueChange={setSelectedDokter}
+                                    disabled={!selectedPoli || !hariKunjungan || !waktuKunjungan}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue
+                                            placeholder={
+                                                !selectedPoli
+                                                    ? 'Pilih poli dulu'
+                                                    : !hariKunjungan || !waktuKunjungan
+                                                      ? 'Tentukan jadwal dulu'
+                                                      : dokterList.length === 0
+                                                        ? 'Tidak ada dokter tersedia'
+                                                        : 'Pilih Dokter'
+                                            }
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {dokterList.map((dokter) => (
+                                            <SelectItem key={dokter.id} value={dokter.id.toString()}>
+                                                {dokter.nama}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {dokterList.length === 0 && selectedPoli && hariKunjungan && waktuKunjungan && (
+                                    <p className="mt-1 text-xs text-amber-600">Tidak ada dokter yang tersedia pada jadwal ini</p>
+                                )}
+                            </div>
 
+                            {/* Penjamin */}
+                            <div className="md:col-span-2">
+                                <Label htmlFor="penjamin">Penjamin</Label>
+                                <Select value={selectedPenjamin} onValueChange={setSelectedPenjamin}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih Penjamin" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {penjaminList.map((penjamin) => (
+                                            <SelectItem key={penjamin.id} value={penjamin.id.toString()}>
+                                                {penjamin.nama}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
 
-            {/* Recap Modal - improved table */}
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
+                                Batal
+                            </Button>
+                            <Button type="submit" disabled={loading || !selectedPasien || !selectedPoli || !selectedDokter || !selectedPenjamin}>
+                                {loading ? 'Menyimpan...' : 'Simpan Pendaftaran'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Recap Modal */}
             <Dialog open={showRekapModal} onOpenChange={setShowRekapModal}>
-                <DialogContent className="w-[60vw] !max-w-5xl rounded-lg">
-                    <div className="flex items-start gap-4">
-                        <div className="rounded-md bg-muted p-2">
-                            <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-semibold text-foreground">Rekap Per Dokter</h3>
-                        </div>
-                    </div>
+                <DialogContent className="max-w-6xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileText className="h-5 w-5" />
+                            Rekap Per Dokter Hari Ini
+                        </DialogTitle>
+                    </DialogHeader>
 
-                    <div className="mt-4 overflow-x-auto rounded-md border border-border">
-                        <table className="min-w-full divide-y divide-border">
-                            <thead className="sticky top-0 bg-muted">
-                                <tr>
-                                    <th className="p-3 text-left text-sm font-medium text-muted-foreground">Nama Dokter</th>
-                                    <th className="p-3 text-left text-sm font-medium text-muted-foreground">Poli</th>
-                                    <th className="p-3 text-center text-sm font-medium text-muted-foreground">Menunggu</th>
-                                    <th className="p-3 text-center text-sm font-medium text-muted-foreground">Dilayani</th>
-                                    <th className="p-3 text-center text-sm font-medium text-muted-foreground">No Antrian</th>
-                                    <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status Pemeriksaan</th>
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr className="bg-muted">
+                                    <th className="p-3 text-left font-semibold">Nama Dokter</th>
+                                    <th className="p-3 text-left font-semibold">Poli</th>
+                                    <th className="p-3 text-center font-semibold">Menunggu</th>
+                                    <th className="p-3 text-center font-semibold">Dilayani</th>
+                                    <th className="p-3 text-center font-semibold">No Antrian</th>
+                                    <th className="p-3 text-left font-semibold">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border bg-background">
+                            <tbody>
                                 {rekapDokter.length > 0 ? (
                                     rekapDokter.map((data, i) => (
-                                        <tr key={`${data.dokter.id}-${data.poli.id}`} className={i % 2 === 0 ? 'bg-background' : 'bg-muted/50'}>
-                                            <td className="p-3 text-sm">{data.dokter.nama}</td>
-                                            <td className="p-3 text-sm">{data.poli.nama}</td>
-                                            <td className="p-3 text-center text-sm font-medium">{data.menunggu}</td>
-                                            <td className="p-3 text-center text-sm font-medium">{data.dilayani}</td>
-                                            <td className="p-3 text-center text-sm">{data.no_antrian}</td>
-                                            <td className="p-3 text-sm">{getStatusPeriksaBadge(data.status_periksa)}</td>
+                                        <tr key={i} className="border-b hover:bg-muted/30">
+                                            <td className="p-3">
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{data.dokter.namauser?.name || data.dokter.nama}</span>
+                                                    <span className="text-xs text-muted-foreground">ID: {data.dokter.id}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{data.poli.nama}</span>
+                                                    <span className="text-xs text-muted-foreground">Kode: {data.poli.kode}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-center font-semibold text-orange-600">{data.menunggu}</td>
+                                            <td className="p-3 text-center font-semibold text-green-600">{data.dilayani}</td>
+                                            <td className="p-3 text-center">
+                                                <Badge>{data.no_antrian}</Badge>
+                                            </td>
+                                            <td className="p-3">{getStatusPeriksaBadge(data.status_periksa)}</td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
                                         <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                                            Tidak ada data
+                                            Tidak ada data rekap hari ini
                                         </td>
                                     </tr>
                                 )}
@@ -760,30 +1162,30 @@ const PendaftaranDashboard = () => {
             <Dialog open={showBatalModal} onOpenChange={setShowBatalModal}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Batal Pendaftaran</DialogTitle>
+                        <DialogTitle>Konfirmasi Pembatalan</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <p>
-                            Apakah Anda yakin ingin membatalkan pendaftaran pasien <strong>{selectedAction?.nama}</strong>?
-                        </p>
-                        {selectedAction?.type === 'batal' && (
-                            <div>
-                                <Label htmlFor="alasan">Alasan Pembatalan</Label>
-                                <Input
-                                    id="alasan"
-                                    value={alasanBatal}
-                                    onChange={(e) => setAlasanBatal(e.target.value)}
-                                    placeholder="Masukkan alasan pembatalan"
-                                />
-                            </div>
-                        )}
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                            <p className="text-sm text-red-800">
+                                Apakah Anda yakin ingin membatalkan pendaftaran pasien <strong>{selectedAction?.nama}</strong>?
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="alasan">Alasan Pembatalan *</Label>
+                            <Input
+                                id="alasan"
+                                value={alasanBatal}
+                                onChange={(e) => setAlasanBatal(e.target.value)}
+                                placeholder="Masukkan alasan pembatalan"
+                            />
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowBatalModal(false)}>
                             Batal
                         </Button>
-                        <Button variant="destructive" onClick={handleBatalPendaftaran} disabled={loading}>
-                            {loading ? 'Membatalkan...' : 'Batalkan'}
+                        <Button variant="destructive" onClick={handleBatalPendaftaran} disabled={loading || !alasanBatal.trim()}>
+                            {loading ? 'Membatalkan...' : 'Batalkan Pendaftaran'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -795,15 +1197,22 @@ const PendaftaranDashboard = () => {
                     <DialogHeader>
                         <DialogTitle>Konfirmasi Kehadiran</DialogTitle>
                     </DialogHeader>
-                    <p>
-                        Apakah pasien <strong>{selectedAction?.nama}</strong> sudah hadir?
-                    </p>
+                    <div className="space-y-4">
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                            <p className="text-sm text-green-800">
+                                Apakah pasien <strong>{selectedAction?.nama}</strong> sudah hadir dan siap dilayani?
+                            </p>
+                        </div>
+                        <div className="rounded-lg bg-blue-50 p-4">
+                            <p className="text-sm text-blue-800">Status akan diubah menjadi "Hadir" dan pasien akan masuk antrian untuk dilayani.</p>
+                        </div>
+                    </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowHadirModal(false)}>
                             Belum Hadir
                         </Button>
                         <Button onClick={handleHadirPendaftaran} disabled={loading}>
-                            {loading ? 'Memproses...' : 'Ya, Hadir!'}
+                            {loading ? 'Memproses...' : 'Ya, Sudah Hadir'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -816,9 +1225,11 @@ const PendaftaranDashboard = () => {
                         <DialogTitle>Ubah Dokter</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <p>
-                            <strong>Pasien:</strong> {selectedAction?.nama}
-                        </p>
+                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                            <p className="text-sm text-yellow-800">
+                                <strong>Pasien:</strong> {selectedAction?.nama}
+                            </p>
+                        </div>
                         <div>
                             <Label htmlFor="dokter-baru">Pilih Dokter Baru</Label>
                             <Select value={selectedDokter} onValueChange={setSelectedDokter}>
@@ -828,7 +1239,7 @@ const PendaftaranDashboard = () => {
                                 <SelectContent>
                                     {dokterList.map((dokter) => (
                                         <SelectItem key={dokter.id} value={dokter.id.toString()}>
-                                            {dokter.nama}
+                                            {dokter.namauser?.name || dokter.nama}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -840,7 +1251,7 @@ const PendaftaranDashboard = () => {
                             Batal
                         </Button>
                         <Button onClick={handleUbahDokter} disabled={loading || !selectedDokter}>
-                            {loading ? 'Mengupdate...' : 'Update'}
+                            {loading ? 'Mengupdate...' : 'Update Dokter'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -849,38 +1260,6 @@ const PendaftaranDashboard = () => {
             <Toaster position="top-right" />
         </AppLayout>
     );
-
-    // Handle doctor change function (tetap diletakkan di akhir seperti file asli)
-    async function handleUbahDokter() {
-        if (!selectedAction || !selectedDokter) return;
-
-        setLoading(true);
-        try {
-            const response = await fetch('/api/pendaftaran/dokter/update', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    rubahdokter_id: selectedAction.id,
-                    dokter_id_update: selectedDokter,
-                }),
-            });
-
-            if (response.ok) {
-                toast.success('Dokter berhasil diupdate');
-                setShowUbahDokterModal(false);
-                resetActionState();
-                fetchAllData();
-            } else {
-                throw new Error('Gagal mengupdate dokter');
-            }
-        } catch (error) {
-            toast.error('Gagal mengupdate dokter');
-        } finally {
-            setLoading(false);
-        }
-    }
 };
 
 export default PendaftaranDashboard;

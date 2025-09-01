@@ -16,7 +16,7 @@ class Pelayanan_So_Perawat extends Model
         'nomor_rm',
         'nama',
         'no_rawat',
-        'sex',
+        'seks',
         'penjamin',
         'tanggal_lahir',
         'umur',

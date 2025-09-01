@@ -45,7 +45,7 @@ const mainNavItems = [
         children: [
             {
                 title: 'Dokter',
-                href: '/pelayanan/so-dokter',
+                href: '/pelayanan/soap-dokter',
             },
             {
                 title: 'Perawat',
@@ -57,6 +57,28 @@ const mainNavItems = [
         title: 'Pembelian',
         icon: LayoutGrid,
         href: '/pembelian',
+    },
+    {
+        title: 'Gudang',
+        icon: LayoutGrid,
+        children: [
+            {
+                title: 'Stok Obat',
+                href: '/gudang/stok-barang',
+            },
+            {
+                title: 'Stok Inventaris',
+                href: '/gudang/stok-inventaris',
+            },
+            {
+                title: 'Daftar Permintaan Barang',
+                href: '/gudang/daftar-permintaan-barang',
+            },
+            {
+                title: 'Permintaan Barang',
+                href: '/gudang/permintaan-barang',
+            },
+        ],
     },
     {
         title: 'SDM',
@@ -124,12 +146,10 @@ const mainNavItems = [
             {
                 title: 'Gudang',
                 children: [
-                    { title: 'Satuan Obat', href: '/datamaster/gudang/satuan-obat' },
-                    { title: 'Kategori Obat', href: '/datamaster/gudang/kategori-obat' },
+                    { title: 'Satuan Barang', href: '/datamaster/gudang/satuan-barang' },
+                    { title: 'Kategori Barang', href: '/datamaster/gudang/kategori-barang' },
                     { title: 'Supplier', href: '/datamaster/gudang/supplier' },
                     { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
-                    { title: 'Satuan Inventaris', href: '/datamaster/gudang/satuan-inventaris' },
-                    { title: 'Kategori Inventaris', href: '/datamaster/gudang/kategori-inventaris' },
                     { title: 'Daftar Obat', href: '/datamaster/gudang/daftar-obat' },
                     { title: 'Daftar Inventaris', href: '/datamaster/gudang/daftar-inventaris' },
                 ],

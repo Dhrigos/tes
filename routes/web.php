@@ -36,10 +36,10 @@ use App\Http\Controllers\Module\Master\Data\Medis\Penggunaan_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Obat_Controller;
-use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Inventaris_Controller;
-use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Obat_Controller;
-use App\Http\Controllers\Module\Master\Data\Gudang\Satuan_Inventaris_Controller;
-use App\Http\Controllers\Module\Master\Data\Gudang\Satuan_Obat_Controller;
+// use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Inventaris_Controller;
+// use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Obat_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Barang_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Satuan_Barang_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Harga_Jual_Utama_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama_Controller;
@@ -54,6 +54,14 @@ use App\Http\Controllers\Module\SDM\Perawat_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use App\Http\Controllers\Module\Pelayanan\PelayananController;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Rujukan_Controller;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Permintaan_Controller;
+use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
+use App\Http\Controllers\Module\Gudang\Stok_Barang_Controller;
+use App\Http\Controllers\Module\Gudang\Stok_Inventaris_Controller;
+use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
+use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
+use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 use App\Models\Module\Pelayanan\Pelayanan;
@@ -285,15 +293,15 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
 
     // Grup untuk Gudang
     Route::prefix('gudang')->as('gudang.')->group(function () {
-        Route::get('/satuan-obat', [Satuan_Obat_Controller::class, 'index'])->name('satuan-obat.index');
-        Route::post('/satuan-obat', [Satuan_Obat_Controller::class, 'store'])->name('satuan-obat.store');
-        Route::put('/satuan-obat/{satuanobat}', [Satuan_Obat_Controller::class, 'update'])->name('satuan-obat.update');
-        Route::delete('/satuan-obat/{satuanobat}', [Satuan_Obat_Controller::class, 'destroy'])->name('satuan-obat.destroy');
+        Route::get('/satuan-barang', [Satuan_Barang_Controller::class, 'index'])->name('satuan-barang.index');
+        Route::post('/satuan-barang', [Satuan_Barang_Controller::class, 'store'])->name('satuan-barang.store');
+        Route::put('/satuan-barang/{satuanbarang}', [Satuan_Barang_Controller::class, 'update'])->name('satuan-barang.update');
+        Route::delete('/satuan-barang/{satuanbarang}', [Satuan_Barang_Controller::class, 'destroy'])->name('satuan-barang.destroy');
 
-        Route::get('/kategori-obat', [Kategori_Obat_Controller::class, 'index'])->name('kategori-obat.index');
-        Route::post('/kategori-obat', [Kategori_Obat_Controller::class, 'store'])->name('kategori-obat.store');
-        Route::put('/kategori-obat/{kategoriobat}', [Kategori_Obat_Controller::class, 'update'])->name('kategori-obat.update');
-        Route::delete('/kategori-obat/{kategoriobat}', [Kategori_Obat_Controller::class, 'destroy'])->name('kategori-obat.destroy');
+        Route::get('/kategori-barang', [Kategori_Barang_Controller::class, 'index'])->name('kategori-barang.index');
+        Route::post('/kategori-barang', [Kategori_Barang_Controller::class, 'store'])->name('kategori-barang.store');
+        Route::put('/kategori-barang/{kategoribarang}', [Kategori_Barang_Controller::class, 'update'])->name('kategori-barang.update');
+        Route::delete('/kategori-barang/{kategoribarang}', [Kategori_Barang_Controller::class, 'destroy'])->name('kategori-barang.destroy');
 
         Route::get('/supplier', [Supplier_Controller::class, 'index'])->name('supplier.index');
         Route::post('/supplier', [Supplier_Controller::class, 'store'])->name('supplier.store');
@@ -325,16 +333,6 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::get('/setting-harga-jual-utama', [Setting_Harga_Jual_Utama_Controller::class, 'index'])->name('setting-harga-jual-utama.index');
         Route::put('/setting-harga-jual-utama/{settingHargaJualUtama}', [Setting_Harga_Jual_Utama_Controller::class, 'update'])->name('setting-harga-jual-utama.update');
         Route::delete('/setting-harga-jual-utama/{settingHargaJualUtama}', [Setting_Harga_Jual_Utama_Controller::class, 'destroy'])->name('setting-harga-jual-utama.destroy');
-
-        Route::get('/satuan-inventaris', [Satuan_Inventaris_Controller::class, 'index'])->name('satuan-inventaris.index');
-        Route::post('/satuan-inventaris', [Satuan_Inventaris_Controller::class, 'store'])->name('satuan-inventaris.store');
-        Route::put('/satuan-inventaris/{satuanInventaris}', [Satuan_Inventaris_Controller::class, 'update'])->name('satuan-inventaris.update');
-        Route::delete('/satuan-inventaris/{satuanInventaris}', [Satuan_Inventaris_Controller::class, 'destroy'])->name('satuan-inventaris.destroy');
-
-        Route::get('/kategori-inventaris', [Kategori_Inventaris_Controller::class, 'index'])->name('kategori-inventaris.index');
-        Route::post('/kategori-inventaris', [Kategori_Inventaris_Controller::class, 'store'])->name('kategori-inventaris.store');
-        Route::put('/kategori-inventaris/{kategoriInventaris}', [Kategori_Inventaris_Controller::class, 'update'])->name('kategori-inventaris.update');
-        Route::delete('/kategori-inventaris/{kategoriInventaris}', [Kategori_Inventaris_Controller::class, 'destroy'])->name('kategori-inventaris.destroy');
 
         Route::get('/daftar-obat', [Daftar_Obat_Controller::class, 'index'])->name('daftar-obat.index');
         Route::post('/daftar-obat', [Daftar_Obat_Controller::class, 'store'])->name('daftar-obat.store');
@@ -380,6 +378,7 @@ Route::prefix('api/master')->group(function () {
     Route::get('/poli', [Pendaftaran_Controller::class, 'getPoliList']);
     Route::get('/penjamin', [Pendaftaran_Controller::class, 'getPenjaminList']);
     Route::post('/dokter/by-poli', [Pendaftaran_Controller::class, 'getDokterByPoli']);
+    Route::get('/pasien/search', [Pendaftaran_Controller::class, 'searchPasien']);
 });
 Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran-online');
 Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'add'])->name('pendaftaran-online.add');
@@ -389,19 +388,55 @@ Route::middleware(['auth', 'verified'])->prefix('pembelian')->as('pembelian.')->
     Route::post('/add', [Pembelian_Controller::class, 'store'])->name('add');
 });
 
+Route::middleware(['auth', 'verified'])->prefix('gudang')->as('gudang.')->group(function () {
+    Route::get('/stok-barang', [Stok_Barang_Controller::class, 'index'])->name('stok-barang.index');
+    Route::get('/stok-inventaris', [Stok_Inventaris_Controller::class, 'index'])->name('stok-inventaris.index');
+
+    // Permintaan Barang
+    Route::get('/permintaan-barang', [Permintaan_Barang_Controller::class, 'index'])->name('permintaan-barang.index');
+    Route::post('/permintaan-barang', [Permintaan_Barang_Controller::class, 'store'])->name('permintaan-barang.store');
+
+    Route::get('/daftar-permintaan-barang', [Daftar_Permintaan_Barang_Controller::class, 'index'])->name('permintaan-barang.index');
+});
+
 // Pelayanan routes
 Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->group(function () {
     Route::get('/so-perawat', [PelayananController::class, 'index'])->name('so-perawat.index');
+    Route::get('/so-perawat/{norawat}', [PelayananController::class, 'show'])->name('so-perawat.show');
+    Route::get('/so-perawat/edit/{norawat}', [PelayananController::class, 'edit'])->name('so-perawat.edit');
+    Route::post('/so-perawat', [PelayananController::class, 'store'])->name('so-perawat.store');
+    Route::put('/so-perawat/{norawat}', [PelayananController::class, 'update'])->name('so-perawat.update');
 
+    Route::get('/soap-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'index'])->name('so-dokter.index');
+    Route::get('/soap-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'show'])->name('soap-dokter.show');
+    Route::get('/soap-dokter/edit/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'edit'])->name('soap-dokter.edit');
+    Route::post('/soap-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'store'])->name('soap-dokter.store');
+    Route::put('/soap-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'update'])->name('soap-dokter.update');
 
-    Route::get('/so-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'index'])->name('so-dokter.index');
+    Route::get('/soap-dokter/rujukan/{norawat}', [Dokter_Rujukan_Controller::class, 'show'])->name('soap-dokter.rujukan.show');
+    Route::post('/soap-dokter/rujukan', [Dokter_Rujukan_Controller::class, 'store'])->name('soap-dokter.rujukan.store');
+    Route::put('/soap-dokter/rujukan/{norawat}', [Dokter_Rujukan_Controller::class, 'update'])->name('soap-dokter.rujukan.update');
+
+    Route::get('/soap-dokter/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'show'])->name('soap-dokter.permintaan.show');
+    Route::post('/soap-dokter/permintaan', [Pelayanan_Permintaan_Controller::class, 'store'])->name('soap-dokter.permintaan.store');
+    Route::put('/soap-dokter/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'update'])->name('soap-dokter.permintaan.update');
+
+    Route::get('/rujukan/{norawat}', [Pelayanan_Rujukan_Controller::class, 'show'])->name('rujukan.show');
+    Route::post('/rujukan', [Pelayanan_Rujukan_Controller::class, 'store'])->name('rujukan.store');
+    Route::put('/rujukan/{norawat}', [Pelayanan_Rujukan_Controller::class, 'update'])->name('rujukan.update');
+
+    Route::get('/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'show'])->name('permintaan.show');
+    Route::post('/permintaan', [Pelayanan_Permintaan_Controller::class, 'store'])->name('permintaan.store');
+    Route::put('/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'update'])->name('permintaan.update');
 });
+
 
 // API routes for pelayanan
 Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () {
     Route::get('/', [PelayananController::class, 'index']);
     Route::get('/hadir/{norawat}', [PelayananController::class, 'hadirPasien']);
     Route::post('/dokter/update', [PelayananController::class, 'updateDokter']);
+    Route::post('/selesai/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'selesaiPasien']);
 });
 
 Route::middleware(['auth'])->prefix('api')->group(function () {

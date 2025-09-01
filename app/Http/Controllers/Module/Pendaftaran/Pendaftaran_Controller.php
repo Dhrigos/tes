@@ -12,6 +12,7 @@ use App\Models\Module\SDM\Dokter;
 use App\Models\Module\Master\Data\Umum\Loket;
 use Illuminate\Support\Facades\Log;
 use App\Models\Module\pelayanan;
+use App\Models\Module\SDM\DokterJadwal;
 
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -44,8 +45,8 @@ class Pendaftaran_Controller extends Controller
 
         $pasienallold = Pendaftaran::whereDate('tanggal_kujungan', '=', $today)
             ->whereHas('status', function ($query) {
-                    $query->where('status_pendaftaran', '!=', 0);
-                })
+                $query->where('status_pendaftaran', '!=', 0);
+            })
             ->count();
         $pasienallnewnow = Pendaftaran::with('status')
             ->whereHas('status', function ($query) {
@@ -71,67 +72,66 @@ class Pendaftaran_Controller extends Controller
         $totalPasien = $rekapPerPoliDokter->sum('jumlah'); // Total pasien dari semua dokter
 
         $rekapPerDokter = Pendaftaran::with(['dokter.namauser', 'poli', 'status'])
-        ->whereDate('tanggal_kujungan', $today) // filter kujungan hari ini
-        ->whereHas('dokter.jadwal', function ($query) use ($today) {
-            $query->whereDate('start', '=', $today);
-        })
-        ->whereHas('status', function ($query) {
-            $query->whereIn('status_panggil', [0, 1, 2, 3]);
-        })
+            ->whereDate('tanggal_kujungan', $today) // filter kujungan hari ini
+            ->whereHas('dokter.jadwal', function ($query) use ($today) {
+                $query->whereDate('start', '=', $today);
+            })
+            ->whereHas('status', function ($query) {
+                $query->whereIn('status_panggil', [0, 1, 2, 3]);
+            })
 
-        ->orderBy('created_at', 'desc')
-        ->get()
-        ->groupBy('dokter_id')
-        ->map(function ($group) {
-            $jumlahMenunggu = $group->filter(function ($item) {
-                return $item->status && in_array($item->status->status_panggil, [0,1]) && $item->status->status_pendaftaran == 2;
-            })->count();
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('dokter_id')
+            ->map(function ($group) {
+                $jumlahMenunggu = $group->filter(function ($item) {
+                    return $item->status && in_array($item->status->status_panggil, [0, 1]) && $item->status->status_pendaftaran == 2;
+                })->count();
 
-            $jumlahDilayani = $group->filter(function ($item) {
-                return $item->status && $item->status->status_panggil == 3;
-            })->count();
+                $jumlahDilayani = $group->filter(function ($item) {
+                    return $item->status && $item->status->status_panggil == 3;
+                })->count();
 
-            // Cari nomor antrian untuk status 2 atau 3
-            $pasienAktif = $group->filter(function ($item) {
-                return $item->status && in_array($item->status->status_panggil, [2]);
-            })->sortBy('antrian')->first();
+                // Cari nomor antrian untuk status 2 atau 3
+                $pasienAktif = $group->filter(function ($item) {
+                    return $item->status && in_array($item->status->status_panggil, [2]);
+                })->sortBy('antrian')->first();
 
-            $noAntrian = $pasienAktif ? $pasienAktif->antrian : '-';
+                $noAntrian = $pasienAktif ? $pasienAktif->antrian : '-';
 
-            $latest = $group->first();
+                $latest = $group->first();
 
-            // Tentukan status_periksa
-            $statusPeriksa = '-';
-            if ($latest && $latest->status) {
-                if ($group->contains(function ($item) {
-                    return $item->status && in_array($item->status->status_panggil, [0,1]) && $item->status->status_pendaftaran == 2;
-                })) {
-                    $statusPeriksa = 1; //menungu
-                } elseif ($group->contains(function ($item) {
-                    return $item->status && $item->status->status_panggil == 2;
-                })) {
-                    $statusPeriksa = 2; //periksa
+                // Tentukan status_periksa
+                $statusPeriksa = '-';
+                if ($latest && $latest->status) {
+                    if ($group->contains(function ($item) {
+                        return $item->status && in_array($item->status->status_panggil, [0, 1]) && $item->status->status_pendaftaran == 2;
+                    })) {
+                        $statusPeriksa = 1; //menungu
+                    } elseif ($group->contains(function ($item) {
+                        return $item->status && $item->status->status_panggil == 2;
+                    })) {
+                        $statusPeriksa = 2; //periksa
+                    } else {
+                        $statusPeriksa = 3; //kosong
+                    }
                 }
-                else {
-                    $statusPeriksa = 3; //kosong
-                }
-            }
 
-            return (object) [
-                'dokter'         => $latest->dokter,
-                'poli'           => $latest->poli,
-                'menunggu'       => $jumlahMenunggu,
-                'dilayani'       => $jumlahDilayani,
-                'no_antrian'     => $noAntrian,
-                'status_periksa' => $statusPeriksa
-            ];
-        });
+                return (object) [
+                    'dokter'         => $latest->dokter,
+                    'poli'           => $latest->poli,
+                    'menunggu'       => $jumlahMenunggu,
+                    'dilayani'       => $jumlahDilayani,
+                    'no_antrian'     => $noAntrian,
+                    'status_periksa' => $statusPeriksa
+                ];
+            });
 
-        return view('module.pendaftaran.daftar', compact('title','rekapPerDokter' ,'jumlahDokter', 'totalPasien', 'rekapPerPoliDokter', 'pendaftaran', 'pasiens', 'penjamin', 'poli', 'pasienallnewnow', 'pasienallold'));
+        return view('module.pendaftaran.daftar', compact('title', 'rekapPerDokter', 'jumlahDokter', 'totalPasien', 'rekapPerPoliDokter', 'pendaftaran', 'pasiens', 'penjamin', 'poli', 'pasienallnewnow', 'pasienallold'));
     }
 
 
-        // 🔹 Ambil semua pasien
+    // 🔹 Ambil semua pasien
     public function getPasienList()
     {
         $pasien = Pasien::select('id', 'nama', 'no_rm')->get();
@@ -164,22 +164,33 @@ class Pendaftaran_Controller extends Controller
         ]);
     }
 
-    // 🔹 Ambil dokter berdasarkan poli + filter jadwal aktif
     public function getDokterByPoli(Request $request)
     {
         $request->validate([
             'poli_id' => 'required|integer',
-            'tanggal' => 'nullable|date',
+            'hari' => 'required|string',
+            'jam' => 'required'
         ]);
 
-        $tanggal = $request->tanggal ?? now()->toDateString();
-
-        $dokter = Dokter::where('poli', $request->poli_id)
-            ->whereHas('jadwal', function ($query) use ($tanggal) {
-                $query->whereDate('start', $tanggal);
+        $dokter = DokterJadwal::with(['dokter.namapoli'])
+            ->whereHas('dokter', function ($q) use ($request) {
+                $q->where('poli', $request->poli_id); // karena kolom di tabel 'dokters' adalah 'poli'
             })
-            ->with('namauser:id,name') // ambil nama dari tabel users
-            ->get();
+            ->where('hari', $request->hari)
+            ->where('jam_mulai', '<=', $request->jam)
+            ->where('jam_selesai', '>=', $request->jam)
+            ->where('aktif', 1)
+            ->get()
+            ->map(function ($jadwal) {
+                return [
+                    'id' => $jadwal->dokter->id,
+                    'nama' => $jadwal->dokter->nama,
+                    'poli' => $jadwal->dokter->namapoli->nama ?? null,
+                    'hari' => $jadwal->hari,
+                    'jam_mulai' => $jadwal->jam_mulai,
+                    'jam_selesai' => $jadwal->jam_selesai,
+                ];
+            });
 
         return response()->json([
             'success' => true,
@@ -187,15 +198,78 @@ class Pendaftaran_Controller extends Controller
         ]);
     }
 
+    public function getHariList()
+    {
+        $hari = DokterJadwal::select('hari')
+            ->distinct()
+            ->orderBy('hari')
+            ->pluck('hari');
+
+        return response()->json([
+            'success' => true,
+            'data' => $hari
+        ]);
+    }
+
     public function getMasterData()
-{
-    return response()->json([
-        'pasien'   => Pasien::select('id','nama','no_rm')->get(),
-        'poli'     => Poli::select('id','nama')->get(),
-        'penjamin' => Penjamin::select('id','nama')->get(),
-        'dokter'   => Dokter::with('namauser:id,name')->get(),
-    ]);
-}
+    {
+        try {
+            $pasien = Pasien::select('id', 'nama', 'no_rm', 'nik', 'no_bpjs')
+                ->orderBy('nama', 'asc')
+                ->limit(100) // Batasi untuk performa
+                ->get();
+
+            $poli = Poli::select('id', 'nama')->orderBy('nama', 'asc')->get();
+            $penjamin = Penjamin::select('id', 'nama')->orderBy('nama', 'asc')->get();
+            $dokter = Dokter::with('namauser:id,name')->get();
+
+            return response()->json([
+                'success' => true,
+                'pasien' => $pasien,
+                'poli' => $poli,
+                'penjamin' => $penjamin,
+                'dokter' => $dokter,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memuat data master: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function searchPasien(Request $request)
+    {
+        try {
+            $search = $request->input('search', '');
+            $limit = $request->input('limit', 20);
+
+            $query = Pasien::select('id', 'nama', 'no_rm', 'nik', 'no_bpjs')
+                ->orderBy('nama', 'asc');
+
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('nama', 'like', '%' . $search . '%')
+                        ->orWhere('no_rm', 'like', '%' . $search . '%')
+                        ->orWhere('nik', 'like', '%' . $search . '%')
+                        ->orWhere('no_bpjs', 'like', '%' . $search . '%');
+                });
+            }
+
+            $pasien = $query->limit($limit)->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $pasien
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mencari pasien: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     public function getByPoli($id, Request $request)
     {
@@ -242,11 +316,11 @@ class Pendaftaran_Controller extends Controller
             //         "alasan" => $request->alasanpembatalan,
             //     ];
 
-                // $this->PcareController->delete_ws_antria_bpjs($databpjs);
+            // $this->PcareController->delete_ws_antria_bpjs($databpjs);
             // }
 
 
-           $pemeriksaan = Pendaftaran::where('nomor_register', $pendaftaran->nomor_register)
+            $pemeriksaan = Pendaftaran::where('nomor_register', $pendaftaran->nomor_register)
                 ->where('tanggal_kujungan', $pendaftaran->tanggal_kujungan)
                 ->where('pasien_id', $pendaftaran->pasien_id)
                 ->first();

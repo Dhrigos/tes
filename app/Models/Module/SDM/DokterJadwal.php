@@ -2,8 +2,10 @@
 
 namespace App\Models\Module\SDM;
 
+use App\Models\Module\Master\Data\Umum\Penjamin;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DokterJadwal extends Model
 {
@@ -19,6 +21,11 @@ class DokterJadwal extends Model
         'kuota',
         'aktif',
     ];
+        public function Dokter(): BelongsTo
+    {
+        return $this->belongsTo(Dokter::class);
+    }
+
 }
 
 

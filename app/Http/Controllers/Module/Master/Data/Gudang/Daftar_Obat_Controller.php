@@ -9,20 +9,20 @@ use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
 use App\Models\Module\Master\Data\Gudang\Daftar_Obat;
-use App\Models\Module\Master\Data\Gudang\Satuan_Obat;
-use App\Models\Module\Master\Data\Gudang\Kategori_Obat;
+use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
+use App\Models\Module\Master\Data\Gudang\Kategori_Barang;
 
 class Daftar_Obat_Controller extends Controller
 {
     public function index()
     {
         $daftarObat = Daftar_Obat::latest()->get();
-        $satuanObats = Satuan_Obat::orderBy('nama')->get(['id', 'nama']);
-        $kategoriObats = Kategori_Obat::orderBy('nama')->get(['id', 'nama']);
+        $satuanObats = Satuan_Barang::orderBy('nama')->get(['id', 'nama']);
+        $kategoriBarangs = Kategori_Barang::orderBy('nama')->get(['id', 'nama']);
         return Inertia::render('module/master/gudang/daftar-obat/index', [
             'daftarObat' => $daftarObat,
             'satuanObats' => $satuanObats,
-            'kategoriObats' => $kategoriObats,
+            'kategoriBarangs' => $kategoriBarangs,
         ]);
     }
 
@@ -223,7 +223,7 @@ class Daftar_Obat_Controller extends Controller
                     $write['gudang_kategori'] = null;
                 } else {
                     $kategoriId = is_numeric($kategoriId) ? (int) $kategoriId : $kategoriId;
-                    if (!\App\Models\Module\Master\Data\Gudang\Kategori_Obat::where('id', $kategoriId)->exists()) {
+                    if (!Kategori_Barang::where('id', $kategoriId)->exists()) {
                         $write['gudang_kategori'] = null;
                     } else {
                         $write['gudang_kategori'] = $kategoriId;

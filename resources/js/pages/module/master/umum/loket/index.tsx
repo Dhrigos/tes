@@ -1,11 +1,11 @@
-// DILANJUT NTAR
-
 'use client';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
@@ -14,13 +14,22 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-interface Loket {
+interface Poli {
     id: number;
     nama: string;
 }
 
+interface Loket {
+    id: number;
+    nama: string;
+    poli_id: string;
+    poli?: Poli;
+}
+
 interface PageProps {
-    lokets: Loket[];
+    title: string;
+    loket: Loket[];
+    poli: Poli[];
     flash?: {
         success?: string;
         error?: string;
@@ -34,7 +43,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Index() {
-    const { lokets, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
+    const { title, loket, poli, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
 
     useEffect(() => {
         if (flash?.success) {
@@ -52,6 +61,7 @@ export default function Index() {
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [nama, setNama] = useState('');
+    const [poliId, setPoliId] = useState('');
 
     // Pencarian
     const [search, setSearch] = useState('');
@@ -61,7 +71,10 @@ export default function Index() {
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [deleteNama, setDeleteNama] = useState('');
 
-    const filteredLokets = lokets.filter((g) => `${g.nama}`.toLowerCase().includes(search.toLowerCase()));
+    const filteredLokets = loket.filter(
+        (item: Loket) =>
+            `${item.nama}`.toLowerCase().includes(search.toLowerCase()) || `${item.poli?.nama || ''}`.toLowerCase().includes(search.toLowerCase()),
+    );
 
     const handleOpenDelete = (loket: Loket) => {
         setDeleteId(loket.id);
@@ -87,12 +100,17 @@ export default function Index() {
             // Update
             router.put(
                 `/datamaster/umum/loket/${editId}`,
-                { nama },
+                {
+                    nama_edit: nama,
+                    poli_edit: poliId,
+                    loketid_edit: editId,
+                },
                 {
                     preserveScroll: true,
                     onSuccess: () => {
                         setOpen(false);
                         setNama('');
+                        setPoliId('');
                         setEditId(null);
                     },
                 },
@@ -101,12 +119,16 @@ export default function Index() {
             // Tambah
             router.post(
                 '/datamaster/umum/loket',
-                { nama },
+                {
+                    nama,
+                    poli_id: poliId,
+                },
                 {
                     preserveScroll: true,
                     onSuccess: () => {
                         setOpen(false);
                         setNama('');
+                        setPoliId('');
                     },
                 },
             );
@@ -116,6 +138,14 @@ export default function Index() {
     const handleOpenEdit = (loket: Loket) => {
         setEditId(loket.id);
         setNama(loket.nama);
+        setPoliId(loket.poli_id);
+        setOpen(true);
+    };
+
+    const handleOpenAdd = () => {
+        setEditId(null);
+        setNama('');
+        setPoliId('');
         setOpen(true);
     };
 
@@ -131,13 +161,7 @@ export default function Index() {
                                 <Search className="absolute top-2.5 left-2 h-4 w-4 text-gray-400" />
                                 <Input placeholder="Cari loket..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48 pl-8" />
                             </div>
-                            <Button
-                                onClick={() => {
-                                    setEditId(null);
-                                    setNama('');
-                                    setOpen(true);
-                                }}
-                            >
+                            <Button onClick={handleOpenAdd}>
                                 <Plus className="mr-2 h-4 w-4" /> Tambah
                             </Button>
                         </div>
@@ -148,16 +172,18 @@ export default function Index() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-16">#</TableHead>
-                                    <TableHead>Nama</TableHead>
+                                    <TableHead>Nama Loket</TableHead>
+                                    <TableHead>Poli</TableHead>
                                     <TableHead className="w-40 text-right">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {filteredLokets && filteredLokets.length > 0 ? (
-                                    filteredLokets.map((item, index) => (
+                                    filteredLokets.map((item: Loket, index: number) => (
                                         <TableRow key={item.id}>
                                             <TableCell>{index + 1}</TableCell>
                                             <TableCell>{item.nama}</TableCell>
+                                            <TableCell>{item.poli?.nama || '-'}</TableCell>
                                             <TableCell className="space-x-2 text-right">
                                                 <Button size="sm" variant="outline" onClick={() => handleOpenEdit(item)}>
                                                     <Pencil className="h-4 w-4" />
@@ -170,7 +196,7 @@ export default function Index() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center">
+                                        <TableCell colSpan={4} className="text-center">
                                             Tidak ada data.
                                         </TableCell>
                                     </TableRow>
@@ -188,7 +214,25 @@ export default function Index() {
                         <DialogTitle>{editId ? 'Edit Loket' : 'Tambah Loket'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <Input placeholder="Nama Loket" value={nama} onChange={(e) => setNama(e.target.value)} required />
+                        <div>
+                            <Label htmlFor="nama">Nama Loket</Label>
+                            <Input id="nama" placeholder="Nama Loket" value={nama} onChange={(e) => setNama(e.target.value)} required />
+                        </div>
+                        <div>
+                            <Label htmlFor="poli">Poli</Label>
+                            <Select value={poliId} onValueChange={setPoliId} required>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="--- Pilih Poli ---" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {poli.map((p) => (
+                                        <SelectItem key={p.id} value={p.id.toString()}>
+                                            {p.nama}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Batal

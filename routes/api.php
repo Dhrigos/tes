@@ -15,6 +15,7 @@ use App\Http\Controllers\Module\SDM\Dokter_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use App\Http\Controllers\Settings\Web_Setting_Controller;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
+use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
 use Illuminate\Http\Request;
 
 
@@ -38,18 +39,23 @@ Route::post('/setting-harga-jual', [Setting_Harga_Jual_Controller::class, 'store
 Route::post('/setting-harga-jual-utama', [Setting_Harga_Jual_Controller::class, 'storeUtama']);
 Route::post('/setting-harga-jual/sync-from-utama', [Setting_Harga_Jual_Controller::class, 'syncFromUtama']);
 
-
-Route::get('/pendaftaran/master-data', [Pendaftaran_Controller::class, 'getMasterData']);
 // API master data
-Route::prefix('api/master')->group(function () {
+Route::prefix('master')->group(function () {
     Route::get('/pasien', [Pendaftaran_Controller::class, 'getPasienList']);
     Route::get('/poli', [Pendaftaran_Controller::class, 'getPoliList']);
     Route::get('/penjamin', [Pendaftaran_Controller::class, 'getPenjaminList']);
     Route::post('/dokter/by-poli', [Pendaftaran_Controller::class, 'getDokterByPoli']);
+    Route::get('/hari', [Pendaftaran_Controller::class, 'getHariList']);
+    Route::get('/dokter-available', [Dokter_Controller::class, 'getAvailable']);
+    Route::get('/pasien/search', [Pendaftaran_Controller::class, 'searchPasien']);
+});
+
+// API pendaftaran
+Route::prefix('pendaftaran')->group(function () {
+    Route::get('/master-data', [Pendaftaran_Controller::class, 'getMasterData']);
 });
 
 Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
-Route::post('/pembelian/store', [Pembelian_Controller::class, 'store']);
 Route::post('/pembelian/generate-inventaris', [Pembelian_Controller::class, 'generatePembelianInventaris']);
 
 Route::post('/generate-kode-inventaris', [Daftar_Inventaris_Controller::class, 'generateKodeInventaris']);
@@ -71,4 +77,9 @@ Route::prefix('web-settings')->group(function () {
     Route::post('/set-bpjs', [Web_Setting_Controller::class, 'set_bpjs']);
     Route::post('/set-active-gudang', [Web_Setting_Controller::class, 'setActiveGudangUtama']);
     Route::post('/reset-active-gudang', [Web_Setting_Controller::class, 'resetActiveGudangUtama']);
+});
+
+Route::prefix('permintaan-barang')->group(function () {
+    Route::get('/get-last-kode', [Permintaan_Barang_Controller::class, 'getLastKode']);
+    Route::get('/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
 });

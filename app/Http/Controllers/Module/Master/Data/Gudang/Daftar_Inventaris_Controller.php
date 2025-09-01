@@ -7,16 +7,16 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use App\Models\Module\Master\Data\Gudang\Daftar_Inventaris;
-use App\Models\Module\Master\Data\Gudang\Satuan_Inventaris;
-use App\Models\Module\Master\Data\Gudang\Kategori_Inventaris;
+use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
+use App\Models\Module\Master\Data\Gudang\Kategori_Barang;
 
 class Daftar_Inventaris_Controller extends Controller
 {
     public function index()
     {
         $daftarInventaris = Daftar_Inventaris::latest()->get();
-        $satuanInventaris = Satuan_Inventaris::orderBy('nama')->get(['id', 'nama']);
-        $kategoriInventaris = Kategori_Inventaris::orderBy('nama')->get(['id', 'nama']);
+        $satuanInventaris = Satuan_Barang::orderBy('nama')->get(['id', 'nama']);
+        $kategoriInventaris = Kategori_Barang::orderBy('nama')->get(['id', 'nama']);
         return Inertia::render('module/master/gudang/daftar-inventaris/index', [
             'daftarInventaris' => $daftarInventaris,
             'satuanInventaris' => $satuanInventaris,

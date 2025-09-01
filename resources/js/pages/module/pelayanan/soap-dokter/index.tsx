@@ -5,26 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Bell, FileText, Edit, CheckCircle, UserCheck, Search } from 'lucide-react';
+import { Bell, FileText, Edit, CheckCircle, UserCheck, Search, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import {
-    Dialog as AlertDialog,
-    DialogContent as AlertDialogContent,
-    DialogHeader as AlertDialogHeader,
-    DialogTitle as AlertDialogTitle,
-    DialogDescription as AlertDialogDescription,
-    DialogFooter as AlertDialogFooter,
-    DialogClose as AlertDialogCancel,
-} from '@/components/ui/dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 
@@ -77,18 +61,14 @@ interface PageProps {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Pelayanan', href: '' },
-    { title: 'SO Perawat', href: '' },
+    { title: 'SOAP Dokter', href: '' },
 ];
 
-export default function PelayananSoPerawat() {
+export default function PelayananSoapDokter() {
     const { pelayanan: initialPelayanan = [], flash } = usePage().props as unknown as PageProps;
     const [pelayanan, setPelayanan] = useState<PelayananData[]>(initialPelayanan);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
-    const [showDokterDialog, setShowDokterDialog] = useState(false);
-    const [selectedPasien, setSelectedPasien] = useState<PelayananData | null>(null);
-    const [dokterList, setDokterList] = useState<Dokter[]>([]);
-    const [selectedDokter, setSelectedDokter] = useState<string>('');
 
     // Sync state when Inertia props change
     useEffect(() => {
@@ -129,59 +109,27 @@ export default function PelayananSoPerawat() {
         }
     };
 
-    const handleUbahDokter = (pasien: PelayananData) => {
-        setSelectedPasien(pasien);
-        setShowDokterDialog(true);
-        fetchDokterByPoli(pasien.poli_id, pasien.tanggal_kujungan);
-    };
-
-    const fetchDokterByPoli = async (poliId: number, tanggalKunjungan: string) => {
+    const handlePasienSelesai = async (norawat: string) => {
         try {
-            const url = `/api/get-dokter-by-poli/${poliId}?datetime=${encodeURIComponent(tanggalKunjungan)}`;
-            const res = await fetch(url, { headers: { Accept: 'application/json' } });
-            if (!res.ok) throw new Error('Network error');
-            const data = await res.json();
-            setDokterList(Array.isArray(data) ? data : []);
-        } catch (error) {
-            toast.error('Gagal mengambil data dokter');
-            setDokterList([]);
-        }
-    };
-
-    const handleUpdateDokter = async () => {
-        if (!selectedPasien || !selectedDokter) {
-            toast.error('Silakan pilih dokter terlebih dahulu');
-            return;
-        }
-
-        try {
+            const encodedNorawat = btoa(norawat);
             const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch('/api/pelayanan/dokter/update', {
+            const res = await fetch(`/api/pelayanan/selesai/${encodedNorawat}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': csrf,
                 },
-                body: JSON.stringify({
-                    rubahdokter_id: selectedPasien.id,
-                    poli_id_update: selectedPasien.poli_id,
-                    tanggal_kunjungan_update: selectedPasien.tanggal_kujungan,
-                    dokter_id_update: selectedDokter,
-                }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok && data?.success) {
-                toast.success(data.message || 'Dokter berhasil diupdate');
-                setShowDokterDialog(false);
-                setSelectedPasien(null);
-                setSelectedDokter('');
+                toast.success(data.message || 'Pasien selesai diperiksa');
                 reloadPelayanan();
             } else {
-                toast.error(data?.message || 'Gagal mengupdate dokter');
+                toast.error(data?.message || 'Gagal menandai pasien selesai');
             }
         } catch (error) {
-            toast.error('Gagal mengupdate dokter');
+            toast.error('Gagal menandai pasien selesai');
         }
     };
 
@@ -231,7 +179,16 @@ export default function PelayananSoPerawat() {
                         variant="outline"
                         size="sm"
                         className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                        onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}`)}
+                        onClick={() => {
+                            console.log('Button pemeriksaan clicked for:', row.nomor_register);
+                            console.log('Encoded norawat:', norawat);
+                            try {
+                                router.visit(`/pelayanan/soap-dokter/${norawat}`);
+                            } catch (error) {
+                                console.error('Error navigating to pemeriksaan:', error);
+                                toast.error('Gagal membuka halaman pemeriksaan');
+                            }
+                        }}
                     >
                         <FileText className="w-4 h-4 mr-1" />
                         Pemeriksaan
@@ -239,25 +196,47 @@ export default function PelayananSoPerawat() {
                 );
             case 'edit':
                 return (
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-cyan-600 border-cyan-600 hover:bg-cyan-50"
-                            onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}`)}
-                        >
-                            <Edit className="w-4 h-4 mr-1" />
-                            Edit
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
-                            onClick={() => handleUbahDokter(row)}
-                        >
-                            <UserCheck className="w-4 h-4 mr-1" />
-                            Ubah Dokter
-                        </Button>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                                onClick={() => router.visit(`/pelayanan/soap-dokter/rujukan/${norawat}`)}
+                            >
+                                <Send className="w-4 h-4 mr-1" />
+                                Rujuk
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
+                                onClick={() => router.visit(`/pelayanan/soap-dokter/edit/${norawat}`)}
+                            >
+                                <Edit className="w-4 h-4 mr-1" />
+                                Edit
+                            </Button>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-cyan-600 border-cyan-600 hover:bg-cyan-50"
+                                onClick={() => router.visit(`/pelayanan/soap-dokter/permintaan/${norawat}`)}
+                            >
+                                <FileText className="w-4 h-4 mr-1" />
+                                Permintaan
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-green-600 border-green-600 hover:bg-green-50"
+                                onClick={() => handlePasienSelesai(row.nomor_register)}
+                            >
+                                <UserCheck className="w-4 h-4 mr-1" />
+                                Selesai
+                            </Button>
+                        </div>
                     </div>
                 );
             case 'Complete':
@@ -277,22 +256,13 @@ export default function PelayananSoPerawat() {
         }
     };
 
-    // Using Table components directly instead of a DataTable abstraction
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Pelayanan Perawat" />
+            <Head title="Pelayanan Dokter" />
             
-            <div className="space-y-6">
-                <div className="text-center">
-                    <h5 className="text-lg text-muted-foreground">
-                        Selamat datang di modul Pelayanan Perawat
-                    </h5>
-                </div>
-
+            <div className="space-y-6 p-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Data Pelayanan Perawat</CardTitle>
                         <div className="flex items-center gap-2">
                             <div className="relative">
                                 <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -309,7 +279,7 @@ export default function PelayananSoPerawat() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-center">Status</TableHead>
                                     <TableHead>No.RM</TableHead>
                                     <TableHead>Pasien</TableHead>
                                     <TableHead>No.Antrian</TableHead>
@@ -317,16 +287,16 @@ export default function PelayananSoPerawat() {
                                     <TableHead>Tanggal Kunjungan</TableHead>
                                     <TableHead>Poli</TableHead>
                                     <TableHead>Dokter</TableHead>
-                                    <TableHead>Tindakan</TableHead>
+                                    <TableHead className="text-center">Tindakan</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {filteredPelayanan.length > 0 ? (
                                     filteredPelayanan.map((row) => (
                                         <TableRow key={row.id}>
-                                            <TableCell>{getStatusBadge(row.tindakan_button)}</TableCell>
-                                            <TableCell className="text-center font-mono">{row.nomor_rm}</TableCell>
-                                            <TableCell className="text-center">{row.pasien?.nama}</TableCell>
+                                            <TableCell className="text-center">{getStatusBadge(row.tindakan_button)}</TableCell>
+                                            <TableCell className="font-mono">{row.nomor_rm}</TableCell>
+                                            <TableCell>{row.pasien?.nama}</TableCell>
                                             <TableCell className="text-center font-mono">{row.pendaftaran?.antrian}</TableCell>
                                             <TableCell className="text-center font-mono">{row.nomor_register}</TableCell>
                                             <TableCell className="text-center">
@@ -334,9 +304,13 @@ export default function PelayananSoPerawat() {
                                                     ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id })
                                                     : '-'}
                                             </TableCell>
-                                            <TableCell className="text-center">{row.poli?.nama}</TableCell>
-                                            <TableCell className="text-center">{row.dokter?.namauser?.name}</TableCell>
-                                            <TableCell className="text-center">{getActionButtons(row)}</TableCell>
+                                            <TableCell>{row.poli?.nama}</TableCell>
+                                            <TableCell>{row.dokter?.namauser?.name}</TableCell>
+                                            <TableCell className="text-center">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    {getActionButtons(row)}
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
@@ -351,47 +325,6 @@ export default function PelayananSoPerawat() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Dialog Ubah Dokter */}
-            <AlertDialog open={showDokterDialog} onOpenChange={setShowDokterDialog}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Ubah Dokter</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            <div className="space-y-4">
-                                <p><strong>Pasien:</strong> {selectedPasien?.pasien?.nama}</p>
-                                <div>
-                                    <label className="text-sm font-medium">Pilih Dokter Baru:</label>
-                                    <Select value={selectedDokter} onValueChange={setSelectedDokter}>
-                                        <SelectTrigger className="w-full mt-1">
-                                            <SelectValue placeholder="Pilih Dokter" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {dokterList.map((dokter) => (
-                                                <SelectItem key={dokter.id} value={dokter.id.toString()}>
-                                                    {dokter.namauser.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => {
-                            setShowDokterDialog(false);
-                            setSelectedPasien(null);
-                            setSelectedDokter('');
-                        }}>
-                            Batal
-                        </AlertDialogCancel>
-                        <Button onClick={handleUpdateDokter}>
-                            Update
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </AppLayout>
     );
 }

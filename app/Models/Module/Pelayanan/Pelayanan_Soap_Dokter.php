@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pelayanan_Soap_Dokter extends Model
 {
+    protected $table = 'pelayanan_soap_dokters';
     protected $fillable = [
         'nomor_rm',
         'nama',

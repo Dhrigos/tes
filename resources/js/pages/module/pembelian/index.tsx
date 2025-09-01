@@ -540,16 +540,35 @@ export default function PembelianIndex() {
                     return;
                 }
             }
+            // Konversi qty ke satuan kecil sebelum dikirim ke backend
             const formData = {
                 ...pembelianData,
-                details: pembelianDetails.map((detail) => ({
-                    ...detail,
-                    // Hapus id yang hanya untuk frontend
-                    id: undefined,
-                })),
+                details: pembelianDetails.map((detail) => {
+                    // Untuk obat, pastikan qty dalam satuan kecil
+                    let qtyToSend = detail.qty;
+
+                    if (pembelianData.jenis_pembelian === 'obat') {
+                        // Jika menggunakan kemasan besar, konversi ke satuan kecil
+                        if (detail.kemasan_besar) {
+                            const konversi = detail.nilai_konversi || 1;
+                            const qtyBesar = parseFloat(detail.nilai_satuan_besar || '0') || 0;
+                            qtyToSend = (qtyBesar * konversi).toString();
+                        } else {
+                            // Jika sudah dalam satuan kecil, gunakan nilai_satuan_kecil
+                            qtyToSend = detail.nilai_satuan_kecil || detail.qty || '0';
+                        }
+                    }
+
+                    return {
+                        ...detail,
+                        qty: qtyToSend,
+                        // Hapus id yang hanya untuk frontend
+                        id: undefined,
+                    };
+                }),
             };
 
-            const response = await axios.post('/api/pembelian/store', formData);
+            const response = await axios.post('/pembelian/add', formData);
 
             if (response.data.success) {
                 toast.success(response.data.message);
@@ -582,7 +601,7 @@ export default function PembelianIndex() {
             console.error('Error submitting pembelian:', error);
 
             if (error.response?.data?.message) {
-                toast.error(error.response.data.message);
+                toast.error('Gagal menyimpan data pembelian');
             } else if (error.response?.data?.errors) {
                 // Tampilkan error validasi
                 const errors = Object.values(error.response.data.errors).flat();
@@ -1049,22 +1068,21 @@ export default function PembelianIndex() {
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                                         <div className="space-y-2">
                                                             <Label>Qty Aktual (Satuan Kecil)</Label>
-                                                            <Input 
-                                                                type="number" 
-                                                                value={modalData.nilai_satuan_kecil || '0'} 
-                                                                readOnly 
-                                                                className="bg-gray-50" 
+                                                            <Input
+                                                                type="number"
+                                                                value={modalData.nilai_satuan_kecil || '0'}
+                                                                readOnly
                                                             />
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Sub Total</Label>
-                                                            <Input type="number" value={modalData.sub_total} readOnly className="bg-gray-50" />
+                                                            <Input type="number" value={modalData.sub_total} readOnly />
                                                         </div>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 // Modal UI untuk Inventaris
-                                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                                                     <div className="space-y-2">
                                                         <Label>Barang Inventaris</Label>
                                                         <Select
@@ -1164,15 +1182,6 @@ export default function PembelianIndex() {
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Diskon (Rp)</Label>
-                                                        <Input
-                                                            type="number"
-                                                            value={modalData.diskon}
-                                                            onChange={(e) => updateModalData('diskon', e.target.value)}
-                                                            placeholder="0"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
                                                         <Label>Sub Total</Label>
                                                         <Input type="number" value={modalData.sub_total} readOnly className="bg-gray-50" />
                                                     </div>
@@ -1233,7 +1242,7 @@ export default function PembelianIndex() {
                                 {/* Summary */}
                                 {pembelianDetails.length > 0 && (
                                     <>
-                                        <Card className="bg-gray-50">
+                                        <Card>
                                             <CardHeader>
                                                 <CardTitle className="text-lg">Ringkasan Pembelian</CardTitle>
                                             </CardHeader>

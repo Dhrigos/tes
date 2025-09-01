@@ -7,11 +7,14 @@ use App\Models\Module\Pembelian\Pembelian;
 use App\Models\Module\Pembelian\PembelianDetail;
 use App\Models\Module\Pembelian\PembelianObatDetail;
 use App\Models\Module\Pembelian\PembelianInventarisDetail;
+use App\Models\Module\Gudang\Stok_Inventaris;
+use App\Models\Module\Gudang\Stok_Barang;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
 
 class Pembelian_Controller extends Controller
 {
@@ -40,136 +43,163 @@ class Pembelian_Controller extends Controller
     public function store(Request $request)
     {
         try {
-            // Validasi data
-            $request->validate([
-                'jenis_pembelian' => 'required|in:obat,inventaris',
-                'nomor_faktur' => 'required|string',
-                'supplier' => 'nullable|string',
-                'no_po_sp' => 'nullable|string',
-                'no_faktur_supplier' => 'nullable|string',
-                'tanggal_terima_barang' => 'nullable|string',
-                'tanggal_faktur' => 'nullable|string',
-                'tanggal_jatuh_tempo' => 'nullable|string',
-                'pajak_ppn' => 'nullable|string',
-                'metode_hna' => 'nullable|string',
-                'sub_total' => 'nullable|string',
-                'total_diskon' => 'nullable|string',
-                'ppn_total' => 'nullable|string',
-                'total' => 'required|string',
-                'materai' => 'nullable|string',
-                'koreksi' => 'nullable|string',
-                'penerima_barang' => 'required|string',
-                'tgl_pembelian' => 'nullable|string',
-                'details' => 'required|array',
-                'details.*.nama_obat_alkes' => 'required|string',
-                'details.*.kode_obat_alkes' => 'required|string',
-                'details.*.qty' => 'required|string',
-                'details.*.harga_satuan' => 'required|string',
-                'details.*.diskon' => 'nullable|string',
-                'details.*.exp' => 'nullable|string',
-                'details.*.batch' => 'nullable|string',
-                'details.*.sub_total' => 'required|string',
-            ], [
-                'jenis_pembelian.required' => 'Jenis pembelian wajib dipilih',
-                'nomor_faktur.required' => 'Nomor faktur wajib diisi',
-                'total.required' => 'Total pembelian wajib diisi',
-                'penerima_barang.required' => 'Penerima barang wajib diisi',
-                'details.required' => 'Detail pembelian wajib diisi',
-                'details.*.nama_obat_alkes.required' => 'Nama item wajib diisi',
-                'details.*.kode_obat_alkes.required' => 'Kode item wajib diisi',
-                'details.*.qty.required' => 'Quantity wajib diisi',
-                'details.*.harga_satuan.required' => 'Harga satuan wajib diisi',
-                'details.*.sub_total.required' => 'Sub total wajib diisi',
-            ]);
-
-            // Cek apakah nomor faktur sudah ada
-            $existingPembelian = Pembelian::where('nomor_faktur', $request->nomor_faktur)->first();
-            if ($existingPembelian) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Nomor faktur sudah digunakan!'
-                ], 422);
-            }
-
-            // Simpan data secara atomik agar master dan detail konsisten
-            $pembelian = DB::transaction(function () use ($request) {
-                $header = Pembelian::create([
-                    'jenis_pembelian' => $request->jenis_pembelian,
-                    'nomor_faktur' => $request->nomor_faktur,
-                    'supplier' => $request->supplier,
-                    'no_po_sp' => $request->no_po_sp,
-                    'no_faktur_supplier' => $request->no_faktur_supplier,
-                    'tanggal_terima_barang' => $request->tanggal_terima_barang,
-                    'tanggal_faktur' => $request->tanggal_faktur,
-                    'tanggal_jatuh_tempo' => $request->tanggal_jatuh_tempo,
-                    'pajak_ppn' => $request->pajak_ppn ?: '0',
-                    'metode_hna' => $request->metode_hna,
-                    'sub_total' => $request->sub_total ?: '0',
-                    'total_diskon' => $request->total_diskon ?: '0',
-                    'ppn_total' => $request->ppn_total ?: '0',
-                    'total' => $request->total,
-                    'materai' => $request->materai ?: '0',
-                    'koreksi' => $request->koreksi ?: '0',
-                    'penerima_barang' => $request->penerima_barang,
-                    'tgl_pembelian' => $request->tgl_pembelian ?: now()->format('Y-m-d'),
+            try {
+                // Validasi data
+                $request->validate([
+                    'jenis_pembelian' => 'required|in:obat,inventaris',
+                    'nomor_faktur' => 'required|string',
+                    'supplier' => 'nullable|string',
+                    'no_po_sp' => 'nullable|string',
+                    'no_faktur_supplier' => 'nullable|string',
+                    'tanggal_terima_barang' => 'nullable|string',
+                    'tanggal_faktur' => 'nullable|string',
+                    'tanggal_jatuh_tempo' => 'nullable|string',
+                    'pajak_ppn' => 'nullable|string',
+                    'metode_hna' => 'nullable|string',
+                    'sub_total' => 'nullable|string',
+                    'total_diskon' => 'nullable|string',
+                    'ppn_total' => 'nullable|string',
+                    'total' => 'required|string',
+                    'materai' => 'nullable|string',
+                    'koreksi' => 'nullable|string',
+                    'penerima_barang' => 'required|string',
+                    'tgl_pembelian' => 'nullable|string',
+                    'details' => 'required|array',
+                    'details.*.nama_obat_alkes' => 'required|string',
+                    'details.*.kode_obat_alkes' => 'required|string',
+                    'details.*.qty' => 'required|string',
+                    'details.*.harga_satuan' => 'required|string',
+                    'details.*.diskon' => 'nullable|string',
+                    'details.*.exp' => 'nullable|string',
+                    'details.*.batch' => 'nullable|string',
+                    'details.*.sub_total' => 'required|string',
+                ], [
+                    'jenis_pembelian.required' => 'Jenis pembelian wajib dipilih',
+                    'nomor_faktur.required' => 'Nomor faktur wajib diisi',
+                    'total.required' => 'Total pembelian wajib diisi',
+                    'penerima_barang.required' => 'Penerima barang wajib diisi',
+                    'details.required' => 'Detail pembelian wajib diisi',
+                    'details.*.nama_obat_alkes.required' => 'Nama item wajib diisi',
+                    'details.*.kode_obat_alkes.required' => 'Kode item wajib diisi',
+                    'details.*.qty.required' => 'Quantity wajib diisi',
+                    'details.*.harga_satuan.required' => 'Harga satuan wajib diisi',
+                    'details.*.sub_total.required' => 'Sub total wajib diisi',
                 ]);
 
-                $details = $request->input('details', []);
-                foreach ($details as $detail) {
-                    // Lewati entri kosong jika ada
-                    if (!(isset($detail['nama_obat_alkes'], $detail['kode_obat_alkes'], $detail['qty'], $detail['harga_satuan'], $detail['sub_total']))) {
-                        continue;
-                    }
-
-                    if ($request->jenis_pembelian === 'inventaris') {
-                        PembelianInventarisDetail::create([
-                            'kode' => $request->nomor_faktur,
-                            'kode_barang' => $detail['kode_obat_alkes'],
-                            'nama_barang' => $detail['nama_obat_alkes'],
-                            'kategori_barang' => 'Inventaris',
-                            'jenis_barang' => 'Medical Equipment',
-                            'qty_barang' => $detail['qty'],
-                            'harga_barang' => $detail['harga_satuan'],
-                            'lokasi' => $detail['lokasi'] ?? 'Gudang',
-                            'kondisi' => $detail['kondisi'] ?? 'Baik',
-                            'masa_akhir_penggunaan' => $detail['exp'] ?? null,
-                            'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
-                            'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
-                        ]);
-                    } else {
-                        PembelianObatDetail::create([
-                            'nomor_faktur' => $request->nomor_faktur,
-                            'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                            'kode_obat_alkes' => $detail['kode_obat_alkes'],
-                            'qty' => $detail['qty'],
-                            'harga_satuan' => $detail['harga_satuan'],
-                            'diskon' => $detail['diskon'] ?? '0',
-                            'exp' => $detail['exp'] ?? null,
-                            'batch' => $detail['batch'] ?? null,
-                            'sub_total' => $detail['sub_total'],
-                        ]);
-                    }
+                // Cek apakah nomor faktur sudah ada
+                $existingPembelian = Pembelian::where('nomor_faktur', $request->nomor_faktur)->first();
+                if ($existingPembelian) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Nomor faktur sudah digunakan!'
+                    ], 422);
                 }
 
-                return $header;
-            });
+                // Simpan data secara atomik agar master dan detail konsisten
+                $pembelian = DB::transaction(function () use ($request) {
+                    $header = Pembelian::create([
+                        'jenis_pembelian' => $request->jenis_pembelian,
+                        'nomor_faktur' => $request->nomor_faktur,
+                        'supplier' => $request->supplier,
+                        'no_po_sp' => $request->no_po_sp,
+                        'no_faktur_supplier' => $request->no_faktur_supplier,
+                        'tanggal_terima_barang' => $request->tanggal_terima_barang,
+                        'tanggal_faktur' => $request->tanggal_faktur,
+                        'tanggal_jatuh_tempo' => $request->tanggal_jatuh_tempo,
+                        'pajak_ppn' => $request->pajak_ppn ?: '0',
+                        'metode_hna' => $request->metode_hna,
+                        'sub_total' => $request->sub_total ?: '0',
+                        'total_diskon' => $request->total_diskon ?: '0',
+                        'ppn_total' => $request->ppn_total ?: '0',
+                        'total' => $request->total,
+                        'materai' => $request->materai ?: '0',
+                        'koreksi' => $request->koreksi ?: '0',
+                        'penerima_barang' => $request->penerima_barang,
+                        'tgl_pembelian' => $request->tgl_pembelian ?: now()->format('Y-m-d'),
+                    ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Data pembelian berhasil disimpan!',
-                'data' => $pembelian
-            ], 201);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validasi gagal!',
-                'errors' => $e->errors()
-            ], 422);
+                    $details = $request->input('details', []);
+                    foreach ($details as $detail) {
+                        // Lewati entri kosong jika ada
+                        if (!(isset($detail['nama_obat_alkes'], $detail['kode_obat_alkes'], $detail['qty'], $detail['harga_satuan'], $detail['sub_total']))) {
+                            continue;
+                        }
+
+                        if ($request->jenis_pembelian === 'inventaris') {
+                            PembelianInventarisDetail::create([
+                                'kode' => $request->nomor_faktur,
+                                'kode_barang' => $detail['kode_obat_alkes'],
+                                'nama_barang' => $detail['nama_obat_alkes'],
+                                'kategori_barang' => 'Inventaris',
+                                'jenis_barang' => 'Medical Equipment',
+                                'qty_barang' => $detail['qty'],
+                                'harga_barang' => $detail['harga_satuan'],
+                                'lokasi' => $detail['lokasi'] ?? 'Gudang',
+                                'kondisi' => $detail['kondisi'] ?? 'Baik',
+                                'masa_akhir_penggunaan' => $detail['exp'] ?? null,
+                                'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
+                                'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
+                            ]);
+
+                            Stok_Inventaris::create([
+                                'kode_pembelian' => $request->nomor_faktur,
+                                'kode_barang' => $detail['kode_obat_alkes'],
+                                'nama_barang' => $detail['nama_obat_alkes'],
+                                'kategori_barang' => 'Inventaris',
+                                'jenis_barang' => 'Medical Equipment',
+                                'qty_barang' => $detail['qty'],
+                                'harga_barang' => $detail['harga_satuan'],
+                                'lokasi' => $detail['lokasi'] ?? 'Gudang',
+                                'kondisi' => $detail['kondisi'] ?? 'Baik',
+                                'masa_akhir_penggunaan' => $detail['exp'] ?? null,
+                                'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
+                                'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
+                                'penanggung_jawab' => $detail['penanggung_jawab'] ?? '-',
+                                'no_seri' => $detail['no_seri'] ?? null,
+                            ]);
+                        } else {
+                            PembelianObatDetail::create([
+                                'nomor_faktur' => $request->nomor_faktur,
+                                'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                                'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                                'qty' => $detail['qty'],
+                                'harga_satuan' => $detail['harga_satuan'],
+                                'diskon' => $detail['diskon'] ?? '0',
+                                'exp' => $detail['exp'] ?? null,
+                                'batch' => $detail['batch'] ?? null,
+                                'sub_total' => $detail['sub_total'],
+                            ]);
+
+                            Stok_Barang::create([
+                                'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                                'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                                'qty' => $detail['qty'],
+                                'tanggal_terima_obat' => $request->tanggal_terima_barang ?? now()->format('Y-m-d'),
+                                'expired' => $detail['exp'] ?? null,
+                            ]);
+                        }
+                    }
+
+                    return $header;
+                });
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Data pembelian berhasil disimpan!',
+                    'data' => $pembelian
+                ], 201);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validasi gagal!',
+                    'errors' => $e->errors()
+                ], 422);
+            }
         } catch (\Exception $e) {
+            Log::error($e);
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat menyimpan data pembelian!',
-                'error' => $e->getMessage()
+                'message' => $e->getMessage()
             ], 500);
         }
     }

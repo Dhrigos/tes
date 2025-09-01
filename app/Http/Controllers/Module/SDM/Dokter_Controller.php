@@ -469,4 +469,25 @@ class Dokter_Controller extends Controller
 
         return true;
     }
+
+    public function getAvailable(Request $request)
+    {
+        $hari = $request->query('hari');
+        $waktu = $request->query('waktu');
+
+        // Validasi input
+        if (!$hari || !$waktu) {
+            return response()->json(['message' => 'Hari dan waktu harus diisi'], 400);
+        }
+
+        // Ambil dokter berdasarkan jadwal (contoh: ada kolom jadwal_hari & jadwal_waktu)
+        $dokter = Dokter::with('namauser') // relasi ke tabel users
+            ->where('jadwal_hari', $hari)
+            ->where('jadwal_waktu', $waktu)
+            ->where('is_active', 1) // hanya ambil yang aktif
+            ->get();
+
+        return response()->json($dokter);
+    }
+
 }
