@@ -11,7 +11,11 @@ class Daftar_Obat extends Model
     protected $fillable = [
         'kode',
         'nama',
+        'jenis_barang',
         'nama_dagang',
+        'deskripsi',
+        'jenis_inventaris',
+        'satuan',
         'jenis_formularium',
         'kfa_kode',
         'nama_industri',

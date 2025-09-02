@@ -15,7 +15,11 @@ return new class extends Migration
             $table->id();
             $table->string('kode')->nullable()->unique();
             $table->string('nama');
+            $table->string('jenis_barang')->nullable(); // farmasi, alkes, inventaris
             $table->string('nama_dagang')->nullable();
+            $table->text('deskripsi')->nullable(); // untuk inventaris
+            $table->string('jenis_inventaris')->nullable(); // Elektronik, Non-Elektronik
+            $table->string('satuan')->nullable(); // untuk inventaris
             $table->string('jenis_formularium')->nullable();
             $table->string('kfa_kode')->nullable();
             $table->string('nama_industri')->nullable();
@@ -29,14 +33,14 @@ return new class extends Migration
             $table->string('penyimpanan')->nullable();
             $table->string('barcode')->nullable()->index();
             $table->unsignedBigInteger('gudang_kategori')->nullable();
-            $table->string('jenis_obat')->nullable();
-            $table->string('jenis_generik')->nullable();
-            $table->string('bentuk_obat')->nullable();
+            $table->string('jenis_obat')->nullable(); // Reguler, Khusus, Darurat
+            $table->string('jenis_generik')->nullable(); // Non-Generic, Generic Polos, Branded Generic
+            $table->string('bentuk_obat')->nullable(); // padat, cair, gas
             $table->timestamps();
 
             $table->foreign('gudang_kategori')
                 ->references('id')
-                ->on('kategori__obats')
+                ->on('kategori_barang')
                 ->nullOnDelete()
                 ->cascadeOnUpdate();
         });

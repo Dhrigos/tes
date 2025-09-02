@@ -81,6 +81,16 @@ Route::post('/generate-kode-inventaris', [Daftar_Inventaris_Controller::class, '
 Route::get('/inventaris/list', [Daftar_Inventaris_Controller::class, 'list']);
 Route::get('/obat/list', [Daftar_Obat_Controller::class, 'list']);
 
+// Daftar Obat Sync Routes
+Route::prefix('daftar-obat-sync')->group(function () {
+    Route::get('/status', [Daftar_Obat_Controller::class, 'getSyncStatus']);
+    Route::post('/apply', [Daftar_Obat_Controller::class, 'applySync']);
+    Route::post('/sync-all', [Daftar_Obat_Controller::class, 'syncAllToRedis']);
+    Route::post('/clear', [Daftar_Obat_Controller::class, 'clearSync']);
+    Route::get('/redis-data', [Daftar_Obat_Controller::class, 'getFromRedis']);
+    Route::get('/recent-actions', [Daftar_Obat_Controller::class, 'getRecentActions']);
+});
+
 // Test route
 Route::get('/test-setting', function () {
     return response()->json(['status' => 'API is working', 'time' => now()]);

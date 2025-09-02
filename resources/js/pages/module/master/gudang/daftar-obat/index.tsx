@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -16,6 +18,7 @@ import { toast } from 'sonner'; // ✅ pakai sonner
 interface DaftarObat {
     id: number;
     nama: string;
+    jenis_barang: 'farmasi' | 'alkes' | 'inventaris';
     kode?: string;
     kfa_kode?: string;
     jenis_formularium?: string;
@@ -34,6 +37,9 @@ interface DaftarObat {
     barcode?: string;
     gudang_kategori?: number;
     bentuk_obat?: string;
+    deskripsi?: string;
+    jenis_inventaris?: string;
+    satuan?: string;
 }
 
 interface PageProps {
@@ -62,8 +68,13 @@ export default function Index() {
         if (flash?.error) {
             toast.error(flash.error);
         }
-        if (errors?.nama) {
-            toast.error(errors.nama);
+        // Handle validation errors
+        if (errors) {
+            Object.keys(errors).forEach((key) => {
+                if (errors[key]) {
+                    toast.error(`${key}: ${errors[key]}`);
+                }
+            });
         }
     }, [flash, errors]);
 
@@ -71,14 +82,21 @@ export default function Index() {
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [nama, setNama] = useState('');
-    const [kfaType, setKfaType] = useState<'farmasi' | 'alkes'>('farmasi');
+    const [kfaType, setKfaType] = useState<'farmasi' | 'alkes' | 'inventaris' | ''>('');
+
+    const isInventaris = kfaType === 'inventaris';
     const [namaDagang, setNamaDagang] = useState('');
+    const [deskripsi, setDeskripsi] = useState('');
     // Stepper
     const [step, setStep] = useState<number>(1);
     const steps = [
         { id: 1, label: 'Data Dasar' },
         { id: 2, label: 'Satuan' },
         { id: 3, label: 'Info Gudang' },
+    ];
+    const inventarisSteps = [
+        { id: 1, label: 'Data Inventaris' },
+        { id: 2, label: 'Info Gudang' },
     ];
     // Step 1
     const [kfaKode, setKfaKode] = useState('');
@@ -109,6 +127,10 @@ export default function Index() {
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [deleteNama, setDeleteNama] = useState('');
 
+    // Sync Status
+    const [syncStatus, setSyncStatus] = useState<any>(null);
+    const [isLoadingSync, setIsLoadingSync] = useState(false);
+
     // Pencarian
     const [search, setSearch] = useState('');
 
@@ -117,102 +139,137 @@ export default function Index() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validate that jenis is selected
+        if (!kfaType) {
+            toast.error('Pilih jenis barang terlebih dahulu');
+            return;
+        }
+
+        const baseData = {
+            nama,
+            jenis_barang: kfaType,
+            gudang_kategori: gudangKategori === '' ? null : Number(gudangKategori),
+            penyimpanan,
+        };
+
+        const data = isInventaris
+            ? {
+                  ...baseData,
+                  deskripsi,
+                  jenis_inventaris: jenisObat,
+                  satuan: satuanKecil,
+              }
+            : {
+                  ...baseData,
+                  kode: kfaKode,
+                  kfa_kode: kfaKode,
+                  jenis_formularium: jenisFormularium,
+                  nama_dagang: namaDagang,
+                  nama_industri: namaIndustri,
+                  jenis_generik: jenisGenerik,
+                  jenis_obat: jenisObat,
+                  merek,
+                  satuan_kecil: satuanKecil,
+                  nilai_satuan_kecil: 1,
+                  satuan_sedang: satuanSedang,
+                  nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
+                  satuan_besar: satuanBesar,
+                  nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
+                  barcode,
+                  bentuk_obat: bentukObat,
+              };
+
         if (editId) {
-            router.put(
-                `/datamaster/gudang/daftar-obat/${editId}`,
-                {
-                    nama,
-                    kode: kfaKode,
-                    kfa_kode: kfaKode,
-                    jenis_formularium: jenisFormularium,
-                    nama_dagang: namaDagang,
-                    nama_industri: namaIndustri,
-                    jenis_generik: jenisGenerik,
-                    jenis_obat: jenisObat,
-                    merek,
-                    satuan_kecil: satuanKecil,
-                    nilai_satuan_kecil: 1,
-                    satuan_sedang: satuanSedang,
-                    nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
-                    satuan_besar: satuanBesar,
-                    nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
-                    penyimpanan,
-                    barcode,
-                    gudang_kategori: gudangKategori === '' ? null : Number(gudangKategori),
-                    bentuk_obat: bentukObat,
+            router.put(`/datamaster/gudang/daftar-obat/${editId}`, data, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpen(false);
+                    setNama('');
+                    setEditId(null);
+                    setStep(1);
+                    resetForm();
                 },
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-                        setNama('');
-                        setEditId(null);
-                        setStep(1);
-                        resetForm();
-                    },
-                },
-            );
+            });
         } else {
-            router.post(
-                '/datamaster/gudang/daftar-obat',
-                {
-                    nama,
-                    kode: kfaKode,
-                    kfa_kode: kfaKode,
-                    jenis_formularium: jenisFormularium,
-                    nama_dagang: namaDagang,
-                    nama_industri: namaIndustri,
-                    jenis_generik: jenisGenerik,
-                    jenis_obat: jenisObat,
-                    merek,
-                    satuan_kecil: satuanKecil,
-                    nilai_satuan_kecil: 1,
-                    satuan_sedang: satuanSedang,
-                    nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
-                    satuan_besar: satuanBesar,
-                    nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
-                    penyimpanan,
-                    barcode,
-                    gudang_kategori: gudangKategori === '' ? null : Number(gudangKategori),
-                    bentuk_obat: bentukObat,
+            const baseData = {
+                nama,
+                jenis_barang: kfaType,
+                gudang_kategori: gudangKategori === '' ? null : Number(gudangKategori),
+                penyimpanan,
+            };
+
+            const data = isInventaris
+                ? {
+                      ...baseData,
+                      deskripsi,
+                      jenis_inventaris: jenisObat,
+                      satuan: satuanKecil,
+                  }
+                : {
+                      ...baseData,
+                      kode: kfaKode,
+                      kfa_kode: kfaKode,
+                      jenis_formularium: jenisFormularium,
+                      nama_dagang: namaDagang,
+                      nama_industri: namaIndustri,
+                      jenis_generik: jenisGenerik,
+                      jenis_obat: jenisObat,
+                      merek,
+                      satuan_kecil: satuanKecil,
+                      nilai_satuan_kecil: 1,
+                      satuan_sedang: satuanSedang,
+                      nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
+                      satuan_besar: satuanBesar,
+                      nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
+                      barcode,
+                      bentuk_obat: bentukObat,
+                  };
+
+            router.post('/datamaster/gudang/daftar-obat', data, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpen(false);
+                    setNama('');
+                    setEditId(null);
+                    setStep(1);
+                    resetForm();
                 },
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-                        setNama('');
-                        setEditId(null);
-                        setStep(1);
-                        resetForm();
-                    },
-                    onError: () => {
-                        // modal tetap terbuka
-                    },
+                onError: () => {
+                    // modal tetap terbuka
                 },
-            );
+            });
         }
     };
 
     const handleOpenEdit = (obat: DaftarObat) => {
         setEditId(obat.id);
         setNama(obat.nama);
-        setNamaDagang(obat.nama_dagang ?? obat.merek ?? '');
-        setKfaKode(obat.kfa_kode ?? '');
-        setJenisFormularium(obat.jenis_formularium ?? '');
-        setNamaIndustri(obat.nama_industri ?? '');
-        setJenisGenerik(obat.jenis_generik ?? '');
-        setMerek(obat.merek ?? obat.nama_dagang ?? '');
-        setJenisObat(obat.jenis_obat ?? '');
-        setSatuanKecil(obat.satuan_kecil ?? '');
-        setNilaiSatuanKecil(obat.nilai_satuan_kecil ?? 1);
-        setSatuanSedang(obat.satuan_sedang ?? '');
-        setNilaiSatuanSedang(obat.nilai_satuan_sedang ?? '');
-        setSatuanBesar(obat.satuan_besar ?? '');
-        setNilaiSatuanBesar(obat.nilai_satuan_besar ?? '');
+        setKfaType(obat.jenis_barang || '');
+
+        if (obat.jenis_barang === 'inventaris') {
+            setDeskripsi(obat.deskripsi ?? '');
+            setJenisObat(obat.jenis_inventaris ?? '');
+            setSatuanKecil(obat.satuan ?? '');
+        } else {
+            setNamaDagang(obat.nama_dagang ?? obat.merek ?? '');
+            setKfaKode(obat.kfa_kode ?? '');
+            setJenisFormularium(obat.jenis_formularium ?? '');
+            setNamaIndustri(obat.nama_industri ?? '');
+            setJenisGenerik(obat.jenis_generik ?? '');
+            setMerek(obat.merek ?? obat.nama_dagang ?? '');
+            setJenisObat(obat.jenis_obat ?? '');
+            setSatuanKecil(obat.satuan_kecil ?? '');
+            setNilaiSatuanKecil(obat.nilai_satuan_kecil ?? 1);
+            setSatuanSedang(obat.satuan_sedang ?? '');
+            setNilaiSatuanSedang(obat.nilai_satuan_sedang ?? '');
+            setSatuanBesar(obat.satuan_besar ?? '');
+            setNilaiSatuanBesar(obat.nilai_satuan_besar ?? '');
+            setBarcode(obat.barcode ?? '');
+            setBentukObat(obat.bentuk_obat ?? '');
+        }
+
         setPenyimpanan(obat.penyimpanan ?? '');
-        setBarcode(obat.barcode ?? '');
         setGudangKategori(obat.gudang_kategori ?? '');
-        setBentukObat(obat.bentuk_obat ?? '');
         setStep(1);
         setOpen(true);
     };
@@ -237,6 +294,10 @@ export default function Index() {
     };
 
     const resetForm = () => {
+        setKfaType('');
+        setNama('');
+        setNamaDagang('');
+        setDeskripsi('');
         setKfaKode('');
         setJenisFormularium('');
         setNamaIndustri('');
@@ -253,7 +314,6 @@ export default function Index() {
         setBarcode('');
         setGudangKategori('');
         setBentukObat('');
-        setNamaDagang('');
         setKfaOptions([]);
         setShowKfaList(false);
     };
@@ -289,6 +349,104 @@ export default function Index() {
         setShowKfaList(false);
     };
 
+    // Sync Functions
+    const fetchSyncStatus = async () => {
+        try {
+            setIsLoadingSync(true);
+            const response = await fetch('/api/daftar-obat-sync/status');
+            const data = await response.json();
+            if (data.success) {
+                setSyncStatus(data.data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch sync status:', error);
+        } finally {
+            setIsLoadingSync(false);
+        }
+    };
+
+    const applySync = async () => {
+        try {
+            setIsLoadingSync(true);
+            const response = await fetch('/api/daftar-obat-sync/apply', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(data.message);
+                fetchSyncStatus(); // Refresh status
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            toast.error('Failed to apply sync');
+        } finally {
+            setIsLoadingSync(false);
+        }
+    };
+
+    const syncAllToRedis = async () => {
+        if (!confirm('Apakah Anda yakin ingin sinkronisasi semua data ke Redis?')) {
+            return;
+        }
+
+        try {
+            setIsLoadingSync(true);
+            const response = await fetch('/api/daftar-obat-sync/sync-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(data.message);
+                fetchSyncStatus(); // Refresh status
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            toast.error('Gagal sinkronisasi data ke Redis');
+        } finally {
+            setIsLoadingSync(false);
+        }
+    };
+
+    const clearSync = async () => {
+        if (!confirm('Apakah Anda yakin ingin menghapus semua data sinkronisasi Redis?')) {
+            return;
+        }
+
+        try {
+            setIsLoadingSync(true);
+            const response = await fetch('/api/daftar-obat-sync/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(data.message);
+                fetchSyncStatus(); // Refresh status
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            toast.error('Gagal menghapus data sinkronisasi');
+        } finally {
+            setIsLoadingSync(false);
+        }
+    };
+
+    // Load sync status on component mount
+    useEffect(() => {
+        fetchSyncStatus();
+    }, []);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Data Daftar Obat" />
@@ -297,6 +455,42 @@ export default function Index() {
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Data Daftar Obat</CardTitle>
                         <div className="flex items-center gap-2">
+                            {/* Sync Status & Button */}
+                            {syncStatus && (
+                                <div className="mr-4 flex items-center gap-3">
+                                    {/* Sinkron Button */}
+                                    <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={syncStatus.is_master ? syncAllToRedis : applySync}
+                                        disabled={isLoadingSync}
+                                        className="h-8 bg-green-600 text-white hover:bg-green-700"
+                                    >
+                                        {isLoadingSync ? 'Sinkronisasi...' : 'Sinkron'}
+                                    </Button>
+
+                                    {/* Clear Button for Master */}
+                                    {syncStatus.is_master && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={clearSync}
+                                            disabled={isLoadingSync}
+                                            className="h-8 border-red-600 text-red-600 hover:bg-red-50"
+                                        >
+                                            Clear
+                                        </Button>
+                                    )}
+
+                                    {/* Additional Info */}
+                                    <div className="text-xs text-gray-500">
+                                        {syncStatus.records_count} records, {syncStatus.actions_count} actions
+                                        {syncStatus.validation && !syncStatus.validation.valid && (
+                                            <div className="mt-1 text-red-500">⚠️ {syncStatus.validation.message}</div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             <div className="relative">
                                 <Search className="absolute top-2.5 left-2 h-4 w-4 text-gray-400" />
                                 <Input placeholder="Cari obat..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-48 pl-8" />
@@ -314,41 +508,129 @@ export default function Index() {
                     </CardHeader>
 
                     <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-16">#</TableHead>
-                                    <TableHead>Nama</TableHead>
-                                    <TableHead>Nama Dagang</TableHead>
-                                    <TableHead className="w-40 text-right">Aksi</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredDaftarObat.length > 0 ? (
-                                    filteredDaftarObat.map((item, index) => (
-                                        <TableRow key={item.id}>
-                                            <TableCell>{index + 1}</TableCell>
-                                            <TableCell>{item.nama}</TableCell>
-                                            <TableCell>{item.nama_dagang || '-'}</TableCell>
-                                            <TableCell className="space-x-2 text-right">
-                                                <Button size="sm" variant="outline" onClick={() => handleOpenEdit(item)}>
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button size="sm" variant="destructive" onClick={() => handleOpenDelete(item)}>
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                        <TooltipProvider>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-16">#</TableHead>
+                                        <TableHead>Nama</TableHead>
+                                        <TableHead>Nama Dagang/Deskripsi</TableHead>
+                                        <TableHead>Jenis</TableHead>
+                                        <TableHead>Kategori</TableHead>
+                                        <TableHead>Satuan</TableHead>
+                                        <TableHead className="w-40 text-right">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredDaftarObat.length > 0 ? (
+                                        filteredDaftarObat.map((item, index) => (
+                                            <TableRow key={item.id}>
+                                                <TableCell>{index + 1}</TableCell>
+                                                <TableCell className="font-medium">
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="max-w-[200px] cursor-help truncate">{item.nama}</div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{item.nama}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="max-w-[200px] cursor-help truncate">
+                                                                {item.jenis_barang === 'inventaris'
+                                                                    ? item.deskripsi || '-'
+                                                                    : item.nama_dagang || item.merek || '-'}
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>
+                                                                {item.jenis_barang === 'inventaris'
+                                                                    ? item.deskripsi || '-'
+                                                                    : item.nama_dagang || item.merek || '-'}
+                                                            </p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span
+                                                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                                            item.jenis_barang === 'farmasi'
+                                                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                                                : item.jenis_barang === 'alkes'
+                                                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
+                                                        }`}
+                                                    >
+                                                        {item.jenis_barang === 'farmasi'
+                                                            ? 'Obat'
+                                                            : item.jenis_barang === 'alkes'
+                                                              ? 'Alkes'
+                                                              : item.jenis_barang === 'inventaris'
+                                                                ? 'Inventaris'
+                                                                : '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="max-w-[150px] cursor-help truncate">
+                                                                {kategoriObats.find((k) => k.id === item.gudang_kategori)?.nama || '-'}
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{kategoriObats.find((k) => k.id === item.gudang_kategori)?.nama || '-'}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="max-w-[100px] cursor-help truncate">
+                                                                {item.jenis_barang === 'inventaris' ? item.satuan || '-' : item.satuan_kecil || '-'}
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>
+                                                                {item.jenis_barang === 'inventaris' ? item.satuan || '-' : item.satuan_kecil || '-'}
+                                                            </p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleOpenEdit(item)}
+                                                            className="h-8 w-8 p-0"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="destructive"
+                                                            onClick={() => handleOpenDelete(item)}
+                                                            className="h-8 w-8 p-0"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="py-8 text-center">
+                                                <div className="text-gray-500 dark:text-gray-400">Tidak ada data obat/alkes/inventaris.</div>
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="text-center">
-                                            Tidak ada data.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TooltipProvider>
                     </CardContent>
                 </Card>
             </div>
@@ -374,7 +656,7 @@ export default function Index() {
                     <div className="overflow-x-auto px-2 py-1">
                         <div className="flex items-center justify-center">
                             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                                {steps.map((s, idx, arr) => (
+                                {(kfaType === 'inventaris' ? inventarisSteps : steps).map((s, idx, arr) => (
                                     <div key={s.id} className="flex items-center">
                                         <div
                                             className={`flex items-center transition-colors ${
@@ -405,180 +687,62 @@ export default function Index() {
                         </div>
                     </div>
                     <form id="obatForm" onSubmit={handleSubmit} className="space-y-4">
-                        {step === 1 && (
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <div className="md:col-span-2">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <Select value={kfaType} onValueChange={(v) => setKfaType(v as 'farmasi' | 'alkes')}>
-                                                <SelectTrigger className="w-36">
-                                                    <SelectValue placeholder="Jenis" />
+                        {kfaType === 'inventaris' ? (
+                            <>
+                                {step === 1 && (
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <Select
+                                                    value={kfaType || undefined}
+                                                    onValueChange={(v) => setKfaType(v as 'farmasi' | 'alkes' | 'inventaris')}
+                                                >
+                                                    <SelectTrigger className="w-36">
+                                                        <SelectValue placeholder="Jenis" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="farmasi">Obat</SelectItem>
+                                                        <SelectItem value="alkes">Alkes</SelectItem>
+                                                        <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <Input placeholder="Nama Barang" value={nama} onChange={(e) => setNama(e.target.value)} required />
+                                            </div>
+                                        </div>
+                                        <Textarea placeholder="Deskripsi" value={deskripsi} onChange={(e) => setDeskripsi(e.target.value)} />
+                                        <div>
+                                            <Select value={jenisObat} onValueChange={setJenisObat}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Jenis Inventaris" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="farmasi">Obat</SelectItem>
-                                                    <SelectItem value="alkes">Alkes</SelectItem>
+                                                    <SelectItem value="Elektronik">Elektronik</SelectItem>
+                                                    <SelectItem value="Non-Elektronik">Non-Elektronik</SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            <Input placeholder="Nama (untuk cari)" value={nama} onChange={(e) => setNama(e.target.value)} required />
-                                            <Button type="button" variant="outline" onClick={handleSearchKfa} disabled={!nama || isLoadingKfa}>
-                                                {isLoadingKfa ? 'Cari...' : 'Cari KFA'}
-                                            </Button>
                                         </div>
-                                        <div>
-                                            <Input placeholder="Nama Dagang" value={namaDagang} onChange={(e) => setNamaDagang(e.target.value)} />
-                                        </div>
-                                        {showKfaList && kfaOptions.length > 0 && (
-                                            <div className="max-h-60 w-full overflow-auto rounded-md border bg-zinc-50/95 shadow backdrop-blur dark:bg-zinc-800/95">
-                                                {kfaOptions.slice(0, 1000).map((it, idx) => (
-                                                    <button
-                                                        key={idx}
-                                                        type="button"
-                                                        className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-zinc-100 focus:bg-zinc-100 active:bg-zinc-200 dark:hover:bg-zinc-700 dark:focus:bg-zinc-700 dark:active:bg-zinc-600"
-                                                        onClick={() => selectKfa(it)}
-                                                    >
-                                                        <div className="font-medium text-zinc-800 dark:text-zinc-100">{it.name}</div>
-                                                        <div className="text-xs text-zinc-600 dark:text-zinc-300">
-                                                            KFA: {it.kfa_code} • {it.manufacturer}
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-2">
-                                    <Input placeholder="Kode KFA" value={kfaKode} disabled onChange={(e) => setKfaKode(e.target.value)} />
-                                    <Input
-                                        placeholder="Industri obat"
-                                        value={namaIndustri}
-                                        disabled
-                                        onChange={(e) => setNamaIndustri(e.target.value)}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-3">
-                                    <div>
-                                        <Select value={jenisFormularium} onValueChange={setJenisFormularium}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Formularium" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Formularium">Formularium</SelectItem>
-                                                <SelectItem value="Non-Formularium">Non-Formularium</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Select value={jenisGenerik} onValueChange={setJenisGenerik}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Generik / Non-Generik" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Non-Generic">Non-Generic</SelectItem>
-                                                <SelectItem value="Generic Polos">Generic Polos</SelectItem>
-                                                <SelectItem value="Branded Generic">Branded Generic</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Select value={jenisObat} onValueChange={setJenisObat}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Tingkat Penggunaan" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Rendah">Reguler</SelectItem>
-                                                <SelectItem value="Sedang">Khusus</SelectItem>
-                                                <SelectItem value="Tinggi">Darurat</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-                                {(jenisGenerik === 'Branded Generic' || jenisGenerik === 'Generic Polos') && (
-                                    <div className="md:col-span-2">
-                                        <Input placeholder="Merek (untuk generic/branded)" value={merek} onChange={(e) => setMerek(e.target.value)} />
                                     </div>
                                 )}
-                            </div>
-                        )}
-
-                        {step === 2 && (
-                            <div className="space-y-6">
-                                {/* Satuan Besar */}
-                                <div className="space-y-2">
-                                    <h6 className="text-sm font-semibold">Satuan Besar</h6>
-                                    <p className="text-xs text-muted-foreground">
-                                        Nama: contoh "Dus". Jumlah isi: berapa Satuan Sedang di dalam 1 Satuan Besar.
-                                    </p>
-                                    <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
-                                        <div className="text-sm text-muted-foreground">Jumlah per 1</div>
-                                        <Select value={satuanBesar} onValueChange={setSatuanBesar}>
+                                {step === 2 && (
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        <Select
+                                            value={gudangKategori !== '' ? String(gudangKategori) : undefined}
+                                            onValueChange={(v) => setGudangKategori(v ? Number(v) : '')}
+                                        >
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Nama Satuan Besar (mis. Dus)" />
+                                                <SelectValue placeholder="Kategori" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {satuanObats.map((s) => (
-                                                    <SelectItem key={s.id} value={s.nama}>
-                                                        {s.nama}
+                                                {kategoriObats.map((k) => (
+                                                    <SelectItem key={k.id} value={String(k.id)}>
+                                                        {k.nama}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-muted-foreground">adalah</span>
-                                            <Input
-                                                type="number"
-                                                placeholder="Jumlah"
-                                                value={nilaiSatuanBesar}
-                                                onChange={(e) => setNilaiSatuanBesar(e.target.value === '' ? '' : Number(e.target.value))}
-                                            />
-                                            <span className="text-sm text-muted-foreground">{satuanSedang || 'Satuan Sedang'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Satuan Sedang */}
-                                <div className="space-y-2">
-                                    <h6 className="text-sm font-semibold">Satuan Sedang</h6>
-                                    <p className="text-xs text-muted-foreground">
-                                        Nama: contoh "Strip". Jumlah isi: berapa Satuan Kecil di dalam 1 Satuan Sedang.
-                                    </p>
-                                    <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
-                                        <div className="text-sm text-muted-foreground">Jumlah per 1</div>
-                                        <Select value={satuanSedang} onValueChange={setSatuanSedang}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Nama Satuan Sedang (mis. Strip)" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {satuanObats.map((s) => (
-                                                    <SelectItem key={s.id} value={s.nama}>
-                                                        {s.nama}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-muted-foreground">adalah</span>
-                                            <Input
-                                                type="number"
-                                                placeholder="Jumlah"
-                                                value={nilaiSatuanSedang}
-                                                onChange={(e) => setNilaiSatuanSedang(e.target.value === '' ? '' : Number(e.target.value))}
-                                            />
-                                            <span className="text-sm text-muted-foreground">{satuanKecil || 'Satuan Kecil'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Satuan Kecil */}
-                                <div className="space-y-2">
-                                    <h6 className="text-sm font-semibold">Satuan Kecil</h6>
-                                    <p className="text-xs text-muted-foreground">
-                                        Nama: contoh "Tablet". Jumlah per unit biasanya 1 sebagai dasar perhitungan.
-                                    </p>
-                                    <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
-                                        <div className="text-sm text-muted-foreground">Jumlah per 1</div>
                                         <Select value={satuanKecil} onValueChange={setSatuanKecil}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Nama Satuan Kecil (mis. Tablet)" />
+                                                <SelectValue placeholder="Satuan" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {satuanObats.map((s) => (
@@ -588,62 +752,295 @@ export default function Index() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-muted-foreground">adalah</span>
-                                            <Input
-                                                type="number"
-                                                placeholder="1"
-                                                value={nilaiSatuanKecil}
-                                                onChange={(e) => setNilaiSatuanKecil(e.target.value === '' ? '' : Number(e.target.value))}
-                                            />
+                                        <Input
+                                            placeholder="Tempat penyimpanan"
+                                            value={penyimpanan}
+                                            onChange={(e) => setPenyimpanan(e.target.value)}
+                                            className="md:col-span-2"
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {step === 1 && (
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        <div className="md:col-span-2">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Select
+                                                        value={kfaType || undefined}
+                                                        onValueChange={(v) => setKfaType(v as 'farmasi' | 'alkes' | 'inventaris')}
+                                                    >
+                                                        <SelectTrigger className="w-36">
+                                                            <SelectValue placeholder="Jenis" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="farmasi">Obat</SelectItem>
+                                                            <SelectItem value="alkes">Alkes</SelectItem>
+                                                            <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Input
+                                                        placeholder="Nama (untuk cari)"
+                                                        value={nama}
+                                                        onChange={(e) => setNama(e.target.value)}
+                                                        required
+                                                    />
+                                                    {!isInventaris && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            onClick={handleSearchKfa}
+                                                            disabled={!nama || isLoadingKfa}
+                                                        >
+                                                            {isLoadingKfa ? 'Cari...' : 'Cari KFA'}
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <Input
+                                                        placeholder="Nama Dagang"
+                                                        value={namaDagang}
+                                                        onChange={(e) => setNamaDagang(e.target.value)}
+                                                    />
+                                                </div>
+                                                {showKfaList && kfaOptions.length > 0 && !isInventaris && (
+                                                    <div className="max-h-60 w-full overflow-auto rounded-md border bg-zinc-50/95 shadow backdrop-blur dark:bg-zinc-800/95">
+                                                        {kfaOptions.slice(0, 1000).map((it, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                type="button"
+                                                                className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-zinc-100 focus:bg-zinc-100 active:bg-zinc-200 dark:hover:bg-zinc-700 dark:focus:bg-zinc-700 dark:active:bg-zinc-600"
+                                                                onClick={() => selectKfa(it)}
+                                                            >
+                                                                <div className="font-medium text-zinc-800 dark:text-zinc-100">{it.name}</div>
+                                                                <div className="text-xs text-zinc-600 dark:text-zinc-300">
+                                                                    KFA: {it.kfa_code} • {it.manufacturer}
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {!isInventaris && (
+                                            <>
+                                                <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-2">
+                                                    <Input
+                                                        placeholder="Kode KFA"
+                                                        value={kfaKode}
+                                                        disabled
+                                                        onChange={(e) => setKfaKode(e.target.value)}
+                                                    />
+                                                    <Input
+                                                        placeholder="Industri obat"
+                                                        value={namaIndustri}
+                                                        disabled
+                                                        onChange={(e) => setNamaIndustri(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-3">
+                                                    <div>
+                                                        <Select value={jenisFormularium} onValueChange={setJenisFormularium}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Formularium" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="Formularium">Formularium</SelectItem>
+                                                                <SelectItem value="Non-Formularium">Non-Formularium</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
+                                                        <Select value={jenisGenerik} onValueChange={setJenisGenerik}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Generik / Non-Generik" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="Non-Generic">Non-Generic</SelectItem>
+                                                                <SelectItem value="Generic Polos">Generic Polos</SelectItem>
+                                                                <SelectItem value="Branded Generic">Branded Generic</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
+                                                        <Select value={jenisObat} onValueChange={setJenisObat}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Tingkat Penggunaan" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="Reguler">Reguler</SelectItem>
+                                                                <SelectItem value="Khusus">Khusus</SelectItem>
+                                                                <SelectItem value="Darurat">Darurat</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+                                                {(jenisGenerik === 'Branded Generic' || jenisGenerik === 'Generic Polos') && (
+                                                    <div className="md:col-span-2">
+                                                        <Input
+                                                            placeholder="Merek (untuk generic/branded)"
+                                                            value={merek}
+                                                            onChange={(e) => setMerek(e.target.value)}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+
+                                {step === 2 && !isInventaris && (
+                                    <div className="space-y-6">
+                                        {/* Satuan Besar */}
+                                        <div className="space-y-2">
+                                            <h6 className="text-sm font-semibold">Satuan Besar</h6>
+                                            <p className="text-xs text-muted-foreground">
+                                                Nama: contoh "Dus". Jumlah isi: berapa Satuan Sedang di dalam 1 Satuan Besar.
+                                            </p>
+                                            <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
+                                                <div className="text-sm text-muted-foreground">Jumlah per 1</div>
+                                                <Select value={satuanBesar} onValueChange={setSatuanBesar}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Nama Satuan Besar (mis. Dus)" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {satuanObats.map((s) => (
+                                                            <SelectItem key={s.id} value={s.nama}>
+                                                                {s.nama}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-muted-foreground">adalah</span>
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="Jumlah"
+                                                        value={nilaiSatuanBesar}
+                                                        onChange={(e) => setNilaiSatuanBesar(e.target.value === '' ? '' : Number(e.target.value))}
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">{satuanSedang || 'Satuan Sedang'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Satuan Sedang */}
+                                        <div className="space-y-2">
+                                            <h6 className="text-sm font-semibold">Satuan Sedang</h6>
+                                            <p className="text-xs text-muted-foreground">
+                                                Nama: contoh "Strip". Jumlah isi: berapa Satuan Kecil di dalam 1 Satuan Sedang.
+                                            </p>
+                                            <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
+                                                <div className="text-sm text-muted-foreground">Jumlah per 1</div>
+                                                <Select value={satuanSedang} onValueChange={setSatuanSedang}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Nama Satuan Sedang (mis. Strip)" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {satuanObats.map((s) => (
+                                                            <SelectItem key={s.id} value={s.nama}>
+                                                                {s.nama}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-muted-foreground">adalah</span>
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="Jumlah"
+                                                        value={nilaiSatuanSedang}
+                                                        onChange={(e) => setNilaiSatuanSedang(e.target.value === '' ? '' : Number(e.target.value))}
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">{satuanKecil || 'Satuan Kecil'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Satuan Kecil */}
+                                        <div className="space-y-2">
+                                            <h6 className="text-sm font-semibold">Satuan Kecil</h6>
+                                            <p className="text-xs text-muted-foreground">
+                                                Nama: contoh "Tablet". Jumlah per unit biasanya 1 sebagai dasar perhitungan.
+                                            </p>
+                                            <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
+                                                <div className="text-sm text-muted-foreground">Jumlah per 1</div>
+                                                <Select value={satuanKecil} onValueChange={setSatuanKecil}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Nama Satuan Kecil (mis. Tablet)" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {satuanObats.map((s) => (
+                                                            <SelectItem key={s.id} value={s.nama}>
+                                                                {s.nama}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-muted-foreground">adalah</span>
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="1"
+                                                        value={nilaiSatuanKecil}
+                                                        onChange={(e) => setNilaiSatuanKecil(e.target.value === '' ? '' : Number(e.target.value))}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        )}
+                                )}
 
-                        {step === 3 && (
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <Input placeholder="Tempat penyimpanan" value={penyimpanan} onChange={(e) => setPenyimpanan(e.target.value)} />
-                                <Input placeholder="Barcode obat" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
-                                <Select
-                                    value={gudangKategori === '' ? '' : String(gudangKategori)}
-                                    onValueChange={(v) => setGudangKategori(v === '' ? '' : Number(v))}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Kategori Obat" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {kategoriObats.map((k) => (
-                                            <SelectItem key={k.id} value={String(k.id)}>
-                                                {k.nama}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <Select value={bentukObat} onValueChange={setBentukObat}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Bentuk Obat" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="padat">Padat</SelectItem>
-                                        <SelectItem value="cair">Cair</SelectItem>
-                                        <SelectItem value="gas">Gas</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                {step === 3 && !isInventaris && (
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        <Input
+                                            placeholder="Tempat penyimpanan"
+                                            value={penyimpanan}
+                                            onChange={(e) => setPenyimpanan(e.target.value)}
+                                        />
+                                        <Input placeholder="Barcode obat" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+                                        <Select
+                                            value={gudangKategori !== '' ? String(gudangKategori) : undefined}
+                                            onValueChange={(v) => setGudangKategori(v ? Number(v) : '')}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Kategori Obat" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {kategoriObats.map((k) => (
+                                                    <SelectItem key={k.id} value={String(k.id)}>
+                                                        {k.nama}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Select value={bentukObat} onValueChange={setBentukObat}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Bentuk Obat" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="padat">Padat</SelectItem>
+                                                <SelectItem value="cair">Cair</SelectItem>
+                                                <SelectItem value="gas">Gas</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </form>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => (step > 1 ? setStep(step - 1) : setOpen(false))}>
                             Kembali
                         </Button>
-                        {step < steps.length && (
+                        {step < (kfaType === 'inventaris' ? inventarisSteps : steps).length && (
                             <Button type="button" onClick={() => setStep(step + 1)}>
                                 Lanjut
                             </Button>
                         )}
-                        {step === steps.length && (
+                        {step === (kfaType === 'inventaris' ? inventarisSteps : steps).length && (
                             <Button type="submit" form="obatForm">
                                 Simpan
                             </Button>
