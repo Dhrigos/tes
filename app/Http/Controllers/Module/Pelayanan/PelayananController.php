@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Module\Pelayanan;
 use App\Http\Controllers\Controller;
 use App\Models\Module\Pelayanan\Pelayanan;
 use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
+use App\Models\Module\Pelayanan\Pelayanan_status;
 use App\Models\Module\SDM\Dokter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -93,8 +94,109 @@ class PelayananController extends Controller
                 ],
             ];
 
+            // Ambil daftar pelayanan HARI INI, join dengan SO Perawat untuk tentukan state tindakan
+            $today = Carbon::today();
+            $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
+                ->whereDate('tanggal_kujungan', '=', $today)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                // Hindari duplikasi baris untuk nomor_register yang sama
+                ->unique('nomor_register')
+                ->values();
+
+            $nomorRegisters = $pelayanans->pluck('nomor_register')->all();
+
+            // Ambil semua SO Perawat yang terkait dengan nomor_register hari ini untuk lookup cepat
+            $soMap = Pelayanan_So_Perawat::whereIn('no_rawat', $nomorRegisters)
+                ->get()
+                ->keyBy('no_rawat');
+
+            // Ambil status pelayanan untuk menentukan tahapan panggil/periksa/selesai
+            $pelayananStatusMap = Pelayanan_status::whereIn('nomor_register', $nomorRegisters)
+                ->get()->keyBy('nomor_register');
+
+            $pelayananData = [];
+            foreach ($pelayanans as $p) {
+                $so = $soMap->get($p->nomor_register);
+
+                // Tentukan tindakan_button berdasarkan status pelayanan
+                // status_daftar: 0 belum, 1 dipanggil/ruang, 2 selesai daftar
+                // status_perawat: 0 belum, 1 dipanggil/ruang, 2 selesai perawat, 3 complete
+                $tindakan = 'panggil';
+                $statusPerawat = null;
+                $statusDokter = null;
+                $statusDaftar = null;
+                $ps = $pelayananStatusMap->get($p->nomor_register);
+                if ($ps) {
+                    $statusDaftar = (int)($ps->status_daftar ?? 0);
+                    $statusPerawat = (int)($ps->status_perawat ?? 0);
+                    $statusDokter = (int)($ps->status_dokter ?? 0);
+
+                    if ($statusDaftar < 2) {
+                        // Di UI tidak ada Hadir (Daftar), tampilkan Panggil namun disabled via flag
+                        $tindakan = 'panggil';
+                    } else {
+                        if ($statusPerawat === 0) {
+                            $tindakan = 'panggil';
+                        } elseif ($statusPerawat === 1) {
+                            $tindakan = 'soap';
+                        } elseif ($statusPerawat === 2) {
+                            $tindakan = 'edit';
+                        } elseif ($statusPerawat === 3) {
+                            $tindakan = 'complete';
+                        }
+                    }
+                }
+
+                $statusLabelMap = [
+                    0 => 'Menunggu dipanggil',
+                    1 => 'Dipanggil / Dalam pemeriksaan',
+                    2 => 'Selesai tahap',
+                    3 => 'Selesai (complete)'
+                ];
+                $statusLabel = $statusLabelMap[$statusPerawat ?? 0] ?? 'Menunggu dipanggil';
+
+                $pelayananData[] = [
+                    'id' => $p->id,
+                    'nomor_rm' => $p->nomor_rm,
+                    'nomor_register' => $p->nomor_register,
+                    'tanggal_kujungan' => $p->tanggal_kujungan,
+                    'poli_id' => $p->poli_id,
+                    'dokter_id' => $p->dokter_id,
+                    'tindakan_button' => $tindakan,
+                    'pasien' => [
+                        'nama' => optional($p->pasien)->nama ?? ($so->nama ?? ''),
+                    ],
+                    'poli' => [
+                        'nama' => optional($p->poli)->nama ?? '-',
+                    ],
+                    'dokter' => [
+                        'id' => $p->dokter_id,
+                        'namauser' => [
+                            'name' => optional(optional($p->dokter)->namauser)->name ?? (optional($p->dokter)->nama ?? '-'),
+                        ],
+                    ],
+                    // String fallback agar frontend mudah menampilkan nama dokter
+                    'dokter_name' => optional(optional($p->dokter)->namauser)->name ?? (optional($p->dokter)->nama ?? '-'),
+                    'pendaftaran' => [
+                        'antrian' => optional($p->pendaftaran)->antrian ?? '-',
+                    ],
+                    // Status untuk kontrol UI
+                    'status_daftar' => $statusDaftar ?? 0,
+                    'status_perawat' => $statusPerawat ?? 0,
+                    'status_dokter' => $statusDokter ?? 0,
+                    'status_label' => $statusLabel,
+                    'can_hadir_daftar' => false,
+                    'can_selesai_daftar' => false,
+                    'can_call' => ($statusDaftar ?? 0) === 2 && ($statusPerawat ?? 0) === 0,
+                    'can_soap' => ($statusPerawat ?? 0) === 1,
+                    'can_edit' => ($statusPerawat ?? 0) === 2,
+                    'is_complete' => ($statusPerawat ?? 0) === 3,
+                ];
+            }
+
             return Inertia::render('module/pelayanan/so-perawat/index', [
-                'pelayanan' => $dummyData
+                'pelayanan' => $pelayananData
             ]);
         } catch (\Exception $e) {
             return Inertia::render('module/pelayanan/so-perawat/index', [
@@ -214,6 +316,13 @@ class PelayananController extends Controller
 
             $so->update($validated);
 
+            // Setelah pemeriksaan perawat disimpan, set perawat=2; dokter tetap 0 menunggu hadir dokter
+            Pelayanan_status::updateOrCreate(
+                ['nomor_register' => $nomor_register],
+                ['status_perawat' => 2]
+            );
+            // legacy update dihapus
+
             return redirect()
                 ->route('pelayanan.so-perawat.index')
                 ->with('success', 'SO Perawat berhasil diperbarui');
@@ -244,36 +353,157 @@ class PelayananController extends Controller
             // Check if SO Perawat already exists
             $existingSo = Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->first();
 
-            if ($existingSo) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Pasien sudah dipanggil sebelumnya'
-                ], 400);
+            // Create initial SO Perawat record if not exists
+            if (!$existingSo) {
+                Pelayanan_So_Perawat::create([
+                    'nomor_rm' => $pelayanan->nomor_rm,
+                    'nama' => $pelayanan->pasien->nama,
+                    'no_rawat' => $nomor_register,
+                    'seks' => $pelayanan->pasien->seks ?? 'L',
+                    'penjamin' => optional($pelayanan->pendaftaran->penjamin)->nama ?? 'Umum',
+                    'tanggal_lahir' => $pelayanan->pasien->tanggal_lahir,
+                    'umur' => ($pelayanan->pasien && $pelayanan->pasien->tanggal_lahir)
+                        ? Carbon::parse($pelayanan->pasien->tanggal_lahir)->diffInYears(Carbon::now()) . ' Tahun'
+                        : '0 Tahun',
+                    'user_input_id' => Auth::id() ?? 1,
+                    'user_input_name' => Auth::user()->name ?? 'System',
+                ]);
             }
 
-            // Create initial SO Perawat record
-            Pelayanan_So_Perawat::create([
-                'nomor_rm' => $pelayanan->nomor_rm,
-                'nama' => $pelayanan->pasien->nama,
-                'no_rawat' => $nomor_register,
-                'seks' => $pelayanan->pasien->seks ?? 'L',
-                'penjamin' => optional($pelayanan->pendaftaran->penjamin)->nama ?? 'Umum',
-                'tanggal_lahir' => $pelayanan->pasien->tanggal_lahir,
-                'umur' => ($pelayanan->pasien && $pelayanan->pasien->tanggal_lahir)
-                    ? Carbon::parse($pelayanan->pasien->tanggal_lahir)->diffInYears(Carbon::now()) . ' Tahun'
-                    : '0 Tahun',
-                'user_input_id' => Auth::id() ?? 1,
-                'user_input_name' => Auth::user()->name ?? 'System',
-            ]);
+            // Update status: hadir perawat (berbeda dengan hadir daftar di modul pendaftaran)
+            $currentStatus = Pelayanan_status::firstOrNew(['nomor_register' => $nomor_register]);
+            $currentStatus->pasien_id = $pelayanan->pasien_id;
+            $currentStatus->tanggal_kujungan = $pelayanan->tanggal_kujungan;
+
+            // Hadir perawat: set ke 1 (dipanggil perawat) hanya jika daftar sudah selesai (2). Tidak mengubah status_daftar di sini.
+            if ((int)($currentStatus->status_daftar ?? 0) === 2) {
+                $currentStatus->status_perawat = 1;
+            }
+
+            $currentStatus->save();
+            // legacy update dihapus (tidak lagi memakai pendaftaran_statuses)
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pasien berhasil dipanggil dan siap untuk pemeriksaan'
+                'message' => $existingSo ? 'Pasien sudah dipanggil sebelumnya' : 'Pasien berhasil dipanggil dan siap untuk pemeriksaan'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal memanggil pasien: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tandai tahap pendaftaran sebagai selesai (status_daftar = 2)
+     */
+    public function selesaiDaftar(Request $request, $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat);
+            $pelayanan = Pelayanan::where('nomor_register', $nomor_register)->first();
+            if (!$pelayanan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data pelayanan tidak ditemukan'
+                ], 404);
+            }
+
+            $status = Pelayanan_status::firstOrNew(['nomor_register' => $nomor_register]);
+            $status->pasien_id = $pelayanan->pasien_id;
+            $status->tanggal_kujungan = $pelayanan->tanggal_kujungan;
+            $status->status_daftar = 2;
+            $status->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pendaftaran ditandai selesai'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyelesaikan pendaftaran: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Konfirmasi hadir untuk tahap dokter (status_dokter = 1) setelah perawat selesai.
+     */
+    public function hadirDokter(Request $request, $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat);
+            $pelayanan = Pelayanan::where('nomor_register', $nomor_register)->first();
+            if (!$pelayanan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data pelayanan tidak ditemukan'
+                ], 404);
+            }
+
+            $status = Pelayanan_status::firstOrNew(['nomor_register' => $nomor_register]);
+            // Hanya boleh hadir dokter jika daftar selesai (2) dan perawat selesai (2)
+            if ((int)($status->status_daftar ?? 0) === 2 && (int)($status->status_perawat ?? 0) === 2) {
+                $status->status_dokter = 1;
+                $status->pasien_id = $pelayanan->pasien_id;
+                $status->tanggal_kujungan = $pelayanan->tanggal_kujungan;
+                $status->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pasien hadir untuk pemeriksaan dokter'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Selesaikan tahap pendaftaran dan perawat terlebih dahulu'
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengubah status dokter: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tandai pasien selesai di tahap dokter (status_dokter = 2)
+     */
+    public function selesaiDokter(Request $request, $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat);
+            $pelayanan = Pelayanan::where('nomor_register', $nomor_register)->first();
+            if (!$pelayanan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data pelayanan tidak ditemukan'
+                ], 404);
+            }
+
+            $status = Pelayanan_status::firstOrNew(['nomor_register' => $nomor_register]);
+            // Hanya bisa selesai dokter jika sudah hadir dokter (1)
+            if ((int)($status->status_dokter ?? 0) >= 1) {
+                $status->status_dokter = 2;
+                $status->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pemeriksaan dokter ditandai selesai'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Pasien belum hadir untuk dokter'
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyelesaikan pemeriksaan dokter: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -313,12 +543,20 @@ class PelayananController extends Controller
         try {
             $datetime = $request->get('datetime');
 
-            $dokters = Dokter::with('namauser')
-                ->where('poli', $poliId)
+            // Normalisasi nilai poliId ke string (kolom poli bertipe string di DB)
+            $poliFilter = (string) $poliId;
+
+            $dokters = Dokter::with(['namauser'])
+                ->where('poli', $poliFilter)
                 ->whereHas('jadwal', function ($query) use ($datetime) {
                     $query->where('aktif', true);
-                    if ($datetime) {
-                        $date = Carbon::parse($datetime);
+                    if (!empty($datetime)) {
+                        try {
+                            $date = Carbon::parse($datetime);
+                        } catch (\Exception $e) {
+                            // Fallback: gunakan tanggal sekarang bila format tidak valid
+                            $date = Carbon::now();
+                        }
                         $hariMapping = [
                             0 => 'Minggu',
                             1 => 'Senin',
@@ -329,7 +567,7 @@ class PelayananController extends Controller
                             6 => 'Sabtu',
                         ];
                         $hari = $hariMapping[$date->dayOfWeek] ?? null;
-                        if ($hari) {
+                        if (!empty($hari)) {
                             $query->whereRaw('LOWER(hari) = ?', [strtolower($hari)]);
                         }
                     }
@@ -348,7 +586,7 @@ class PelayananController extends Controller
     /**
      * Display the pemeriksaan page for a specific patient (unified create/edit)
      */
-    public function show(Request $request, $norawat): InertiaResponse
+    public function show(Request $request, $norawat): InertiaResponse|RedirectResponse
     {
         try {
             $nomor_register = base64_decode($norawat);
@@ -360,6 +598,17 @@ class PelayananController extends Controller
 
             // Get SO Perawat data (may be null for create mode)
             $soPerawat = Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->first();
+
+            // Cek status untuk guard masuk ke pemeriksaan perawat: daftar harus 2 dan perawat 0 atau 1
+            $ps = Pelayanan_status::where('nomor_register', $nomor_register)->first();
+            $statusDaftar = (int)($ps->status_daftar ?? 0);
+            $statusPerawat = (int)($ps->status_perawat ?? 0);
+            if ($statusDaftar < 2) {
+                // Redirect kembali ke index dengan pesan untuk konfirmasi hadir daftar dahulu
+                return redirect()
+                    ->route('pelayanan.so-perawat.index')
+                    ->with('error', 'Pasien belum konfirmasi hadir pada tahap pendaftaran');
+            }
 
             // If no patient data from database, use dummy data
             if (!$pelayanan) {

@@ -1,32 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Bell, FileText, Edit, CheckCircle, UserCheck, Search } from 'lucide-react';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import {
-    Dialog as AlertDialog,
-    DialogContent as AlertDialogContent,
-    DialogHeader as AlertDialogHeader,
-    DialogTitle as AlertDialogTitle,
-    DialogDescription as AlertDialogDescription,
-    DialogFooter as AlertDialogFooter,
-    DialogClose as AlertDialogCancel,
-} from '@/components/ui/dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
+import { Head, router, usePage } from '@inertiajs/react';
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { Bell, CheckCircle, Edit, FileText, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Pasien {
     nama: string;
@@ -60,11 +44,21 @@ interface PelayananData {
     tanggal_kujungan: string;
     poli_id: number;
     dokter_id: number;
-    tindakan_button: 'panggil' | 'soap' | 'edit' | 'Complete';
+    tindakan_button: 'panggil' | 'soap' | 'edit' | 'complete' | 'Complete';
     pasien: Pasien;
     poli: Poli;
     dokter: Dokter;
     pendaftaran: Pendaftaran;
+    status_daftar?: number;
+    status_perawat?: number;
+    status_dokter?: number;
+    status_label?: string;
+    can_hadir_daftar?: boolean;
+    can_selesai_daftar?: boolean;
+    can_call?: boolean;
+    can_soap?: boolean;
+    can_edit?: boolean;
+    is_complete?: boolean;
 }
 
 interface PageProps {
@@ -128,6 +122,8 @@ export default function PelayananSoPerawat() {
             toast.error('Gagal memanggil pasien');
         }
     };
+
+    // Hadir/Selesai Daftar ditangani di modul Pendaftaran (dashboard)
 
     const handleUbahDokter = (pasien: PelayananData) => {
         setSelectedPasien(pasien);
@@ -197,13 +193,29 @@ export default function PelayananSoPerawat() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'panggil':
-                return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Belum Hadir</Badge>;
+                return (
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                        Belum Hadir
+                    </Badge>
+                );
             case 'soap':
-                return <Badge variant="default" className="bg-blue-100 text-blue-800">Pemeriksaan</Badge>;
+                return (
+                    <Badge variant="default" className="bg-blue-100 text-blue-800">
+                        Pemeriksaan
+                    </Badge>
+                );
             case 'edit':
-                return <Badge variant="outline" className="bg-cyan-100 text-cyan-800">Menunggu Dokter</Badge>;
+                return (
+                    <Badge variant="outline" className="bg-cyan-100 text-cyan-800">
+                        Menunggu Dokter
+                    </Badge>
+                );
             case 'Complete':
-                return <Badge variant="default" className="bg-green-100 text-green-800">Sudah Dicek Dokter</Badge>;
+                return (
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                        Sudah Dicek Dokter
+                    </Badge>
+                );
             default:
                 return <Badge variant="outline">Unknown</Badge>;
         }
@@ -211,17 +223,18 @@ export default function PelayananSoPerawat() {
 
     const getActionButtons = (row: PelayananData) => {
         const norawat = btoa(row.nomor_register);
-        
+
         switch (row.tindakan_button) {
             case 'panggil':
                 return (
                     <Button
                         variant="outline"
                         size="xs"
-                        className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
+                        className="border-yellow-600 text-yellow-600 hover:bg-yellow-50 disabled:opacity-50"
                         onClick={() => handlePanggilPasien(row.nomor_register)}
+                        disabled={!((row.status_daftar ?? 0) === 2 && (row.status_perawat ?? 0) === 0)}
                     >
-                        <Bell className="w-4 h-4 mr-1" />
+                        <Bell className="mr-1 h-4 w-4" />
                         Panggil
                     </Button>
                 );
@@ -230,10 +243,10 @@ export default function PelayananSoPerawat() {
                     <Button
                         variant="outline"
                         size="xs"
-                        className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
                         onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}`)}
                     >
-                        <FileText className="w-4 h-4 mr-1" />
+                        <FileText className="mr-1 h-4 w-4" />
                         Pemeriksaan
                     </Button>
                 );
@@ -243,23 +256,18 @@ export default function PelayananSoPerawat() {
                         <Button
                             variant="outline"
                             size="xs"
-                            className="text-cyan-600 border-cyan-600 hover:bg-cyan-50"
+                            className="border-cyan-600 text-cyan-600 hover:bg-cyan-50"
                             onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}`)}
                         >
-                            <Edit className="w-4 h-4 mr-1" />
+                            <Edit className="mr-1 h-4 w-4" />
                             Edit
                         </Button>
                     </div>
                 );
             case 'Complete':
                 return (
-                    <Button
-                        variant="outline"
-                        size="xs"
-                        className="text-green-600 border-green-600 hover:bg-green-50"
-                        disabled
-                    >
-                        <CheckCircle className="w-4 h-4 mr-1" />
+                    <Button variant="outline" size="xs" className="border-green-600 text-green-600 hover:bg-green-50" disabled>
+                        <CheckCircle className="mr-1 h-4 w-4" />
                         Dicek
                     </Button>
                 );
@@ -273,7 +281,7 @@ export default function PelayananSoPerawat() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Pelayanan Perawat" />
-            
+
             <div className="space-y-6 p-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -314,16 +322,12 @@ export default function PelayananSoPerawat() {
                                             <TableCell className="text-center font-mono">{row.pendaftaran?.antrian}</TableCell>
                                             <TableCell className="text-center font-mono">{row.nomor_register}</TableCell>
                                             <TableCell className="text-center">
-                                                {row.tanggal_kujungan
-                                                    ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id })
-                                                    : '-'}
+                                                {row.tanggal_kujungan ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id }) : '-'}
                                             </TableCell>
                                             <TableCell>{row.poli?.nama}</TableCell>
                                             <TableCell>{row.dokter?.namauser?.name}</TableCell>
                                             <TableCell className="text-center">
-                                                <div className="flex flex-col items-center gap-2">
-                                                    {getActionButtons(row)}
-                                                </div>
+                                                <div className="flex flex-col items-center gap-2">{getActionButtons(row)}</div>
                                             </TableCell>
                                         </TableRow>
                                     ))

@@ -9,6 +9,8 @@ class Permintaan_Barang_Konfirmasi extends Model
 {
     use HasFactory;
 
+    protected $table = 'permintaan_barang_konfirmasi';
+
     protected $fillable = [
         'kode_request',
         'nama_klinik',

@@ -8,6 +8,7 @@ use App\Models\Settings\Web_Setting;
 use App\Models\Module\Master\Data\Gudang\Daftar_Obat;
 use App\Models\Module\Gudang\Permintaan_Barang;
 use App\Models\Module\Gudang\Permintaan_Barang_Detail;
+use App\Models\Module\Gudang\Permintaan_Barang_Konfirmasi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -48,12 +49,14 @@ class Permintaan_Barang_Controller extends Controller
                 $factory = app(ConnectionFactory::class);
                 $connection = $factory->make($config, $connExternal->name);
                 
-                // Query data dari database eksternal
+                // Query data dari database eksternal - ambil dari permintaan_barang_konfirmasi
                 $request = $connection->table('permintaan_barangs')
-                    ->where('kode_klinik', $kodeKlinik)
+                    ->select('kode_request', 'tanggal_input', 'nama_klinik', 'status')
+                    ->where('nama_klinik', $namaKlinik)
+                    ->groupBy('kode_request', 'tanggal_input', 'nama_klinik', 'status')
                     ->get();
                 
-                $data_kirim = $connection->table('pengiriman_barangs')
+                $data_kirim = $connection->table('permintaan_barang_konfirmasi')
                     ->select('kode_request', 'tanggal_input', 'nama_klinik')
                     ->where('nama_klinik', $namaKlinik)
                     ->groupBy('kode_request', 'tanggal_input', 'nama_klinik')
@@ -65,25 +68,23 @@ class Permintaan_Barang_Controller extends Controller
             }
             
         } elseif ($webSetting && $webSetting->is_gudangutama_active == 1) {
-            // Mengambil data permintaan barang lokal
-            $request = Permintaan_Barang::where('kode_klinik', $kodeKlinik)->get();
+            // Mengambil data permintaan barang lokal dari permintaan_barang_konfirmasi
+            $request = Permintaan_Barang::select('kode_request', 'tanggal_input', 'nama_klinik', 'status')
+                ->where('nama_klinik', $namaKlinik)
+                ->groupBy('kode_request', 'tanggal_input', 'nama_klinik', 'status')
+                ->get();
             
             // Mengambil data pengiriman barang lokal
-            $data_kirim = DB::table('permintaan_barangs')
-                ->select('kode_request', 'tanggal_input', 'nama_klinik')
+            $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik')
                 ->where('nama_klinik', $namaKlinik)
-                ->groupBy('kode_request', 'tanggal_input', 'nama_klinik')
+                ->groupBy('kode_request', 'tanggal_request', 'nama_klinik')
                 ->get();
         } else {
             $request = collect();
             $data_kirim = collect();
         }
-        
-        // Mengambil data permintaan barang lokal untuk ditampilkan
-        $permintaan_barang = Permintaan_Barang::all();
-        
+    
         return Inertia::render("module/gudang/permintaan-barang/index", [
-            "permintaan_barang" => $permintaan_barang,
             "title" => $title,
             "dabar" => $dabar,
             "request" => $request,
@@ -100,6 +101,7 @@ class Permintaan_Barang_Controller extends Controller
                 'kode_request' => 'required|unique:permintaan_barangs,kode_request',
                 'kode_klinik' => 'required',
                 'nama_klinik' => 'required',
+                'status' => 'required|integer|between:0,2',
                 'items' => 'required|array|min:1',
                 'items.*.kode_barang' => 'required',
                 'items.*.nama_barang' => 'required',
@@ -115,7 +117,7 @@ class Permintaan_Barang_Controller extends Controller
                 'kode_request' => $validatedData['kode_request'],
                 'kode_klinik' => $validatedData['kode_klinik'],
                 'nama_klinik' => $validatedData['nama_klinik'],
-                'status' => 'pending',
+                'status' => $validatedData['status'],
                 'tanggal_input' => now(),
             ]);
 
@@ -163,7 +165,7 @@ class Permintaan_Barang_Controller extends Controller
             // Get web setting
             $webSetting = Web_Setting::first();
             
-            if ($webSetting->is_gudangutama_active == 0) {
+            if ($webSetting && $webSetting->is_gudangutama_active == 0) {
                 // External database connection
                 $connExternal = External_Database::where('active', 1)->first();
                 
@@ -182,16 +184,26 @@ class Permintaan_Barang_Controller extends Controller
                     $factory = app(ConnectionFactory::class);
                     $connection = $factory->make($config, $connExternal->name);
                     
-                    // Query detail request based on kode_request
-                    $details = $connection->table('gudang_klinik_request_details')
+                    // Get details from permintaan_barang_details table
+                    $details = $connection->table('permintaan_barang_details')
                         ->where('kode_request', $kode_request)
-                        ->select('kode_obat_alkes as kode_barang', 'nama_obat_alkes as nama_barang', 'qty as jumlah', 'satuan')
+                        ->select('kode_obat_alkes as kode_barang', 'nama_obat_alkes as nama_barang', 'qty as jumlah')
                         ->get();
+                    
+                    return response()->json([
+                        'success' => true,
+                        'kode_request' => $kode_request,
+                        'details' => $details,
+                    ]);
                 } else {
-                    $details = collect(); // empty if no external connection
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Koneksi database eksternal tidak ditemukan!'
+                    ], 404);
                 }
-            } elseif ($webSetting->is_gudangutama_active == 1) {
+            } elseif ($webSetting && $webSetting->is_gudangutama_active == 1) {
                 // Local database
+                // Get details from permintaan_barang_details table
                 $details = Permintaan_Barang_Detail::where('kode_request', $kode_request)
                             ->select(
                                 'kode_obat_alkes as kode_barang',
@@ -199,17 +211,22 @@ class Permintaan_Barang_Controller extends Controller
                                 'qty as jumlah'
                             )
                             ->get();
+                
+                return response()->json([
+                    'success' => true,
+                    'kode_request' => $kode_request,
+                    'details' => $details,
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengaturan sistem tidak valid!'
+                ], 404);
             }
-            
-            return response()->json([
-                'success' => true,
-                'kode_request' => $kode_request,
-                'details' => $details
-            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat mengambil detail permintaan barang!'
+                'message' => 'Terjadi kesalahan saat mengambil detail permintaan barang! ' . $e->getMessage()
             ], 500);
         }
     }
@@ -283,6 +300,54 @@ class Permintaan_Barang_Controller extends Controller
         return response()->json([
             'success' => true,
             'kode_request' => $kodeBaru
+        ]);
+    }
+
+    /**
+     * Get detail of a specific permintaan barang konfirmasi.
+     *
+     * @param  string  $kodeRequest
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getDetailKonfirmasi($kodeRequest)
+    {
+        $webSetting = Web_Setting::first();
+        
+        if ($webSetting && $webSetting->is_gudangutama_active == 0) {
+            $connExternal = External_Database::where('active', 1)->first();
+            
+            if ($connExternal) {
+                $config = [
+                    'driver'    => 'mysql',
+                    'host'      => $connExternal->host,
+                    'database'  => $connExternal->database,
+                    'username'  => $connExternal->username,
+                    'password'  => $connExternal->password,
+                    'port'      => $connExternal->port ?? 3306,
+                    'charset'   => 'utf8mb4',
+                    'collation' => 'utf8mb4_unicode_ci',
+                ];
+                
+                $factory = app(ConnectionFactory::class);
+                $connection = $factory->make($config, $connExternal->name);
+                
+                // Query detail konfirmasi berdasarkan kode_request
+                $details = $connection->table('permintaan_barang_konfirmasi_details')
+                    ->where('kode_request', $kodeRequest)
+                    ->get();
+                
+            } else {
+                $details = collect(); // kosong jika tidak ada koneksi eksternal
+            }
+        } elseif ($webSetting && $webSetting->is_gudangutama_active == 1) {
+            $details = Permintaan_Barang_Konfirmasi::where('kode_request', $kodeRequest)
+                        ->get();
+        } else {
+            $details = collect(); // kosong jika pengaturan tidak valid
+        }
+
+        return response()->json([
+            'details' => $details
         ]);
     }
 }

@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pelayanan_So_Perawat extends Model
 {
+    protected $table = 'pelayanan_so_perawats';
+    
     protected $fillable = [
         'nomor_rm',
         'nama',

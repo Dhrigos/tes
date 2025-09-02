@@ -338,7 +338,6 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::post('/daftar-obat', [Daftar_Obat_Controller::class, 'store'])->name('daftar-obat.store');
         Route::put('/daftar-obat/{daftarObat}', [Daftar_Obat_Controller::class, 'update'])->name('daftar-obat.update');
         Route::delete('/daftar-obat/{daftarObat}', [Daftar_Obat_Controller::class, 'destroy'])->name('daftar-obat.destroy');
-        Route::post('/daftar-obat/sync-pull', [Daftar_Obat_Controller::class, 'syncPull'])->name('daftar-obat.sync-pull');
 
         Route::get('/daftar-inventaris', [Daftar_Inventaris_Controller::class, 'index'])->name('daftar-inventaris.index');
         Route::post('/daftar-inventaris', [Daftar_Inventaris_Controller::class, 'store'])->name('daftar-inventaris.store');
@@ -397,6 +396,7 @@ Route::middleware(['auth', 'verified'])->prefix('gudang')->as('gudang.')->group(
     Route::post('/permintaan-barang', [Permintaan_Barang_Controller::class, 'store'])->name('permintaan-barang.store');
 
     Route::get('/daftar-permintaan-barang', [Daftar_Permintaan_Barang_Controller::class, 'index'])->name('permintaan-barang.index');
+    Route::post('/daftar-permintaan-barang/konfirmasi', [Daftar_Permintaan_Barang_Controller::class, 'konfirmasi'])->name('permintaan-barang.konfirmasi');
 });
 
 // Pelayanan routes

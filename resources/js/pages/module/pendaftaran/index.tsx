@@ -276,13 +276,15 @@ const PendaftaranDashboard = () => {
 
     const fetchPendaftaranData = async () => {
         try {
-            const response = await fetch('/api/module/pendaftaran/data');
+            const response = await fetch('/api/pendaftaran/data');
             const data = await response.json();
 
             if (data.success) {
                 setPendaftaranData(data.data.pendaftaran || []);
                 setRekapDokter(data.data.rekap_dokter || []);
                 setStatistics(data.data.statistics || statistics);
+            } else {
+                console.error('API returned error:', data.message);
             }
         } catch (error) {
             console.error('Error fetching pendaftaran data:', error);
@@ -423,20 +425,34 @@ const PendaftaranDashboard = () => {
     };
 
     const handleHadirPendaftaran = async () => {
-        if (!selectedAction) return;
+        if (!selectedAction) {
+            toast.error('Tidak ada data yang dipilih');
+            return;
+        }
 
         setLoading(true);
         try {
+            const payload = {
+                hadirid_delete: selectedAction.id,
+            };
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!csrfToken) {
+                throw new Error('CSRF token tidak ditemukan');
+            }
+
             const response = await fetch('/api/pendaftaran/hadir', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-CSRF-TOKEN': csrfToken,
                 },
-                body: JSON.stringify({
-                    hadirid_delete: selectedAction.id,
-                }),
+                body: JSON.stringify(payload),
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
             const result = await response.json();
 
@@ -511,8 +527,10 @@ const PendaftaranDashboard = () => {
         setSelectedDokter('');
     };
 
-    const getStatusPendaftaran = (status: number) => {
-        switch (status) {
+    const getStatusPendaftaran = (status: number | string) => {
+        // Convert to number for comparison
+        const statusNum = Number(status);
+        switch (statusNum) {
             case 1:
                 return 'Aplikasi Offline';
             case 2:
@@ -520,7 +538,7 @@ const PendaftaranDashboard = () => {
             case 3:
                 return 'Sistem BPJS / MJKN';
             default:
-                return 'Tidak diketahui';
+                return `Tidak diketahui (${status})`;
         }
     };
 
@@ -611,7 +629,7 @@ const PendaftaranDashboard = () => {
                 <div className="mt-6 flex justify-between">
                     <Button onClick={() => setShowRekapModal(true)} variant="outline">
                         <FileText className="mr-2 h-4 w-4" />
-                        Lihat Rekap Dokter
+                        Lihat status Dokter
                     </Button>
                     <Button onClick={() => setShowAddModal(true)}>
                         <Plus className="mr-2 h-4 w-4" />
@@ -632,43 +650,41 @@ const PendaftaranDashboard = () => {
                                 <table className="w-full border-collapse">
                                     <thead>
                                         <tr className="border-b">
-                                            <th className="p-3 text-left font-semibold">Pasien</th>
-                                            <th className="p-3 text-left font-semibold">Status</th>
-                                            <th className="p-3 text-left font-semibold">No.Register</th>
-                                            <th className="p-3 text-left font-semibold">Tanggal</th>
-                                            <th className="p-3 text-left font-semibold">No.RM</th>
-                                            <th className="p-3 text-left font-semibold">Antrian</th>
-                                            <th className="p-3 text-left font-semibold">Poli & Loket</th>
-                                            <th className="p-3 text-left font-semibold">Penjamin</th>
-                                            <th className="p-3 text-left font-semibold">Dokter</th>
-                                            <th className="p-3 text-left font-semibold">Tindakan</th>
+                                            <th className="p-2 text-left text-sm font-semibold">Pasien</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Status</th>
+                                            <th className="p-2 text-center text-sm font-semibold">No.Register</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Tanggal</th>
+                                            <th className="p-2 text-left text-sm font-semibold">No.RM</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Antrian</th>
+                                            <th className="p-2 text-left text-sm font-semibold">Poli & Loket</th>
+                                            <th className="p-2 text-left text-sm font-semibold">Penjamin</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Dokter</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Tindakan</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {pendaftaranData.length > 0 ? (
                                             pendaftaranData.map((item) => (
                                                 <tr key={item.id} className="border-b hover:bg-muted/50">
-                                                    <td className="p-3">
+                                                    <td className="p-2">
                                                         <div className="flex flex-col">
-                                                            <span className="font-medium">{item.pasien.nama}</span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                RM: {item.pasien.no_rm} | NIK: {item.pasien.nik}
-                                                                {item.pasien.no_bpjs && ` | BPJS: ${item.pasien.no_bpjs}`}
-                                                            </span>
+                                                            <span className="text-sm font-medium">{item.pasien.nama}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="p-3">
-                                                        <Badge variant="outline">{getStatusPendaftaran(item.status.Status_aplikasi)}</Badge>
+                                                    <td className="p-2 text-center">
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {getStatusPendaftaran(item.status?.Status_aplikasi || 1)}
+                                                        </Badge>
                                                     </td>
-                                                    <td className="p-3">{item.nomor_register}</td>
-                                                    <td className="p-3">{formatDate(item.tanggal_kujungan)}</td>
-                                                    <td className="p-3">{item.nomor_rm}</td>
-                                                    <td className="p-3">
-                                                        <Badge className="bg-blue-100 text-blue-800">{item.antrian}</Badge>
+                                                    <td className="p-2 text-center text-sm">{item.nomor_register}</td>
+                                                    <td className="p-2 text-center text-sm">{formatDate(item.tanggal_kujungan)}</td>
+                                                    <td className="p-2 text-sm">{item.nomor_rm}</td>
+                                                    <td className="p-2" align="center">
+                                                        <Badge className="bg-blue-100 text-xs text-blue-800">{item.antrian}</Badge>
                                                     </td>
-                                                    <td className="p-3">
+                                                    <td className="p-2">
                                                         <div className="flex flex-col">
-                                                            <span className="font-medium">{item.poli.nama}</span>
+                                                            <span className="text-sm font-medium">{item.poli.nama}</span>
                                                             {item.poli.kode_loket && (
                                                                 <span className="text-xs text-muted-foreground">
                                                                     Loket:{' '}
@@ -679,48 +695,16 @@ const PendaftaranDashboard = () => {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="p-3">{item.penjamin.nama}</td>
-                                                    <td className="p-3">{item.dokter.namauser?.name || item.dokter.nama}</td>
-                                                    <td className="p-3">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {item.status.status_pendaftaran === 1 && (
-                                                                <>
+                                                    <td className="p-2 text-sm">{item.penjamin.nama}</td>
+                                                    <td className="p-2 text-center text-sm">{item.dokter.namauser?.name || item.dokter.nama}</td>
+                                                    <td className="p-2 text-center">
+                                                        <div className="flex flex-wrap items-center justify-center gap-1">
+                                                            {String(item.status?.status_pendaftaran) === '1' && (
+                                                                <div className="flex flex-col items-center gap-1">
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        className="text-destructive hover:bg-red-50"
-                                                                        onClick={() => {
-                                                                            setSelectedAction({
-                                                                                id: item.status.id,
-                                                                                nama: item.pasien.nama,
-                                                                                type: 'batal',
-                                                                            });
-                                                                            setShowBatalModal(true);
-                                                                        }}
-                                                                    >
-                                                                        <X className="mr-1 h-4 w-4" />
-                                                                        Batal
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="text-green-600 hover:bg-green-50"
-                                                                        onClick={() => {
-                                                                            setSelectedAction({
-                                                                                id: item.status.id,
-                                                                                nama: item.pasien.nama,
-                                                                                type: 'hadir',
-                                                                            });
-                                                                            setShowHadirModal(true);
-                                                                        }}
-                                                                    >
-                                                                        <UserCheck className="mr-1 h-4 w-4" />
-                                                                        Hadir
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="hover:bg-blue-50"
+                                                                        className="h-7 px-2 text-xs hover:bg-blue-50"
                                                                         onClick={() => {
                                                                             setSelectedAction({
                                                                                 id: item.id,
@@ -738,26 +722,60 @@ const PendaftaranDashboard = () => {
                                                                             setShowUbahDokterModal(true);
                                                                         }}
                                                                     >
-                                                                        <UserIcon className="mr-1 h-4 w-4" />
+                                                                        <UserIcon className="mr-1 h-3 w-3" />
                                                                         Ubah Dokter
                                                                     </Button>
-                                                                </>
+                                                                    <div className="flex justify-center gap-1">
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="h-7 px-2 text-xs text-green-600 hover:bg-green-50"
+                                                                            onClick={() => {
+                                                                                setSelectedAction({
+                                                                                    id: item.id,
+                                                                                    nama: item.pasien.nama,
+                                                                                    type: 'hadir',
+                                                                                });
+                                                                                setShowHadirModal(true);
+                                                                            }}
+                                                                        >
+                                                                            <UserCheck className="mr-1 h-3 w-3" />
+                                                                            Hadir
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="h-7 px-2 text-xs text-destructive hover:bg-red-50"
+                                                                            onClick={() => {
+                                                                                setSelectedAction({
+                                                                                    id: item.id,
+                                                                                    nama: item.pasien.nama,
+                                                                                    type: 'batal',
+                                                                                });
+                                                                                setShowBatalModal(true);
+                                                                            }}
+                                                                        >
+                                                                            <X className="mr-1 h-3 w-3" />
+                                                                            Batal
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
                                                             )}
-                                                            {item.status.status_pendaftaran === 2 && (
+                                                            {String(item.status?.status_pendaftaran) === '2' && (
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
-                                                                    className="text-destructive hover:bg-red-50"
+                                                                    className="h-7 px-2 text-xs text-destructive hover:bg-red-50"
                                                                     onClick={() => {
                                                                         setSelectedAction({
-                                                                            id: item.status.id,
+                                                                            id: item.id,
                                                                             nama: item.pasien.nama,
                                                                             type: 'batal-pcare',
                                                                         });
                                                                         setShowBatalModal(true);
                                                                     }}
                                                                 >
-                                                                    <X className="mr-1 h-4 w-4" />
+                                                                    <X className="mr-1 h-3 w-3" />
                                                                     Batal
                                                                 </Button>
                                                             )}
@@ -782,7 +800,7 @@ const PendaftaranDashboard = () => {
 
             {/* Add Patient Modal */}
             <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-                <DialogContent className="max-w-6xl">
+                <DialogContent className="!max-w-4xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Plus className="h-5 w-5" />
@@ -790,355 +808,351 @@ const PendaftaranDashboard = () => {
                         </DialogTitle>
                     </DialogHeader>
 
-                    <form onSubmit={handleAddPendaftaran} className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                        {/* Form Pendaftaran */}
-                        <div className="xl:col-span-2">
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                {/* Pasien */}
-                                <div className="md:col-span-2">
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <Label htmlFor="pasien">Pasien</Label>
-                                        <span className="text-xs text-muted-foreground">
-                                            Total: {pasienList.length} pasien
-                                            {searchingPasien && <span className="ml-1 text-blue-600">(mencari...)</span>}
-                                        </span>
-                                    </div>
-                                    <Select value={selectedPasien} onValueChange={setSelectedPasien} disabled={loading}>
-                                        <SelectTrigger>
-                                            <SelectValue
-                                                placeholder={
-                                                    loading
-                                                        ? 'Memuat data pasien...'
-                                                        : pasienList.length === 0
-                                                          ? 'Tidak ada data pasien'
-                                                          : 'Pilih Pasien'
-                                                }
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <div className="p-2">
-                                                <div className="relative">
-                                                    <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                                                    <Input
-                                                        placeholder="Cari pasien berdasarkan nama, RM, NIK, atau BPJS..."
-                                                        value={searchPasien}
-                                                        onChange={(e) => setSearchPasien(e.target.value)}
-                                                        className="mb-2 pl-8"
-                                                    />
+                    <form onSubmit={handleAddPendaftaran} className="space-y-8">
+                        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                            {/* Form Pendaftaran */}
+                            <div className="xl:col-span-2">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    {/* Pasien */}
+                                    <div className="md:col-span-2">
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <Label htmlFor="pasien">Pasien</Label>
+                                            <span className="text-xs text-muted-foreground">
+                                                Total: {pasienList.length} pasien
+                                                {searchingPasien && <span className="ml-1 text-blue-600">(mencari...)</span>}
+                                            </span>
+                                        </div>
+                                        <Select value={selectedPasien} onValueChange={setSelectedPasien} disabled={loading}>
+                                            <SelectTrigger>
+                                                <SelectValue
+                                                    placeholder={
+                                                        loading
+                                                            ? 'Memuat data pasien...'
+                                                            : pasienList.length === 0
+                                                              ? 'Tidak ada data pasien'
+                                                              : 'Pilih Pasien'
+                                                    }
+                                                />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <div className="p-2">
+                                                    <div className="relative">
+                                                        <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                                                        <Input
+                                                            placeholder="Cari pasien berdasarkan nama, RM, NIK, atau BPJS..."
+                                                            value={searchPasien}
+                                                            onChange={(e) => setSearchPasien(e.target.value)}
+                                                            className="mb-2 pl-8"
+                                                        />
+                                                    </div>
+                                                    {searchPasien && (
+                                                        <div className="mb-2 flex items-center justify-between">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Ditemukan {filteredPasienList.length} pasien
+                                                            </p>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setSearchPasien('')}
+                                                                className="h-6 px-2 text-xs"
+                                                            >
+                                                                Reset
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {searchPasien && (
-                                                    <div className="mb-2 flex items-center justify-between">
-                                                        <p className="text-xs text-muted-foreground">Ditemukan {filteredPasienList.length} pasien</p>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => setSearchPasien('')}
-                                                            className="h-6 px-2 text-xs"
-                                                        >
-                                                            Reset
-                                                        </Button>
+                                                {filteredPasienList.length > 0 ? (
+                                                    filteredPasienList.map((pasien) => (
+                                                        <SelectItem key={pasien.id} value={pasien.id.toString()}>
+                                                            <div className="flex flex-col">
+                                                                <div className="font-medium">{pasien.nama}</div>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-2 text-center text-muted-foreground">
+                                                        {searchingPasien
+                                                            ? 'Mencari pasien...'
+                                                            : searchPasien
+                                                              ? 'Tidak ada pasien ditemukan'
+                                                              : loading
+                                                                ? 'Memuat data pasien...'
+                                                                : 'Tidak ada data pasien'}
                                                     </div>
                                                 )}
+                                            </SelectContent>
+                                        </Select>
+                                        {pasienList.length === 0 && !loading && (
+                                            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                                <p className="text-sm text-amber-800">
+                                                    <strong>Perhatian:</strong> Tidak ada data pasien tersedia. Silakan tambahkan data pasien terlebih
+                                                    dahulu.
+                                                </p>
                                             </div>
-                                            {filteredPasienList.length > 0 ? (
-                                                filteredPasienList.map((pasien) => (
-                                                    <SelectItem key={pasien.id} value={pasien.id.toString()}>
+                                        )}
+                                        {searchPasien && filteredPasienList.length === 0 && pasienList.length > 0 && !searchingPasien && (
+                                            <p className="mt-1 text-xs text-amber-600">Tidak ada pasien yang cocok dengan pencarian</p>
+                                        )}
+                                    </div>
+
+                                    {/* Tanggal Kunjungan */}
+                                    <div>
+                                        <Label htmlFor="tanggal">Tanggal Kunjungan</Label>
+                                        <Input
+                                            type="date"
+                                            value={tanggalKujungan}
+                                            onChange={(e) => setTanggalKujungan(e.target.value)}
+                                            min={new Date().toISOString().split('T')[0]}
+                                        />
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            Hari: {hariKunjungan ? convertDayToIndonesian(hariKunjungan) : '-'}
+                                        </p>
+                                    </div>
+
+                                    {/* Waktu Kunjungan */}
+                                    <div>
+                                        <Label htmlFor="waktu">Waktu Kunjungan</Label>
+                                        <Input type="time" value={waktuKunjungan} onChange={(e) => setWaktuKunjungan(e.target.value)} />
+                                    </div>
+
+                                    {/* Poli */}
+                                    <div>
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <Label htmlFor="poli">Poli (dengan Loket)</Label>
+                                            <span className="text-xs text-muted-foreground">Total: {poliList.length} poli</span>
+                                        </div>
+                                        <Select value={selectedPoli} onValueChange={setSelectedPoli}>
+                                            <SelectTrigger>
+                                                <SelectValue
+                                                    placeholder={
+                                                        loading
+                                                            ? 'Memuat data poli...'
+                                                            : poliList.length === 0
+                                                              ? 'Tidak ada poli tersedia'
+                                                              : 'Pilih Poli & Loket'
+                                                    }
+                                                />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {poliList.map((poli) => (
+                                                    <SelectItem key={poli.id} value={poli.id.toString()}>
                                                         <div className="flex flex-col">
-                                                            <span className="font-medium">{pasien.nama}</span>
-                                                            <span className="text-sm text-muted-foreground">
-                                                                RM: {pasien.no_rm} | NIK: {pasien.nik}
-                                                                {pasien.no_bpjs && ` | BPJS: ${pasien.no_bpjs}`}
-                                                            </span>
+                                                            <div className="font-medium">{poli.nama}</div>
                                                         </div>
                                                     </SelectItem>
-                                                ))
-                                            ) : (
-                                                <div className="p-2 text-center text-muted-foreground">
-                                                    {searchingPasien
-                                                        ? 'Mencari pasien...'
-                                                        : searchPasien
-                                                          ? 'Tidak ada pasien ditemukan'
-                                                          : loading
-                                                            ? 'Memuat data pasien...'
-                                                            : 'Tidak ada data pasien'}
-                                                </div>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                    {pasienList.length === 0 && !loading && (
-                                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                                            <p className="text-sm text-amber-800">
-                                                <strong>Perhatian:</strong> Tidak ada data pasien tersedia. Silakan tambahkan data pasien terlebih
-                                                dahulu.
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {poliList.length === 0 && !loading && (
+                                            <p className="mt-1 text-xs text-amber-600">
+                                                Tidak ada poli yang tersedia. Silakan konfigurasi loket terlebih dahulu.
                                             </p>
+                                        )}
+                                    </div>
+
+                                    {/* Dokter */}
+                                    <div>
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <Label htmlFor="dokter">Dokter</Label>
+                                            <span className="text-xs text-muted-foreground">
+                                                Total: {dokterList.length} dokter
+                                                {selectedPoli && hariKunjungan && waktuKunjungan && !loading && (
+                                                    <span className="ml-1 text-blue-600">(untuk jadwal ini)</span>
+                                                )}
+                                            </span>
                                         </div>
-                                    )}
-                                    {searchPasien && filteredPasienList.length === 0 && pasienList.length > 0 && !searchingPasien && (
-                                        <p className="mt-1 text-xs text-amber-600">Tidak ada pasien yang cocok dengan pencarian</p>
-                                    )}
-                                </div>
-
-                                {/* Tanggal Kunjungan */}
-                                <div>
-                                    <Label htmlFor="tanggal">Tanggal Kunjungan</Label>
-                                    <Input
-                                        type="date"
-                                        value={tanggalKujungan}
-                                        onChange={(e) => setTanggalKujungan(e.target.value)}
-                                        min={new Date().toISOString().split('T')[0]}
-                                    />
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        Hari: {hariKunjungan ? convertDayToIndonesian(hariKunjungan) : '-'}
-                                    </p>
-                                </div>
-
-                                {/* Waktu Kunjungan */}
-                                <div>
-                                    <Label htmlFor="waktu">Waktu Kunjungan</Label>
-                                    <Input type="time" value={waktuKunjungan} onChange={(e) => setWaktuKunjungan(e.target.value)} />
-                                </div>
-
-                                {/* Poli */}
-                                <div>
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <Label htmlFor="poli">Poli (dengan Loket)</Label>
-                                        <span className="text-xs text-muted-foreground">Total: {poliList.length} poli</span>
+                                        <Select
+                                            value={selectedDokter}
+                                            onValueChange={setSelectedDokter}
+                                            disabled={!selectedPoli || !hariKunjungan || !waktuKunjungan}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue
+                                                    placeholder={
+                                                        !selectedPoli
+                                                            ? 'Pilih poli dulu'
+                                                            : !hariKunjungan || !waktuKunjungan
+                                                              ? 'Tentukan jadwal dulu'
+                                                              : dokterList.length === 0
+                                                                ? 'Tidak ada dokter lain yang tersedia'
+                                                                : 'Pilih Dokter'
+                                                    }
+                                                />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {dokterList.map((dokter) => (
+                                                    <SelectItem key={dokter.id} value={dokter.id.toString()}>
+                                                        {dokter.nama}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {dokterList.length === 0 && selectedPoli && hariKunjungan && waktuKunjungan && !loading && (
+                                            <p className="mt-1 text-xs text-amber-600">Tidak ada dokter lain yang tersedia pada jadwal ini</p>
+                                        )}
                                     </div>
-                                    <Select value={selectedPoli} onValueChange={setSelectedPoli}>
-                                        <SelectTrigger>
-                                            <SelectValue
-                                                placeholder={
-                                                    loading
-                                                        ? 'Memuat data poli...'
-                                                        : poliList.length === 0
-                                                          ? 'Tidak ada poli tersedia'
-                                                          : 'Pilih Poli & Loket'
-                                                }
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {poliList.map((poli) => (
-                                                <SelectItem key={poli.id} value={poli.id.toString()}>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium">{poli.nama}</span>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            Loket:{' '}
-                                                            <span className="rounded bg-blue-50 px-1 font-mono text-blue-700">{poli.kode_loket}</span>
-                                                        </span>
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {poliList.length === 0 && !loading && (
-                                        <p className="mt-1 text-xs text-amber-600">
-                                            Tidak ada poli yang tersedia. Silakan konfigurasi loket terlebih dahulu.
-                                        </p>
-                                    )}
-                                </div>
 
-                                {/* Dokter */}
-                                <div>
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <Label htmlFor="dokter">Dokter</Label>
-                                        <span className="text-xs text-muted-foreground">
-                                            Total: {dokterList.length} dokter
-                                            {selectedPoli && hariKunjungan && waktuKunjungan && !loading && (
-                                                <span className="ml-1 text-blue-600">(untuk jadwal ini)</span>
-                                            )}
-                                        </span>
+                                    {/* Penjamin */}
+                                    <div className="md:col-span-2">
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <Label htmlFor="penjamin">Penjamin</Label>
+                                        </div>
+                                        <Select value={selectedPenjamin} onValueChange={setSelectedPenjamin}>
+                                            <SelectTrigger>
+                                                <SelectValue
+                                                    placeholder={
+                                                        loading
+                                                            ? 'Memuat data penjamin...'
+                                                            : penjaminList.length === 0
+                                                              ? 'Tidak ada data penjamin'
+                                                              : 'Pilih Penjamin'
+                                                    }
+                                                />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {penjaminList.map((penjamin) => (
+                                                    <SelectItem key={penjamin.id} value={penjamin.id.toString()}>
+                                                        {penjamin.nama}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {penjaminList.length === 0 && !loading && (
+                                            <p className="mt-1 text-xs text-amber-600">
+                                                Tidak ada data penjamin tersedia. Silakan tambahkan data penjamin terlebih dahulu.
+                                            </p>
+                                        )}
                                     </div>
-                                    <Select
-                                        value={selectedDokter}
-                                        onValueChange={setSelectedDokter}
-                                        disabled={!selectedPoli || !hariKunjungan || !waktuKunjungan}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue
-                                                placeholder={
-                                                    !selectedPoli
-                                                        ? 'Pilih poli dulu'
-                                                        : !hariKunjungan || !waktuKunjungan
-                                                          ? 'Tentukan jadwal dulu'
-                                                          : dokterList.length === 0
-                                                            ? 'Tidak ada dokter tersedia'
-                                                            : 'Pilih Dokter'
-                                                }
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {dokterList.map((dokter) => (
-                                                <SelectItem key={dokter.id} value={dokter.id.toString()}>
-                                                    {dokter.nama}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {dokterList.length === 0 && selectedPoli && hariKunjungan && waktuKunjungan && !loading && (
-                                        <p className="mt-1 text-xs text-amber-600">Tidak ada dokter yang tersedia pada jadwal ini</p>
-                                    )}
-                                </div>
-
-                                {/* Penjamin */}
-                                <div className="md:col-span-2">
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <Label htmlFor="penjamin">Penjamin</Label>
-                                        <span className="text-xs text-muted-foreground">Total: {penjaminList.length} penjamin</span>
-                                    </div>
-                                    <Select value={selectedPenjamin} onValueChange={setSelectedPenjamin}>
-                                        <SelectTrigger>
-                                            <SelectValue
-                                                placeholder={
-                                                    loading
-                                                        ? 'Memuat data penjamin...'
-                                                        : penjaminList.length === 0
-                                                          ? 'Tidak ada data penjamin'
-                                                          : 'Pilih Penjamin'
-                                                }
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {penjaminList.map((penjamin) => (
-                                                <SelectItem key={penjamin.id} value={penjamin.id.toString()}>
-                                                    {penjamin.nama}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {penjaminList.length === 0 && !loading && (
-                                        <p className="mt-1 text-xs text-amber-600">
-                                            Tidak ada data penjamin tersedia. Silakan tambahkan data penjamin terlebih dahulu.
-                                        </p>
-                                    )}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Informasi Pasien Terpilih & Ringkasan Pendaftaran */}
-                        <div className="xl:col-span-1">
-                            <div className="space-y-4">
-                                {/* Tampilkan informasi pasien yang dipilih */}
-                                {selectedPasien && (
-                                    <div className="rounded-lg border bg-blue-50 p-3 transition-all duration-200 hover:shadow-md">
-                                        <div className="mb-2 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <UserCheck className="h-4 w-4 text-blue-600" />
-                                                <p className="text-sm font-medium text-blue-900">Pasien Terpilih:</p>
-                                            </div>
-                                            <Badge className="bg-blue-100 text-xs text-blue-800">Terpilih</Badge>
-                                        </div>
-                                        {(() => {
-                                            const pasien = pasienList.find((p) => p.id.toString() === selectedPasien);
-                                            return pasien ? (
-                                                <div className="space-y-1 text-sm text-blue-800">
-                                                    <p>
-                                                        <strong>Nama:</strong> {pasien.nama}
-                                                    </p>
-                                                    <p>
-                                                        <strong>No. RM:</strong> {pasien.no_rm}
-                                                    </p>
-                                                    <p>
-                                                        <strong>NIK:</strong> {pasien.nik}
-                                                    </p>
-                                                    {pasien.no_bpjs && (
-                                                        <p>
-                                                            <strong>No. BPJS:</strong> {pasien.no_bpjs}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            ) : null;
-                                        })()}
-                                    </div>
-                                )}
-
-                                {/* Ringkasan Pendaftaran */}
-                                {selectedPasien ? (
-                                    selectedPoli && selectedDokter && selectedPenjamin ? (
-                                        <div className="rounded-lg border border-green-200 bg-green-50 p-3 transition-all duration-200 hover:shadow-md">
+                            {/* Informasi Pasien Terpilih & Ringkasan Pendaftaran */}
+                            <div className="xl:col-span-1">
+                                <div className="space-y-4">
+                                    {/* Tampilkan informasi pasien yang dipilih */}
+                                    {selectedPasien && (
+                                        <div className="rounded-lg border bg-blue-50 p-3 transition-all duration-200 hover:shadow-md">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
-                                                    <CheckCircle className="h-4 w-4 text-green-600" />
-                                                    <p className="text-sm font-medium text-green-900">Ringkasan Pendaftaran:</p>
+                                                    <UserCheck className="h-4 w-4 text-blue-600" />
+                                                    <p className="text-sm font-medium text-blue-900">Pasien Terpilih:</p>
                                                 </div>
-                                                <Badge className="bg-green-100 text-xs text-green-800">Lengkap</Badge>
+                                                <Badge className="bg-blue-100 text-xs text-blue-800">Terpilih</Badge>
                                             </div>
-                                            <div className="space-y-1 text-sm text-green-800">
-                                                <p>
-                                                    <strong>Poli:</strong> {poliList.find((p) => p.id.toString() === selectedPoli)?.nama}
-                                                    {poliList.find((p) => p.id.toString() === selectedPoli)?.kode_loket && (
-                                                        <span className="ml-2 rounded bg-blue-100 px-2 py-1 font-mono text-xs text-blue-800">
-                                                            Loket {poliList.find((p) => p.id.toString() === selectedPoli)?.kode_loket}
-                                                        </span>
-                                                    )}
-                                                </p>
-                                                <p>
-                                                    <strong>Dokter:</strong> {dokterList.find((d) => d.id.toString() === selectedDokter)?.nama}
-                                                </p>
-                                                <p>
-                                                    <strong>Penjamin:</strong> {penjaminList.find((p) => p.id.toString() === selectedPenjamin)?.nama}
-                                                </p>
-                                                <p>
-                                                    <strong>Tanggal:</strong> {tanggalKujungan} ({convertDayToIndonesian(hariKunjungan)})
-                                                </p>
-                                                <p>
-                                                    <strong>Waktu:</strong> {waktuKunjungan}
-                                                </p>
-                                                <p>
-                                                    <strong>Kode Antrian:</strong>{' '}
-                                                    <span className="rounded bg-blue-100 px-2 py-1 font-mono text-sm text-blue-800">
-                                                        {poliList.find((p) => p.id.toString() === selectedPoli)?.kode_loket}-XX
-                                                    </span>
-                                                    <span className="ml-2 text-xs text-muted-foreground">(akan di-generate otomatis)</span>
-                                                </p>
-                                            </div>
-                                            <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
-                                                <div
-                                                    className="h-2 rounded-full bg-green-600 transition-all duration-300"
-                                                    style={{ width: '100%' }}
-                                                ></div>
-                                            </div>
+                                            {(() => {
+                                                const pasien = pasienList.find((p) => p.id.toString() === selectedPasien);
+                                                return pasien ? (
+                                                    <div className="space-y-1 text-sm text-blue-800">
+                                                        <p>
+                                                            <strong>Nama:</strong> {pasien.nama}
+                                                        </p>
+                                                        <p>
+                                                            <strong>No. RM:</strong> {pasien.no_rm}
+                                                        </p>
+                                                        <p>
+                                                            <strong>NIK:</strong> {pasien.nik}
+                                                        </p>
+                                                        {pasien.no_bpjs && (
+                                                            <p>
+                                                                <strong>No. BPJS:</strong> {pasien.no_bpjs}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                         </div>
+                                    )}
+
+                                    {/* Ringkasan Pendaftaran */}
+                                    {selectedPasien ? (
+                                        selectedPoli && selectedDokter && selectedPenjamin ? (
+                                            <div className="rounded-lg border border-green-200 bg-green-50 p-3 transition-all duration-200 hover:shadow-md">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                                        <p className="text-sm font-medium text-green-900">Ringkasan Pendaftaran:</p>
+                                                    </div>
+                                                    <Badge className="bg-green-100 text-xs text-green-800">Lengkap</Badge>
+                                                </div>
+                                                <div className="space-y-1 text-sm text-green-800">
+                                                    <p>
+                                                        <strong>Poli:</strong> {poliList.find((p) => p.id.toString() === selectedPoli)?.nama}
+                                                        {poliList.find((p) => p.id.toString() === selectedPoli)?.kode_loket && (
+                                                            <span className="ml-2 rounded bg-blue-100 px-2 py-1 font-mono text-xs text-blue-800">
+                                                                Loket {poliList.find((p) => p.id.toString() === selectedPoli)?.kode_loket}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Dokter:</strong> {dokterList.find((d) => d.id.toString() === selectedDokter)?.nama}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Penjamin:</strong>{' '}
+                                                        {penjaminList.find((p) => p.id.toString() === selectedPenjamin)?.nama}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Tanggal:</strong> {tanggalKujungan} ({convertDayToIndonesian(hariKunjungan)})
+                                                    </p>
+                                                    <p>
+                                                        <strong>Waktu:</strong> {waktuKunjungan}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Kode Antrian:</strong>{' '}
+                                                        <span className="rounded bg-blue-100 px-2 py-1 font-mono text-sm text-blue-800">
+                                                            {poliList.find((p) => p.id.toString() === selectedPoli)?.kode_loket}-XX
+                                                        </span>
+                                                        <span className="ml-2 text-xs text-muted-foreground">(akan di-generate otomatis)</span>
+                                                    </p>
+                                                </div>
+                                                <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                                                    <div
+                                                        className="h-2 rounded-full bg-green-600 transition-all duration-300"
+                                                        style={{ width: '100%' }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-all duration-200 hover:shadow-sm">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="h-4 w-4 text-gray-600" />
+                                                        <p className="text-sm font-medium text-gray-900">Ringkasan Pendaftaran:</p>
+                                                    </div>
+                                                    <Badge className="bg-yellow-100 text-xs text-yellow-800">Progress</Badge>
+                                                </div>
+                                                <div className="space-y-1 text-sm text-gray-600">
+                                                    <p>Lengkapi data pendaftaran untuk melihat ringkasan</p>
+                                                    <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                                                        <div
+                                                            className="h-2 rounded-full bg-yellow-600 transition-all duration-300"
+                                                            style={{ width: '60%' }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
                                     ) : (
                                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-all duration-200 hover:shadow-sm">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-gray-600" />
+                                                    <AlertCircle className="h-4 w-4 text-gray-600" />
                                                     <p className="text-sm font-medium text-gray-900">Ringkasan Pendaftaran:</p>
                                                 </div>
-                                                <Badge className="bg-yellow-100 text-xs text-yellow-800">Progress</Badge>
+                                                <Badge className="bg-gray-100 text-xs text-gray-800">Belum Dimulai</Badge>
                                             </div>
                                             <div className="space-y-1 text-sm text-gray-600">
-                                                <p>Lengkapi data pendaftaran untuk melihat ringkasan</p>
+                                                <p>Pilih pasien terlebih dahulu untuk memulai pendaftaran</p>
                                                 <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
                                                     <div
-                                                        className="h-2 rounded-full bg-yellow-600 transition-all duration-300"
-                                                        style={{ width: '60%' }}
+                                                        className="h-2 rounded-full bg-gray-400 transition-all duration-300"
+                                                        style={{ width: '0%' }}
                                                     ></div>
                                                 </div>
                                             </div>
                                         </div>
-                                    )
-                                ) : (
-                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 transition-all duration-200 hover:shadow-sm">
-                                        <div className="mb-2 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <AlertCircle className="h-4 w-4 text-gray-600" />
-                                                <p className="text-sm font-medium text-gray-900">Ringkasan Pendaftaran:</p>
-                                            </div>
-                                            <Badge className="bg-gray-100 text-xs text-gray-800">Belum Dimulai</Badge>
-                                        </div>
-                                        <div className="space-y-1 text-sm text-gray-600">
-                                            <p>Pilih pasien terlebih dahulu untuk memulai pendaftaran</p>
-                                            <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
-                                                <div
-                                                    className="h-2 rounded-full bg-gray-400 transition-all duration-300"
-                                                    style={{ width: '0%' }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -1156,11 +1170,11 @@ const PendaftaranDashboard = () => {
 
             {/* Recap Modal */}
             <Dialog open={showRekapModal} onOpenChange={setShowRekapModal}>
-                <DialogContent className="max-w-6xl">
+                <DialogContent className="!max-w-4xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <FileText className="h-5 w-5" />
-                            Rekap Per Dokter Hari Ini
+                            Status Dokter Hari Ini
                         </DialogTitle>
                     </DialogHeader>
 
@@ -1300,7 +1314,7 @@ const PendaftaranDashboard = () => {
                             </div>
                             <Select value={selectedDokter} onValueChange={setSelectedDokter}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder={dokterList.length === 0 ? 'Tidak ada dokter tersedia' : 'Pilih Dokter'} />
+                                    <SelectValue placeholder={dokterList.length === 0 ? 'Tidak ada dokter lain yang tersedia' : 'Pilih Dokter'} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {dokterList.map((dokter) => (
@@ -1311,7 +1325,7 @@ const PendaftaranDashboard = () => {
                                 </SelectContent>
                             </Select>
                             {dokterList.length === 0 && !loading && (
-                                <p className="mt-1 text-xs text-amber-600">Tidak ada dokter yang tersedia untuk poli ini</p>
+                                <p className="mt-1 text-xs text-amber-600">Tidak ada dokter lain yang tersedia untuk poli ini</p>
                             )}
                         </div>
                     </div>

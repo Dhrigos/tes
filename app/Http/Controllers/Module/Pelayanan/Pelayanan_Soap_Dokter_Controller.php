@@ -8,6 +8,7 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Obat;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
+use App\Models\Module\Pelayanan\Pelayanan_status;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Verbal;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Motorik;
@@ -35,77 +36,78 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
     public function index(): InertiaResponse
     {
         try {
-            // Untuk saat ini menggunakan dummy data
-            // Nantinya akan diambil dari database
-            $dummyData = [
-                [
-                    'id' => 1,
-                    'nomor_rm' => '000001',
-                    'nomor_register' => 'REG001',
-                    'tanggal_kunjungan' => '2025-08-28',
-                    'poli_id' => 1,
-                    'dokter_id' => 1,
-                    'tindakan_button' => 'panggil',
-                    'pasien' => ['nama' => 'Budi Santoso'],
-                    'poli' => ['nama' => 'Poli Umum'],
-                    'dokter' => [
-                        'id' => 1,
-                        'namauser' => ['name' => 'Dr. Ahmad'],
+            $today = Carbon::today();
+            $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
+                ->whereDate('tanggal_kujungan', '=', $today)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->unique('nomor_register')
+                ->values();
+
+            $nomorRegisters = $pelayanans->pluck('nomor_register')->all();
+
+            $statusMap = Pelayanan_status::whereIn('nomor_register', $nomorRegisters)
+                ->get()->keyBy('nomor_register');
+
+            $pelayananData = [];
+            foreach ($pelayanans as $p) {
+                $ps = $statusMap->get($p->nomor_register);
+                $statusDaftar = (int)optional($ps)->status_daftar ?? 0;
+                $statusPerawat = (int)optional($ps)->status_perawat ?? 0;
+                $statusDokter = (int)optional($ps)->status_dokter ?? 0;
+
+                // Hanya tampilkan di daftar dokter jika perawat sudah selesai (status_perawat = 2)
+                if ($statusPerawat < 2) {
+                    continue;
+                }
+
+                // Dokter hanya boleh jika daftar=2 dan perawat=2
+                $tindakan = 'panggil';
+                if (!($statusDaftar < 2 || $statusPerawat < 2)) {
+                    if ($statusDokter === 0) {
+                        $tindakan = 'panggil';
+                    } elseif ($statusDokter === 1) {
+                        // saat pemeriksaan dokter berjalan, jika sudah ada SOAP, tampilkan edit
+                        $existingSoap = Pelayanan_Soap_Dokter::where('no_rawat', $p->nomor_register)->first();
+                        $tindakan = $existingSoap ? 'edit' : 'soap';
+                    } elseif ($statusDokter === 2) {
+                        $tindakan = 'Complete';
+                    }
+                }
+
+                $pelayananData[] = [
+                    'id' => $p->id,
+                    'nomor_rm' => $p->nomor_rm,
+                    'nomor_register' => $p->nomor_register,
+                    'tanggal_kujungan' => $p->tanggal_kujungan,
+                    'poli_id' => $p->poli_id,
+                    'dokter_id' => $p->dokter_id,
+                    'tindakan_button' => $tindakan,
+                    'pasien' => [
+                        'nama' => optional($p->pasien)->nama ?? '-',
                     ],
-                    'pendaftaran' => ['antrian' => 'A01'],
-                ],
-                [
-                    'id' => 2,
-                    'nomor_rm' => '000002',
-                    'nomor_register' => 'REG002',
-                    'tanggal_kunjungan' => '2025-08-28',
-                    'poli_id' => 2,
-                    'dokter_id' => 2,
-                    'tindakan_button' => 'soap',
-                    'pasien' => ['nama' => 'Citra Lestari'],
-                    'poli' => ['nama' => 'Poli Gigi'],
-                    'dokter' => [
-                        'id' => 2,
-                        'namauser' => ['name' => 'Dr. Anisa'],
+                    'poli' => [
+                        'nama' => optional($p->poli)->nama ?? '-',
                     ],
-                    'pendaftaran' => ['antrian' => 'B02'],
-                ],
-                [
-                    'id' => 3,
-                    'nomor_rm' => '000003',
-                    'nomor_register' => 'REG003',
-                    'tanggal_kunjungan' => '2025-08-28',
-                    'poli_id' => 1,
-                    'dokter_id' => 1,
-                    'tindakan_button' => 'edit',
-                    'pasien' => ['nama' => 'Dewi Anggraini'],
-                    'poli' => ['nama' => 'Poli Umum'],
                     'dokter' => [
-                        'id' => 1,
-                        'namauser' => ['name' => 'Dr. Ahmad'],
+                        'id' => $p->dokter_id,
+                        'namauser' => [
+                            'name' => optional(optional($p->dokter)->namauser)->name ?? (optional($p->dokter)->nama ?? '-'),
+                        ],
                     ],
-                    'pendaftaran' => ['antrian' => 'A03'],
-                ],
-                [
-                    'id' => 4,
-                    'nomor_rm' => '000004',
-                    'nomor_register' => 'REG004',
-                    'tanggal_kunjungan' => '2025-08-28',
-                    'poli_id' => 3,
-                    'dokter_id' => 3,
-                    'tindakan_button' => 'Complete',
-                    'pasien' => ['nama' => 'Eko Prasetyo'],
-                    'poli' => ['nama' => 'Poli Anak'],
-                    'dokter' => [
-                        'id' => 3,
-                        'namauser' => ['name' => 'Dr. Budi'],
+                    'dokter_name' => optional(optional($p->dokter)->namauser)->name ?? (optional($p->dokter)->nama ?? '-'),
+                    'pendaftaran' => [
+                        'antrian' => optional($p->pendaftaran)->antrian ?? '-',
                     ],
-                    'pendaftaran' => ['antrian' => 'C01'],
-                ],
-            ];
+                    'status_daftar' => $statusDaftar,
+                    'status_perawat' => $statusPerawat,
+                    'status_dokter' => $statusDokter,
+                    'can_call' => ($statusDaftar >= 2 && $statusPerawat >= 2 && $statusDokter === 0),
+                ];
+            }
 
             return Inertia::render('module/pelayanan/soap-dokter/index', [
-                'pelayanan' => $dummyData
+                'pelayanan' => $pelayananData
             ]);
         } catch (\Exception $e) {
             return Inertia::render('module/pelayanan/soap-dokter/index', [
@@ -120,7 +122,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
     /**
      * Display the SOAP dokter page for a specific patient
      */
-    public function show(Request $request, $norawat): InertiaResponse
+    public function show(Request $request, $norawat): InertiaResponse|RedirectResponse
     {
         try {
             $nomor_register = base64_decode($norawat);
@@ -133,6 +135,16 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
 
             // Get SOAP dokter data (may be null for create mode)
             $soapDokter = Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->first();
+
+            // Guard akses pemeriksaan dokter: daftar harus 2 dan perawat 2
+            $ps = \App\Models\Module\Pelayanan\Pelayanan_status::where('nomor_register', $nomor_register)->first();
+            $statusDaftar = (int)($ps->status_daftar ?? 0);
+            $statusPerawat = (int)($ps->status_perawat ?? 0);
+            if ($statusDaftar < 2 || $statusPerawat < 2) {
+                return redirect()
+                    ->route('pelayanan.so-dokter.index')
+                    ->with('error', 'Tahap sebelumnya belum selesai (pendaftaran/perawat)');
+            }
 
             // If no patient data from database, use dummy data
             if (!$pelayanan) {

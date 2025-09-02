@@ -13,6 +13,7 @@ use App\Http\Controllers\Module\Master\Data\Umum\Penjamin_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
 use App\Http\Controllers\Module\SDM\Dokter_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
+use App\Http\Controllers\Module\Pelayanan\PelayananController;
 use App\Http\Controllers\Settings\Web_Setting_Controller;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
@@ -29,6 +30,8 @@ Route::get('/get_peserta/{no}', [Pcare_Controller::class, 'get_peserta']);
 Route::get('/get_dokter', [Pcare_Controller::class, 'get_dokter']);
 
 Route::get('/get_dokter_ws/{kode_poli}/{tanggal}', [Ws_Pcare_Controller::class, 'get_dokter']);
+// Pelayanan utility
+Route::get('/get-dokter-by-poli/{poliId}', [PelayananController::class, 'getDokterByPoli']);
 
 Route::get('/get_kfa_obat/{type}/{nama}', [Satu_Sehat_Controller::class, 'get_kfa_obat']);
 
@@ -53,6 +56,22 @@ Route::prefix('master')->group(function () {
 // API pendaftaran
 Route::prefix('pendaftaran')->group(function () {
     Route::get('/master-data', [Pendaftaran_Controller::class, 'getMasterData']);
+    Route::post('/', [Pendaftaran_Controller::class, 'store']);
+    Route::post('/batal', [Pendaftaran_Controller::class, 'pendaftaranbatal']);
+    Route::post('/hadir', [Pendaftaran_Controller::class, 'pendaftaranhadir']);
+    Route::post('/dokter/update', [Pendaftaran_Controller::class, 'updateDokter']);
+    Route::get('/data', [Pendaftaran_Controller::class, 'getData']);
+});
+
+// API pelayanan
+Route::prefix('pelayanan')->group(function () {
+    // Konfirmasi hadir (akan menaikkan status_daftar ke 1 jika masih 0).
+    Route::get('/hadir/{norawat}', [PelayananController::class, 'hadirPasien']);
+    // Tandai pendaftaran selesai (status_daftar = 2)
+    Route::post('/selesai-daftar/{norawat}', [PelayananController::class, 'selesaiDaftar']);
+    // Hadir dokter dan selesai dokter
+    Route::get('/hadir-dokter/{norawat}', [PelayananController::class, 'hadirDokter']);
+    Route::post('/selesai-dokter/{norawat}', [PelayananController::class, 'selesaiDokter']);
 });
 
 Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
@@ -82,4 +101,21 @@ Route::prefix('web-settings')->group(function () {
 Route::prefix('permintaan-barang')->group(function () {
     Route::get('/get-last-kode', [Permintaan_Barang_Controller::class, 'getLastKode']);
     Route::get('/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
+    Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetailKonfirmasi']);
+});
+
+Route::prefix('daftar-permintaan-barang')->group(function () {
+    Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
+    
+    Route::post('/proses-permintaan', function (\Illuminate\Http\Request $request) {
+        \Log::info('API Request to /api/daftar-permintaan-barang/proses-permintaan', [
+            'url' => $request->fullUrl(),
+            'method' => $request->method(),
+            'headers' => $request->headers->all(),
+            'input' => $request->all(),
+            'ip' => $request->ip()
+        ]);
+        
+        return app(\App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller::class)->prosesPermintaan($request);
+    });
 });

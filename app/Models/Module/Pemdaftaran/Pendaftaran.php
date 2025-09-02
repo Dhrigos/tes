@@ -6,7 +6,8 @@ use App\Models\Module\Master\Data\Medis\Poli;
 use App\Models\Module\Master\Data\Umum\Penjamin;
 use App\Models\Module\Pasien\Pasien;
 use App\Models\Module\SDM\Dokter;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
+use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
 use Illuminate\Database\Eloquent\Model;
 
 
@@ -14,8 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pendaftaran extends Model
 {
-    use HasFactory;
-
+    protected $table = 'pendaftarans';
     protected $fillable = [
         'nomor_rm',
         'pasien_id',
@@ -23,7 +23,7 @@ class Pendaftaran extends Model
         'tanggal_kujungan',
         'poli_id',
         'dokter_id',
-        'penjamin_id',
+        'Penjamin',
         'antrian',
         'no_urut'
     ];
@@ -45,7 +45,17 @@ class Pendaftaran extends Model
 
     public function penjamin()
     {
-        return $this->belongsTo(Penjamin::class, 'penjamin_id');
+        return $this->belongsTo(Penjamin::class, 'Penjamin');
+    }
+
+    public function soap_dokter()
+    {
+        return $this->hasOne(Pelayanan_Soap_Dokter::class, 'no_rawat', 'nomor_register');
+    }
+
+    public function so_perawat()
+    {
+        return $this->hasOne(Pelayanan_So_Perawat::class, 'no_rawat', 'nomor_register');
     }
 
     public function status()

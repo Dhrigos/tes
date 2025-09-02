@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, ArrowRight, FileText, Package, Plus, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Package, Plus, RefreshCw, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '../../../components/ui/badge';
@@ -92,6 +92,8 @@ export default function PembelianIndex() {
         harga_satuan_kecil: '0',
         diskon_persen: true,
     });
+    const [searchObat, setSearchObat] = useState("");
+    const [searchInventaris, setSearchInventaris] = useState("");
     const [pembelianData, setPembelianData] = useState<PembelianData>({
         jenis_pembelian: '',
         nomor_faktur: '',
@@ -150,6 +152,22 @@ export default function PembelianIndex() {
             // silently ignore
         }
     };
+
+    // Filter dabar based on search term
+    const filteredDabar = obatOptions?.filter((barang) => {
+        const q = searchObat.toLowerCase();
+        return (
+            barang.nama?.toLowerCase().includes(q) 
+        );
+    }).slice(0, 5) || [];
+
+    // Filter inventaris based on search term
+    const filteredInventaris = inventarisOptions?.filter((item) => {
+        const q = searchInventaris.toLowerCase();
+        return (
+            item.nama_barang?.toLowerCase().includes(q)
+        );
+    }).slice(0, 5) || [];
 
     const steps = [
         { number: 1, title: 'Jenis Pembelian', icon: Package },
@@ -962,13 +980,58 @@ export default function PembelianIndex() {
                                                                     </SelectValue>
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    {obatOptions.map((opt) => (
-                                                                        <SelectItem key={opt.id} value={opt.kode}>
-                                                                            {opt.nama || opt.nama_dagang}
-                                                                        </SelectItem>
-                                                                    ))}
+                                                                    <div className="p-2">
+                                                                        <div className="relative">
+                                                                            <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                                                                            <Input
+                                                                                placeholder="Cari obat/alkes berdasarkan kode atau nama..."
+                                                                                value={searchObat}
+                                                                                onChange={(e) => setSearchObat(e.target.value)}
+                                                                                className="mb-2 pl-8"
+                                                                            />
+                                                                        </div>
+                                                                        {searchObat && (
+                                                                            <div className="mb-2 flex items-center justify-between">
+                                                                                <p className="text-xs text-muted-foreground">
+                                                                                    Ditemukan {filteredDabar.length} obat/alkes
+                                                                                </p>
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    onClick={() => setSearchObat('')}
+                                                                                    className="h-6 px-2 text-xs"
+                                                                                >
+                                                                                    Reset
+                                                                                </Button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    {filteredDabar.length > 0 ? (
+                                                                        filteredDabar.map((barang) => (
+                                                                            <SelectItem key={barang.id} value={barang.kode}>
+                                                                                <div className="flex flex-col">
+                                                                                    <div className="font-medium" title={barang.nama}>{barang.nama.length > 40 ? `${barang.nama.substring(0, 40)}...` : barang.nama}</div>
+                                                                                </div>
+                                                                            </SelectItem>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="p-2 text-center text-muted-foreground">
+                                                                            {searchObat
+                                                                                ? 'Tidak ada obat/alkes ditemukan'
+                                                                                : 'Tidak ada data obat/alkes'}
+                                                                        </div>
+                                                                    )}
                                                                 </SelectContent>
                                                             </Select>
+                                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                                Total: {obatOptions.length} obat/alkes
+                                                                {searchObat && (
+                                                                    <span className="ml-1">
+                                                                        (Ditemukan {filteredDabar.length} obat/alkes)
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Kode Obat/Alkes</Label>
@@ -1091,25 +1154,66 @@ export default function PembelianIndex() {
                                                                 if (open && inventarisOptions.length === 0) fetchDaftarInventaris();
                                                             }}
                                                             onValueChange={(value) => {
-                                                                console.log('Selected value:', value);
-                                                                console.log('Available options:', inventarisOptions);
                                                                 const item = inventarisOptions.find((i) => (i.kode_barang || String(i.id)) === value);
-                                                                console.log('Found item:', item);
-                                                                // Pastikan value tidak undefined atau null
                                                                 const kodeValue = value || '';
                                                                 updateModalData('kode_obat_alkes', kodeValue);
                                                                 updateModalData('nama_obat_alkes', item?.nama_barang || '');
+                                                                // Set default qty to 1 for inventaris
+                                                                updateModalData('qty', '1');
                                                             }}
                                                         >
                                                             <SelectTrigger>
                                                                 <SelectValue placeholder="Pilih barang dari Daftar Inventaris" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                {inventarisOptions.map((opt) => (
-                                                                    <SelectItem key={opt.id} value={opt.kode_barang || String(opt.id)}>
-                                                                        {(opt.kode_barang ? opt.kode_barang + ' - ' : '') + opt.nama_barang}
-                                                                    </SelectItem>
-                                                                ))}
+                                                                <div className="relative">
+                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                        <Search className="h-4 w-4 text-gray-400" />
+                                                                    </div>
+                                                                    <Input
+                                                                        placeholder="Cari barang..."
+                                                                        className="pl-10 pr-10 py-2 border-b rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 border-x-0 border-t-0"
+                                                                        value={searchInventaris}
+                                                                        onChange={(e) => setSearchInventaris(e.target.value)}
+                                                                    />
+                                                                    {searchInventaris && (
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="absolute inset-y-0 right-0 h-full px-3 py-2 hover:bg-transparent"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                setSearchInventaris('');
+                                                                            }}
+                                                                        >
+                                                                            <RefreshCw className="h-4 w-4 text-gray-400" />
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                                <div className="px-2 py-1 text-xs text-muted-foreground border-b">
+                                                                    Menampilkan {filteredInventaris.length} dari {inventarisOptions?.length || 0} barang
+                                                                </div>
+                                                                {filteredInventaris.length > 0 ? (
+                                                                    filteredInventaris.map((opt) => {
+                                                                        const displayText = (opt.kode_barang ? opt.kode_barang + ' - ' : '') + opt.nama_barang;
+                                                                        const isTruncated = displayText.length > 50;
+                                                                        const truncatedText = isTruncated ? displayText.substring(0, 50) + '...' : displayText;
+                                                                        return (
+                                                                            <SelectItem 
+                                                                                key={opt.id} 
+                                                                                value={opt.kode_barang || String(opt.id)}
+                                                                                title={isTruncated ? displayText : undefined}
+                                                                            >
+                                                                                {truncatedText}
+                                                                            </SelectItem>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <div className="px-4 py-2 text-sm text-muted-foreground">
+                                                                        {searchInventaris ? 'Tidak ada barang yang cocok' : 'Tidak ada data barang'}
+                                                                    </div>
+                                                                )}
                                                             </SelectContent>
                                                         </Select>
                                                     </div>

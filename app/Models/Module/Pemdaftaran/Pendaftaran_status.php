@@ -1,13 +1,12 @@
 <?php
 
 namespace App\Models\Module\Pemdaftaran;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 use Illuminate\Database\Eloquent\Model;
 
 class Pendaftaran_status extends Model
 {
-        use HasFactory;
+    protected $table = 'pendaftaran_statuses';
     protected $fillable =
     [
         'nomor_rm',
