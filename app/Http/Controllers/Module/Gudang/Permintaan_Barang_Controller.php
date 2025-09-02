@@ -104,7 +104,6 @@ class Permintaan_Barang_Controller extends Controller
                 'items.*.kode_barang' => 'required',
                 'items.*.nama_barang' => 'required',
                 'items.*.jumlah' => 'required|integer|min:1',
-                'items.*.satuan' => 'required',
             ]);
 
             // Get the currently authenticated user's ID and name
@@ -121,13 +120,20 @@ class Permintaan_Barang_Controller extends Controller
             ]);
 
             // Simpan detail permintaan barang
-            foreach ($validatedData['items'] as $item) {
-                Permintaan_Barang_Detail::create([
-                    'kode_request' => $validatedData['kode_request'],
-                    'kode_obat_alkes' => $item['kode_barang'],
-                    'nama_obat_alkes' => $item['nama_barang'],
-                    'qty' => $item['jumlah'],
-                ]);
+            \Log::info('Jumlah item yang akan disimpan: ' . count($validatedData['items']));
+            foreach ($validatedData['items'] as $index => $item) {
+                \Log::info('Menyimpan item ke-' . ($index + 1) . ': ', $item);
+                try {
+                    Permintaan_Barang_Detail::create([
+                        'kode_request' => $validatedData['kode_request'],
+                        'kode_obat_alkes' => $item['kode_barang'],
+                        'nama_obat_alkes' => $item['nama_barang'],
+                        'qty' => $item['jumlah'],
+                    ]);
+                    \Log::info('Item ke-' . ($index + 1) . ' berhasil disimpan');
+                } catch (\Exception $e) {
+                    \Log::error('Gagal menyimpan item ke-' . ($index + 1) . ': ' . $e->getMessage());
+                }
             }
 
             // Return Inertia response with success message

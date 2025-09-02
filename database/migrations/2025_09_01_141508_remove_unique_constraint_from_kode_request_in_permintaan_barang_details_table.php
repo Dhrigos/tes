@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (Schema::hasTable('kategori__obats')) {
-            Schema::rename('kategori__obats', 'kategori_barang');
-        }
+        Schema::table('permintaan_barang_details', function (Blueprint $table) {
+            $table->dropUnique(['kode_request']);
+        });
     }
 
     /**
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (Schema::hasTable('kategori_barang')) {
-            Schema::rename('kategori_barang', 'kategori__obats');
-        }
+        Schema::table('permintaan_barang_details', function (Blueprint $table) {
+            $table->unique('kode_request');
+        });
     }
 };

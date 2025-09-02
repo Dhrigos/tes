@@ -8,8 +8,8 @@ use App\Models\Module\Master\Data\Medis\Poli;
 use App\Models\Module\Pemdaftaran\Pendaftaran;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use App\Models\Module\Master\Data\Umum\Penjamin;
-use App\Models\Module\SDM\Dokter;
 use App\Models\Module\Master\Data\Umum\Loket;
+use App\Models\Module\SDM\Dokter;
 use Illuminate\Support\Facades\Log;
 use App\Models\Module\pelayanan;
 use App\Models\Module\SDM\DokterJadwal;
@@ -142,10 +142,20 @@ class Pendaftaran_Controller extends Controller
         ]);
     }
 
-    // 🔹 Ambil semua poli
+    // 🔹 Ambil semua poli yang sudah dikonfigurasi di loket
     public function getPoliList()
     {
-        $poli = Poli::select('id', 'nama')->get();
+        $poli = Poli::with('loket')
+            ->whereHas('loket')
+            ->get()
+            ->map(function ($poli) {
+                return [
+                    'id' => $poli->id,
+                    'nama' => $poli->nama,
+                    'kode' => $poli->kode,
+                    'kode_loket' => $poli->loket->nama ?? null
+                ];
+            });
 
         return response()->json([
             'success' => true,
@@ -219,7 +229,19 @@ class Pendaftaran_Controller extends Controller
                 ->limit(100) // Batasi untuk performa
                 ->get();
 
-            $poli = Poli::select('id', 'nama')->orderBy('nama', 'asc')->get();
+            // Hanya ambil poli yang sudah dikonfigurasi di loket menggunakan relasi
+            $poli = Poli::with('loket')
+                ->whereHas('loket')
+                ->get()
+                ->map(function ($poli) {
+                    return [
+                        'id' => $poli->id,
+                        'nama' => $poli->nama,
+                        'kode' => $poli->kode,
+                        'kode_loket' => $poli->loket->nama ?? null
+                    ];
+                });
+
             $penjamin = Penjamin::select('id', 'nama')->orderBy('nama', 'asc')->get();
             $dokter = Dokter::with('namauser:id,name')->get();
 

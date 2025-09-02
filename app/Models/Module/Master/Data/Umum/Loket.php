@@ -10,8 +10,9 @@ class Loket extends Model
     protected $table = "lokets";
     protected $fillable = ['nama', 'poli_id'];
 
+    // Relasi dengan Poli
     public function poli()
     {
-        return $this->belongsTo(Poli::class);
+        return $this->belongsTo(Poli::class, 'poli_id', 'id');
     }
 }

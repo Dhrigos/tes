@@ -13,14 +13,13 @@ class Permintaan_Barang_Detail extends Model
 
     protected $fillable = [
         'kode_request',
-        // Legacy columns
         'kode_obat_alkes',
         'nama_obat_alkes',
         'qty',
-        // New columns used by controller/UI
-        // 'kode_barang',
-        // 'nama_barang',
-        // 'jumlah',
-        // 'satuan',
     ];
+
+    public function permintaanBarang()
+    {
+        return $this->belongsTo(Permintaan_Barang::class, 'kode_request', 'kode_request');
+    }
 }
