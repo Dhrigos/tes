@@ -2,12 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Module\Pasien\PasienController;
-use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Inventaris_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Satu_Sehat_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
-use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Obat_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Barang_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
 use App\Http\Controllers\Module\Master\Data\Umum\Penjamin_Controller;
 use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
@@ -17,6 +16,7 @@ use App\Http\Controllers\Module\Pelayanan\PelayananController;
 use App\Http\Controllers\Settings\Web_Setting_Controller;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
+use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
 use Illuminate\Http\Request;
 
 
@@ -77,18 +77,16 @@ Route::prefix('pelayanan')->group(function () {
 Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
 Route::post('/pembelian/generate-inventaris', [Pembelian_Controller::class, 'generatePembelianInventaris']);
 
-Route::post('/generate-kode-inventaris', [Daftar_Inventaris_Controller::class, 'generateKodeInventaris']);
-Route::get('/inventaris/list', [Daftar_Inventaris_Controller::class, 'list']);
-Route::get('/obat/list', [Daftar_Obat_Controller::class, 'list']);
+Route::get('/barang/list', [Daftar_Barang_Controller::class, 'list']);
 
-// Daftar Obat Sync Routes
-Route::prefix('daftar-obat-sync')->group(function () {
-    Route::get('/status', [Daftar_Obat_Controller::class, 'getSyncStatus']);
-    Route::post('/apply', [Daftar_Obat_Controller::class, 'applySync']);
-    Route::post('/sync-all', [Daftar_Obat_Controller::class, 'syncAllToRedis']);
-    Route::post('/clear', [Daftar_Obat_Controller::class, 'clearSync']);
-    Route::get('/redis-data', [Daftar_Obat_Controller::class, 'getFromRedis']);
-    Route::get('/recent-actions', [Daftar_Obat_Controller::class, 'getRecentActions']);
+// Daftar Barang Sync Routes
+Route::prefix('daftar-barang-sync')->group(function () {
+    Route::get('/status', [Daftar_Barang_Controller::class, 'getSyncStatus']);
+    Route::post('/apply', [Daftar_Barang_Controller::class, 'applySync']);
+    Route::post('/sync-all', [Daftar_Barang_Controller::class, 'syncAllToRedis']);
+    Route::post('/clear', [Daftar_Barang_Controller::class, 'clearSync']);
+    Route::get('/redis-data', [Daftar_Barang_Controller::class, 'getFromRedis']);
+    Route::get('/recent-actions', [Daftar_Barang_Controller::class, 'getRecentActions']);
 });
 
 // Test route
@@ -112,20 +110,11 @@ Route::prefix('permintaan-barang')->group(function () {
     Route::get('/get-last-kode', [Permintaan_Barang_Controller::class, 'getLastKode']);
     Route::get('/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
     Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetailKonfirmasi']);
+    Route::post('/terima-data', [Permintaan_Barang_Controller::class, 'terimaData'])->name('api.permintaan-barang.terima-data');
 });
 
 Route::prefix('daftar-permintaan-barang')->group(function () {
     Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
-    
-    Route::post('/proses-permintaan', function (\Illuminate\Http\Request $request) {
-        \Log::info('API Request to /api/daftar-permintaan-barang/proses-permintaan', [
-            'url' => $request->fullUrl(),
-            'method' => $request->method(),
-            'headers' => $request->headers->all(),
-            'input' => $request->all(),
-            'ip' => $request->ip()
-        ]);
-        
-        return app(\App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller::class)->prosesPermintaan($request);
-    });
+
+    Route::post('/proses-permintaan', [Daftar_Permintaan_Barang_Controller::class, 'prosesPermintaan']);
 });

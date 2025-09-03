@@ -29,6 +29,7 @@ interface PermintaanBarangDetail {
     kode_barang: string;
     nama_barang: string;
     jumlah: number;
+    jenis_barang?: string;
 }
 
 interface PermintaanBarangWithDetails extends PermintaanBarang {
@@ -64,21 +65,25 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
     const [loading, setLoading] = useState(false);
 
     // State for the new form fields
-    const [selectedObat, setSelectedObat] = useState<{ kode: string; nama: string } | null>(null);
+    const [selectedObat, setSelectedObat] = useState<{ kode: string; nama: string; jenis_barang?: string } | null>(null);
     const [qtyManual, setQtyManual] = useState<number>(1);
-    const [manualItems, setManualItems] = useState<Array<{ kode_barang: string; nama_barang: string; jumlah: number }>>([]);
+    const [manualItems, setManualItems] = useState<Array<{ kode_barang: string; nama_barang: string; jumlah: number; jenis_barang?: string }>>([]);
     const [searchObat, setSearchObat] = useState("");
+    const [jenisBarang, setJenisBarang] = useState<'obat' | 'alkes' | 'inventaris'>('obat');
 
     // State for selected rows
     const [selectedRows, setSelectedRows] = useState<string[]>([]);
     const [selectAll, setSelectAll] = useState(false);
 
-    // Filter dabar based on search term
+    // Filter dabar based on search term and jenis_barang
     const filteredDabar = dabar?.filter((barang) => {
         const q = searchObat.toLowerCase();
-        return (
-            barang.nama?.toLowerCase().includes(q)
-        );
+        const matchesSearch = barang.nama?.toLowerCase().includes(q) || barang.kode?.toLowerCase().includes(q);
+        // Filter based on selected jenis_barang
+        const matchesJenisBarang = jenisBarang === 'obat' ?
+            (barang.jenis_barang === 'farmasi' || barang.jenis_barang === 'obat') :
+            barang.jenis_barang === jenisBarang;
+        return matchesSearch && matchesJenisBarang;
     }).slice(0, 5) || [];
 
     // Helper function to get status label and styling
@@ -117,8 +122,8 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
         { title: 'Daftar Permintaan Barang', href: '/gudang/daftar-permintaan-barang' },
     ];
 
-    // Function to move selected items to request form
-    const moveToRequestForm = () => {
+    // Function to move selected items to request form and confirm the request
+    const moveToRequestForm = async () => {
         if (!selectedPermintaan || selectedRows.length === 0) {
             toast.warning('Pilih setidaknya satu barang untuk dikonfirmasi');
             return;
@@ -141,7 +146,8 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                 newManualItems.push({
                     kode_barang: item.kode_barang,
                     nama_barang: item.nama_barang,
-                    jumlah: item.jumlah
+                    jumlah: item.jumlah,
+                    jenis_barang: item.jenis_barang
                 });
             }
         });
@@ -150,6 +156,35 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
         setSelectedRows([]);
         setSelectAll(false);
         toast.success(`${selectedItems.length} barang berhasil dipindahkan ke form permintaan`);
+
+        // Also confirm the request (change status to 1)
+        try {
+            setLoading(true);
+            
+            // Get the tanggal_input from selectedPermintaan
+            const tanggalInput = selectedPermintaan?.tanggal_input || '';
+
+            const response = await axios.post('/gudang/daftar-permintaan-barang/konfirmasi', {
+                detail_kode_request: selectedPermintaan.kode_request,
+                detail_tanggal: tanggalInput,
+            });
+
+            if (response.data.success) {
+                toast.success(response.data.message || 'Permintaan berhasil dikonfirmasi');
+
+                // Update the local state to reflect the confirmation
+                setSelectedPermintaan({
+                    ...selectedPermintaan,
+                    status: '1',
+                });
+            } else {
+                toast.error(response.data.message || 'Gagal mengkonfirmasi permintaan barang');
+            }
+        } catch (error) {
+            toast.error('Terjadi kesalahan saat mengkonfirmasi permintaan barang');
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Helper functions for the new form
@@ -161,7 +196,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
 
         // Convert qtyManual to number if it's a string
         const qty = typeof qtyManual === 'string' ? parseInt(qtyManual) : qtyManual;
-        
+
         // Check if qty is valid
         if (isNaN(qty) || qty <= 0) {
             toast.error('Jumlah harus lebih dari 0');
@@ -175,10 +210,14 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
             // If item exists, increment the quantity
             setManualItems(prevItems => {
                 const updatedItems = [...prevItems];
-                updatedItems[existingItemIndex] = {
-                    ...updatedItems[existingItemIndex],
-                    jumlah: updatedItems[existingItemIndex].jumlah + qty
+                // Update the quantity while preserving all other fields including jenis_barang
+                const existingItem = updatedItems[existingItemIndex];
+                const updatedItem = {
+                    ...existingItem,
+                    jumlah: existingItem.jumlah + qty,
+                    jenis_barang: existingItem.jenis_barang || selectedObat?.jenis_barang || jenisBarang || 'obat'
                 };
+                updatedItems[existingItemIndex] = updatedItem;
                 return updatedItems;
             });
             toast.success(`Jumlah ${selectedObat.nama} berhasil ditambahkan`);
@@ -188,6 +227,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                 kode_barang: selectedObat.kode,
                 nama_barang: selectedObat.nama,
                 jumlah: qty,
+                jenis_barang: selectedObat.jenis_barang || 'obat', // Use jenis_barang from selected item, default to 'obat' if undefined
             };
 
             setManualItems([...manualItems, newItem]);
@@ -215,7 +255,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
 
         try {
             setLoading(true);
-            
+
             // Prepare the data to send
             const requestData = {
                 kode_request: selectedPermintaan.kode_request,
@@ -225,6 +265,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                     kode_obat: item.kode_barang,
                     nama_obat: item.nama_barang,
                     jumlah: item.jumlah,
+                    jenis_barang: item.jenis_barang || 'obat',
                     harga_dasar: '0'
                 }))
             };
@@ -234,7 +275,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             // Send data to the backend with headers for debugging
             const response = await axios.post(
-                '/api/daftar-permintaan-barang/proses-permintaan', 
+                '/api/daftar-permintaan-barang/proses-permintaan',
                 requestData,
                 {
                     headers: {
@@ -252,7 +293,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                 // Clear the form and close modal
                 setManualItems([]);
                 setShowDetailModal(false);
-                
+
                 // Reload the page to reflect changes
                 window.location.reload();
             } else {
@@ -334,10 +375,10 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
     const konfirmasiPermintaan = async (kodeRequest: string) => {
         try {
             setLoading(true);
-            
+
             // Get the tanggal_input from selectedPermintaan
             const tanggalInput = selectedPermintaan?.tanggal_input || '';
-            
+
             const response = await axios.post('/gudang/daftar-permintaan-barang/konfirmasi', {
                 detail_kode_request: kodeRequest,
                 detail_tanggal: tanggalInput,
@@ -483,6 +524,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                                     />
                                                                 </TableHead>
                                                                 <TableHead className="text-xs">Nama Barang</TableHead>
+                                                                <TableHead className="text-xs">Jenis Barang</TableHead>
                                                                 <TableHead className="text-right text-xs">Jumlah</TableHead>
                                                             </TableRow>
                                                         </TableHeader>
@@ -499,7 +541,14 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                                                 onChange={() => handleSelectRow(detail.kode_barang)}
                                                                             />
                                                                         </TableCell>
-                                                                        <TableCell>{detail.nama_barang}</TableCell>
+                                                                        <TableCell><div className="font-medium" title={detail.nama_barang}>{detail.nama_barang.length > 30 ? `${detail.nama_barang.substring(0, 30)}...` : detail.nama_barang}</div></TableCell>
+                                                                        <TableCell>
+                                                                            {detail.jenis_barang && (
+                                                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${detail.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : detail.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>
+                                                                                    {detail.jenis_barang.charAt(0).toUpperCase() + detail.jenis_barang.slice(1)}
+                                                                                </span>
+                                                                            )}
+                                                                        </TableCell>
                                                                         <TableCell className="text-right">{detail.jumlah}</TableCell>
                                                                     </TableRow>
                                                                 ))
@@ -564,7 +613,16 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                             setSelectedObat({
                                                                 kode: selectedOption.kode,
                                                                 nama: selectedOption.nama,
+                                                                jenis_barang: selectedOption.jenis_barang === 'farmasi' ? 'obat' : selectedOption.jenis_barang || 'obat', // Map 'farmasi' to 'obat' and default to 'obat' if undefined
                                                             });
+                                                            // Set the jenisBarang based on the selected item
+                                                            if (selectedOption.jenis_barang === 'farmasi' || selectedOption.jenis_barang === 'obat') {
+                                                                setJenisBarang('obat');
+                                                            } else if (selectedOption.jenis_barang === 'alkes') {
+                                                                setJenisBarang('alkes');
+                                                            } else {
+                                                                setJenisBarang('inventaris');
+                                                            }
                                                         }
                                                     }}>
                                                         <SelectTrigger>
@@ -572,6 +630,21 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             <div className="p-2">
+                                                                <div className="mb-2">
+                                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                                        Jenis Barang
+                                                                    </label>
+                                                                    <Select value={jenisBarang} onValueChange={(value: 'obat' | 'alkes' | 'inventaris') => setJenisBarang(value)}>
+                                                                        <SelectTrigger>
+                                                                            <SelectValue />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="obat">Obat</SelectItem>
+                                                                            <SelectItem value="alkes">Alkes</SelectItem>
+                                                                            <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
                                                                 <div className="relative">
                                                                     <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                                                                     <Input
@@ -624,7 +697,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div>
+                                                <div className="mt-2">
                                                     <label htmlFor="qty_manual" className="mb-1 block text-xs font-medium text-gray-700">
                                                         Jumlah:
                                                     </label>
@@ -661,12 +734,12 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
 
                                                     {/* Tabel Item */}
                                                     <div>
-                                                        <h4 className="mb-2 text-sm font-medium">Item yang akan ditambahkan:</h4>
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
                                                                     <TableHead className="text-center text-xs">Kode Obat</TableHead>
                                                                     <TableHead className="text-center text-xs">Nama Obat</TableHead>
+                                                                    <TableHead className="text-center text-xs">Jenis Barang</TableHead>
                                                                     <TableHead className="text-center text-xs">Jumlah</TableHead>
                                                                     <TableHead className="text-center text-xs">Aksi</TableHead>
                                                                 </TableRow>
@@ -683,6 +756,13 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                                                 >
                                                                                     {item.nama_barang.length > 20 ? `${item.nama_barang.substring(0, 20)}...` : item.nama_barang}
                                                                                 </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="text-center">
+                                                                                {item.jenis_barang && (
+                                                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>
+                                                                                        {item.jenis_barang.charAt(0).toUpperCase() + item.jenis_barang.slice(1)}
+                                                                                    </span>
+                                                                                )}
                                                                             </TableCell>
                                                                             <TableCell className="text-center">{item.jumlah}</TableCell>
                                                                             <TableCell className="text-center">
@@ -737,15 +817,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                         <Button variant="outline" onClick={() => setShowDetailModal(false)} size="sm">
                                             Tutup
                                         </Button>
-                                        {selectedPermintaan && getStatusInfo(selectedPermintaan.status).label === 'Pending' && (
-                                            <Button
-                                                onClick={() => konfirmasiPermintaan(selectedPermintaan.kode_request)}
-                                                disabled={loading}
-                                                size="sm"
-                                            >
-                                                {loading ? 'Memproses...' : 'Konfirmasi Permintaan'}
-                                            </Button>
-                                        )}
+                                        {/* Konfirmasi Permintaan button removed as its functionality is now merged with Pindahkan ke Form Permintaan */}
                                     </div>
                                 </div>
                             </div>

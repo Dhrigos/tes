@@ -15,7 +15,7 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner'; // ✅ pakai sonner
 
-interface DaftarObat {
+interface DaftarBarang {
     id: number;
     nama: string;
     jenis_barang: 'farmasi' | 'alkes' | 'inventaris';
@@ -43,9 +43,9 @@ interface DaftarObat {
 }
 
 interface PageProps {
-    daftarObat: DaftarObat[];
-    satuanObats: Array<{ id: number; nama: string }>;
-    kategoriObats: Array<{ id: number; nama: string }>;
+    daftarBarang: DaftarBarang[];
+    satuanBarangs: Array<{ id: number; nama: string }>;
+    kategoriBarangs: Array<{ id: number; nama: string }>;
     flash?: {
         success?: string;
         error?: string;
@@ -55,11 +55,11 @@ interface PageProps {
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Data Master', href: '' },
     { title: 'Gudang', href: '' },
-    { title: 'Daftar Obat', href: '' },
+    { title: 'Daftar Barang', href: '' },
 ];
 
 export default function Index() {
-    const { daftarObat = [], satuanObats = [], kategoriObats = [], flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
+    const { daftarBarang = [], satuanBarangs = [], kategoriBarangs = [], flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
 
     useEffect(() => {
         if (flash?.success) {
@@ -103,8 +103,9 @@ export default function Index() {
     const [jenisFormularium, setJenisFormularium] = useState('');
     const [namaIndustri, setNamaIndustri] = useState('');
     const [jenisGenerik, setJenisGenerik] = useState('');
+    const [tingkatPenggunaan, setTingkatPenggunaan] = useState('');
     const [merek, setMerek] = useState('');
-    const [jenisObat, setJenisObat] = useState('');
+    const [jenisBarang, setJenisBarang] = useState('');
     // Step 2
     const [satuanKecil, setSatuanKecil] = useState('');
     const [nilaiSatuanKecil, setNilaiSatuanKecil] = useState<number | ''>(1);
@@ -116,7 +117,7 @@ export default function Index() {
     const [penyimpanan, setPenyimpanan] = useState('');
     const [barcode, setBarcode] = useState('');
     const [gudangKategori, setGudangKategori] = useState<number | ''>('');
-    const [bentukObat, setBentukObat] = useState('');
+    const [bentukobat, setBentukObat] = useState('');
     // KFA lookup
     const [isLoadingKfa, setIsLoadingKfa] = useState(false);
     const [kfaOptions, setKfaOptions] = useState<Array<{ name: string; kfa_code: string; manufacturer: string }>>([]);
@@ -127,6 +128,10 @@ export default function Index() {
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [deleteNama, setDeleteNama] = useState('');
 
+    // Modal Sinkron
+    const [syncModalOpen, setSyncModalOpen] = useState(false);
+    const [clearSyncModalOpen, setClearSyncModalOpen] = useState(false);
+
     // Sync Status
     const [syncStatus, setSyncStatus] = useState<any>(null);
     const [isLoadingSync, setIsLoadingSync] = useState(false);
@@ -134,7 +139,7 @@ export default function Index() {
     // Pencarian
     const [search, setSearch] = useState('');
 
-    const filteredDaftarObat = daftarObat.filter((a) => a.nama.toLowerCase().includes(search.toLowerCase()));
+    const filteredDaftarBarang = daftarBarang.filter((a) => a.nama.toLowerCase().includes(search.toLowerCase()));
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -156,18 +161,18 @@ export default function Index() {
             ? {
                   ...baseData,
                   deskripsi,
-                  jenis_inventaris: jenisObat,
+                  jenis_inventaris: jenisBarang,
                   satuan: satuanKecil,
               }
             : {
                   ...baseData,
-                  kode: kfaKode,
                   kfa_kode: kfaKode,
                   jenis_formularium: jenisFormularium,
                   nama_dagang: namaDagang,
                   nama_industri: namaIndustri,
                   jenis_generik: jenisGenerik,
-                  jenis_obat: jenisObat,
+                  jenis_obat: tingkatPenggunaan,
+                  jenis_barang: jenisBarang,
                   merek,
                   satuan_kecil: satuanKecil,
                   nilai_satuan_kecil: 1,
@@ -176,11 +181,11 @@ export default function Index() {
                   satuan_besar: satuanBesar,
                   nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
                   barcode,
-                  bentuk_obat: bentukObat,
+                  bentuk_obat: bentukobat,
               };
 
         if (editId) {
-            router.put(`/datamaster/gudang/daftar-obat/${editId}`, data, {
+            router.put(`/datamaster/gudang/daftar-barang/${editId}`, data, {
                 preserveScroll: true,
                 onSuccess: () => {
                     setOpen(false);
@@ -202,18 +207,18 @@ export default function Index() {
                 ? {
                       ...baseData,
                       deskripsi,
-                      jenis_inventaris: jenisObat,
+                      jenis_inventaris: jenisBarang,
                       satuan: satuanKecil,
                   }
                 : {
                       ...baseData,
-                      kode: kfaKode,
                       kfa_kode: kfaKode,
                       jenis_formularium: jenisFormularium,
                       nama_dagang: namaDagang,
                       nama_industri: namaIndustri,
                       jenis_generik: jenisGenerik,
-                      jenis_obat: jenisObat,
+                      jenis_obat: tingkatPenggunaan,
+                      jenis_barang: jenisBarang,
                       merek,
                       satuan_kecil: satuanKecil,
                       nilai_satuan_kecil: 1,
@@ -222,10 +227,10 @@ export default function Index() {
                       satuan_besar: satuanBesar,
                       nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
                       barcode,
-                      bentuk_obat: bentukObat,
+                      bentuk_obat: bentukobat,
                   };
 
-            router.post('/datamaster/gudang/daftar-obat', data, {
+            router.post('/datamaster/gudang/daftar-barang', data, {
                 preserveScroll: true,
                 onSuccess: () => {
                     setOpen(false);
@@ -241,48 +246,49 @@ export default function Index() {
         }
     };
 
-    const handleOpenEdit = (obat: DaftarObat) => {
-        setEditId(obat.id);
-        setNama(obat.nama);
-        setKfaType(obat.jenis_barang || '');
+    const handleOpenEdit = (barang: DaftarBarang) => {
+        setEditId(barang.id);
+        setNama(barang.nama);
+        setKfaType(barang.jenis_barang || '');
 
-        if (obat.jenis_barang === 'inventaris') {
-            setDeskripsi(obat.deskripsi ?? '');
-            setJenisObat(obat.jenis_inventaris ?? '');
-            setSatuanKecil(obat.satuan ?? '');
+        if (barang.jenis_barang === 'inventaris') {
+            setDeskripsi(barang.deskripsi ?? '');
+            setJenisBarang(barang.jenis_inventaris ?? '');
+            setSatuanKecil(barang.satuan ?? '');
         } else {
-            setNamaDagang(obat.nama_dagang ?? obat.merek ?? '');
-            setKfaKode(obat.kfa_kode ?? '');
-            setJenisFormularium(obat.jenis_formularium ?? '');
-            setNamaIndustri(obat.nama_industri ?? '');
-            setJenisGenerik(obat.jenis_generik ?? '');
-            setMerek(obat.merek ?? obat.nama_dagang ?? '');
-            setJenisObat(obat.jenis_obat ?? '');
-            setSatuanKecil(obat.satuan_kecil ?? '');
-            setNilaiSatuanKecil(obat.nilai_satuan_kecil ?? 1);
-            setSatuanSedang(obat.satuan_sedang ?? '');
-            setNilaiSatuanSedang(obat.nilai_satuan_sedang ?? '');
-            setSatuanBesar(obat.satuan_besar ?? '');
-            setNilaiSatuanBesar(obat.nilai_satuan_besar ?? '');
-            setBarcode(obat.barcode ?? '');
-            setBentukObat(obat.bentuk_obat ?? '');
+            setNamaDagang(barang.nama_dagang ?? barang.merek ?? '');
+            setKfaKode(barang.kfa_kode ?? '');
+            setJenisFormularium(barang.jenis_formularium ?? '');
+            setNamaIndustri(barang.nama_industri ?? '');
+            setJenisGenerik(barang.jenis_generik ?? '');
+            setTingkatPenggunaan(barang.jenis_obat ?? '');
+            setMerek(barang.merek ?? barang.nama_dagang ?? '');
+            setJenisBarang(barang.jenis_barang ?? '');
+            setSatuanKecil(barang.satuan_kecil ?? '');
+            setNilaiSatuanKecil(barang.nilai_satuan_kecil ?? 1);
+            setSatuanSedang(barang.satuan_sedang ?? '');
+            setNilaiSatuanSedang(barang.nilai_satuan_sedang ?? '');
+            setSatuanBesar(barang.satuan_besar ?? '');
+            setNilaiSatuanBesar(barang.nilai_satuan_besar ?? '');
+            setBarcode(barang.barcode ?? '');
+            setBentukObat(barang.bentuk_obat ?? '');
         }
 
-        setPenyimpanan(obat.penyimpanan ?? '');
-        setGudangKategori(obat.gudang_kategori ?? '');
+        setPenyimpanan(barang.penyimpanan ?? '');
+        setGudangKategori(barang.gudang_kategori ?? '');
         setStep(1);
         setOpen(true);
     };
 
-    const handleOpenDelete = (obat: DaftarObat) => {
-        setDeleteId(obat.id);
-        setDeleteNama(obat.nama);
+    const handleOpenDelete = (barang: DaftarBarang) => {
+        setDeleteId(barang.id);
+        setDeleteNama(barang.nama);
         setDeleteOpen(true);
     };
 
     const handleDelete = () => {
         if (deleteId) {
-            router.delete(`/datamaster/gudang/daftar-obat/${deleteId}`, {
+            router.delete(`/datamaster/gudang/daftar-barang/${deleteId}`, {
                 preserveScroll: true,
                 onSuccess: () => {
                     setDeleteOpen(false);
@@ -302,8 +308,9 @@ export default function Index() {
         setJenisFormularium('');
         setNamaIndustri('');
         setJenisGenerik('');
+        setTingkatPenggunaan('');
         setMerek('');
-        setJenisObat('');
+        setJenisBarang('');
         setSatuanKecil('');
         setNilaiSatuanKecil(1);
         setSatuanSedang('');
@@ -353,7 +360,7 @@ export default function Index() {
     const fetchSyncStatus = async () => {
         try {
             setIsLoadingSync(true);
-            const response = await fetch('/api/daftar-obat-sync/status');
+            const response = await fetch('/api/daftar-barang-sync/status');
             const data = await response.json();
             if (data.success) {
                 setSyncStatus(data.data);
@@ -368,7 +375,7 @@ export default function Index() {
     const applySync = async () => {
         try {
             setIsLoadingSync(true);
-            const response = await fetch('/api/daftar-obat-sync/apply', {
+            const response = await fetch('/api/daftar-barang-sync/apply', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -389,13 +396,9 @@ export default function Index() {
     };
 
     const syncAllToRedis = async () => {
-        if (!confirm('Apakah Anda yakin ingin sinkronisasi semua data ke Redis?')) {
-            return;
-        }
-
         try {
             setIsLoadingSync(true);
-            const response = await fetch('/api/daftar-obat-sync/sync-all', {
+            const response = await fetch('/api/daftar-barang-sync/sync-all', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -405,6 +408,7 @@ export default function Index() {
             if (data.success) {
                 toast.success(data.message);
                 fetchSyncStatus(); // Refresh status
+                setSyncModalOpen(false); // Close modal
             } else {
                 toast.error(data.message);
             }
@@ -416,13 +420,9 @@ export default function Index() {
     };
 
     const clearSync = async () => {
-        if (!confirm('Apakah Anda yakin ingin menghapus semua data sinkronisasi Redis?')) {
-            return;
-        }
-
         try {
             setIsLoadingSync(true);
-            const response = await fetch('/api/daftar-obat-sync/clear', {
+            const response = await fetch('/api/daftar-barang-sync/clear', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -432,6 +432,7 @@ export default function Index() {
             if (data.success) {
                 toast.success(data.message);
                 fetchSyncStatus(); // Refresh status
+                setClearSyncModalOpen(false); // Close modal
             } else {
                 toast.error(data.message);
             }
@@ -449,11 +450,11 @@ export default function Index() {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Data Daftar Obat" />
+            <Head title="Data Daftar barang" />
             <div className="p-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Data Daftar Obat</CardTitle>
+                        <CardTitle>Data Daftar barang</CardTitle>
                         <div className="flex items-center gap-2">
                             {/* Sync Status & Button */}
                             {syncStatus && (
@@ -462,7 +463,7 @@ export default function Index() {
                                     <Button
                                         size="sm"
                                         variant="default"
-                                        onClick={syncStatus.is_master ? syncAllToRedis : applySync}
+                                        onClick={syncStatus.is_master ? () => setSyncModalOpen(true) : applySync}
                                         disabled={isLoadingSync}
                                         className="h-8 bg-green-600 text-white hover:bg-green-700"
                                     >
@@ -474,7 +475,7 @@ export default function Index() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={clearSync}
+                                            onClick={() => setClearSyncModalOpen(true)}
                                             disabled={isLoadingSync}
                                             className="h-8 border-red-600 text-red-600 hover:bg-red-50"
                                         >
@@ -522,8 +523,8 @@ export default function Index() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredDaftarObat.length > 0 ? (
-                                        filteredDaftarObat.map((item, index) => (
+                                    {filteredDaftarBarang.length > 0 ? (
+                                        filteredDaftarBarang.map((item, index) => (
                                             <TableRow key={item.id}>
                                                 <TableCell>{index + 1}</TableCell>
                                                 <TableCell className="font-medium">
@@ -577,11 +578,11 @@ export default function Index() {
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <div className="max-w-[150px] cursor-help truncate">
-                                                                {kategoriObats.find((k) => k.id === item.gudang_kategori)?.nama || '-'}
+                                                                {kategoriBarangs.find((k) => k.id === item.gudang_kategori)?.nama || '-'}
                                                             </div>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
-                                                            <p>{kategoriObats.find((k) => k.id === item.gudang_kategori)?.nama || '-'}</p>
+                                                            <p>{kategoriBarangs.find((k) => k.id === item.gudang_kategori)?.nama || '-'}</p>
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TableCell>
@@ -711,7 +712,7 @@ export default function Index() {
                                         </div>
                                         <Textarea placeholder="Deskripsi" value={deskripsi} onChange={(e) => setDeskripsi(e.target.value)} />
                                         <div>
-                                            <Select value={jenisObat} onValueChange={setJenisObat}>
+                                            <Select value={jenisBarang} onValueChange={setJenisBarang}>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Jenis Inventaris" />
                                                 </SelectTrigger>
@@ -733,7 +734,7 @@ export default function Index() {
                                                 <SelectValue placeholder="Kategori" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {kategoriObats.map((k) => (
+                                                {kategoriBarangs.map((k) => (
                                                     <SelectItem key={k.id} value={String(k.id)}>
                                                         {k.nama}
                                                     </SelectItem>
@@ -745,7 +746,7 @@ export default function Index() {
                                                 <SelectValue placeholder="Satuan" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {satuanObats.map((s) => (
+                                                {satuanBarangs.map((s) => (
                                                     <SelectItem key={s.id} value={s.nama}>
                                                         {s.nama}
                                                     </SelectItem>
@@ -865,7 +866,7 @@ export default function Index() {
                                                         </Select>
                                                     </div>
                                                     <div>
-                                                        <Select value={jenisObat} onValueChange={setJenisObat}>
+                                                        <Select value={tingkatPenggunaan} onValueChange={setTingkatPenggunaan}>
                                                             <SelectTrigger>
                                                                 <SelectValue placeholder="Tingkat Penggunaan" />
                                                             </SelectTrigger>
@@ -906,7 +907,7 @@ export default function Index() {
                                                         <SelectValue placeholder="Nama Satuan Besar (mis. Dus)" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {satuanObats.map((s) => (
+                                                        {satuanBarangs.map((s) => (
                                                             <SelectItem key={s.id} value={s.nama}>
                                                                 {s.nama}
                                                             </SelectItem>
@@ -939,7 +940,7 @@ export default function Index() {
                                                         <SelectValue placeholder="Nama Satuan Sedang (mis. Strip)" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {satuanObats.map((s) => (
+                                                        {satuanBarangs.map((s) => (
                                                             <SelectItem key={s.id} value={s.nama}>
                                                                 {s.nama}
                                                             </SelectItem>
@@ -972,7 +973,7 @@ export default function Index() {
                                                         <SelectValue placeholder="Nama Satuan Kecil (mis. Tablet)" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {satuanObats.map((s) => (
+                                                        {satuanBarangs.map((s) => (
                                                             <SelectItem key={s.id} value={s.nama}>
                                                                 {s.nama}
                                                             </SelectItem>
@@ -1009,14 +1010,14 @@ export default function Index() {
                                                 <SelectValue placeholder="Kategori Obat" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {kategoriObats.map((k) => (
+                                                {kategoriBarangs.map((k) => (
                                                     <SelectItem key={k.id} value={String(k.id)}>
                                                         {k.nama}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                        <Select value={bentukObat} onValueChange={setBentukObat}>
+                                        <Select value={bentukobat} onValueChange={setBentukObat}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Bentuk Obat" />
                                             </SelectTrigger>
@@ -1064,6 +1065,59 @@ export default function Index() {
                         </Button>
                         <Button type="button" variant="destructive" onClick={handleDelete}>
                             Hapus
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Konfirmasi Sinkron */}
+            <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+                <DialogContent aria-describedby={undefined}>
+                    <DialogHeader>
+                        <DialogTitle>Konfirmasi Sinkronisasi</DialogTitle>
+                    </DialogHeader>
+                    <p>
+                        Apakah Anda yakin ingin sinkronisasi semua data ke Redis?
+                        <br />
+                        <span className="text-sm text-gray-600">
+                            Tindakan ini akan mengirim semua data daftar obat ke Redis untuk sinkronisasi dengan sistem lain.
+                        </span>
+                    </p>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setSyncModalOpen(false)} disabled={isLoadingSync}>
+                            Batal
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={syncAllToRedis}
+                            disabled={isLoadingSync}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                        >
+                            {isLoadingSync ? 'Sinkronisasi...' : 'Ya, Sinkronisasi'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Konfirmasi Clear Sinkron */}
+            <Dialog open={clearSyncModalOpen} onOpenChange={setClearSyncModalOpen}>
+                <DialogContent aria-describedby={undefined}>
+                    <DialogHeader>
+                        <DialogTitle>Konfirmasi Hapus Data Sinkronisasi</DialogTitle>
+                    </DialogHeader>
+                    <p>
+                        Apakah Anda yakin ingin menghapus semua data sinkronisasi Redis?
+                        <br />
+                        <span className="text-sm text-red-600">
+                            ⚠️ Tindakan ini akan menghapus semua data sinkronisasi dan tidak dapat dibatalkan.
+                        </span>
+                    </p>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setClearSyncModalOpen(false)} disabled={isLoadingSync}>
+                            Batal
+                        </Button>
+                        <Button type="button" variant="destructive" onClick={clearSync} disabled={isLoadingSync}>
+                            {isLoadingSync ? 'Menghapus...' : 'Ya, Hapus Data'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

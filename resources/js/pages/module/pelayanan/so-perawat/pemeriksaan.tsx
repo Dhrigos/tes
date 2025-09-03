@@ -1,15 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
-import { 
+import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -19,8 +8,20 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
+import { Head, router, usePage } from '@inertiajs/react';
+import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 // Define interfaces for props
 interface PasienData {
@@ -76,6 +77,7 @@ interface PemeriksaanPageProps {
     gcs_motorik: { skor: string; nama: string }[];
     gcs_kesadaran: { skor: string; nama: string }[];
     htt_pemeriksaan: { id: string; nama_pemeriksaan: string; htt_subpemeriksaans?: HttSubpemeriksaan[] }[];
+    alergi_data: { id: number; kode: string; jenis_alergi: string; nama: string }[];
     norawat?: string;
 }
 
@@ -86,6 +88,31 @@ type ConfirmOptions = {
     description?: string;
     confirmText?: string;
     cancelText?: string;
+};
+
+// Status Indicator Component
+const StatusIndicator = ({ status, message, isValid }: { status: string; message: string; isValid: boolean }) => {
+    if (!status) return null;
+
+    const getIcon = () => {
+        if (isValid) return <CheckCircle className="h-4 w-4 text-green-600" />;
+        if (status.includes('Ringan') || status.includes('Rendah')) return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
+        return <XCircle className="h-4 w-4 text-red-600" />;
+    };
+
+    const getColor = () => {
+        if (isValid) return 'text-green-700 bg-green-50 border-green-200';
+        if (status.includes('Ringan') || status.includes('Rendah')) return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+        return 'text-red-700 bg-red-50 border-red-200';
+    };
+
+    return (
+        <div className={`mt-1 flex items-center gap-2 rounded-md border px-2 py-1 text-xs ${getColor()}`}>
+            {getIcon()}
+            <span className="font-medium">{status}</span>
+            <span className="text-xs opacity-75">({message})</span>
+        </div>
+    );
 };
 
 function useConfirmDialog() {
@@ -136,19 +163,11 @@ function useConfirmDialog() {
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>{opts.title || 'Konfirmasi'}</AlertDialogTitle>
-                    {opts.description ? (
-                        <AlertDialogDescription style={{ whiteSpace: 'pre-line' }}>
-                            {opts.description}
-                        </AlertDialogDescription>
-                    ) : null}
+                    {opts.description ? <AlertDialogDescription style={{ whiteSpace: 'pre-line' }}>{opts.description}</AlertDialogDescription> : null}
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={handleCancel}>
-                        {opts.cancelText || 'Batal'}
-                    </AlertDialogCancel>
-                    <AlertDialogAction onClick={handleConfirm}>
-                        {opts.confirmText || 'Lanjut'}
-                    </AlertDialogAction>
+                    <AlertDialogCancel onClick={handleCancel}>{opts.cancelText || 'Batal'}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirm}>{opts.confirmText || 'Lanjut'}</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
@@ -158,18 +177,28 @@ function useConfirmDialog() {
 }
 
 export default function PemeriksaanPerawat() {
-    const { pelayanan, so_perawat = {}, gsc_eye = [], gcs_verbal = [], gcs_motorik = [], gcs_kesadaran = [], htt_pemeriksaan = [], norawat } = usePage().props as unknown as PemeriksaanPageProps;
-    
+    const {
+        pelayanan,
+        so_perawat = {},
+        gsc_eye = [],
+        gcs_verbal = [],
+        gcs_motorik = [],
+        gcs_kesadaran = [],
+        htt_pemeriksaan = [],
+        alergi_data = [],
+        norawat,
+    } = usePage().props as unknown as PemeriksaanPageProps;
+
     // Determine if this is edit mode (data exists) or create mode (data empty)
     const isEditMode = so_perawat && Object.keys(so_perawat).length > 0;
-    
+
     // Dynamic breadcrumbs and title based on mode
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Pelayanan', href: '/pelayanan/so-perawat' },
         { title: 'SO Perawat', href: '/pelayanan/so-perawat' },
         { title: isEditMode ? 'Edit' : 'Pemeriksaan', href: '' },
     ];
-    
+
     const pageTitle = isEditMode ? 'Edit SO Perawat' : 'Pemeriksaan SO Perawat';
     const formTitle = isEditMode ? 'Form Edit SO Perawat' : 'Form Pemeriksaan SO Perawat';
     const submitButtonText = isEditMode ? 'Simpan Perubahan' : 'Simpan Pemeriksaan';
@@ -180,7 +209,7 @@ export default function PemeriksaanPerawat() {
     const [keluhan, setKeluhan] = useState('');
     const [durasi, setDurasi] = useState('');
     const [durasiUnit, setDurasiUnit] = useState('Menit');
-    const [keluhanList, setKeluhanList] = useState<Array<{keluhan: string, durasi: string}>>([]);
+    const [keluhanList, setKeluhanList] = useState<Array<{ keluhan: string; durasi: string }>>((so_perawat as any)?.tableData?.keluhanList || []);
 
     // Form state for Obyektif - initialize with existing data if in edit mode
     const [sistol, setSistol] = useState(so_perawat.sistol || '');
@@ -203,11 +232,25 @@ export default function PemeriksaanPerawat() {
     const [gcsKesadaran, setGcsKesadaran] = useState(so_perawat.kesadaran || '');
     const [catatan, setCatatan] = useState(so_perawat.summernote || '');
 
+    // Unique jenis alergi options (to avoid duplicate keys/values)
+    const jenisAlergiOptions = useMemo(() => {
+        if (!Array.isArray(alergi_data)) return [] as string[];
+        const set = new Set<string>();
+        for (const item of alergi_data) {
+            if (item?.jenis_alergi) set.add(item.jenis_alergi);
+        }
+        return Array.from(set);
+    }, [alergi_data]);
+
     // Form state for Head To Toe
     const [selectedHtt, setSelectedHtt] = useState('');
     const [selectedSubPemeriksaan, setSelectedSubPemeriksaan] = useState('');
+    const [httOptions, setHttOptions] = useState<typeof htt_pemeriksaan>(htt_pemeriksaan || []);
+    const [subOptions, setSubOptions] = useState<HttSubpemeriksaan[]>([]);
     const [httDetailText, setHttDetailText] = useState('');
-    const [httItems, setHttItems] = useState<Array<{pemeriksaan: string, subPemeriksaan: string, detail: string}>>([]);
+    const [httItems, setHttItems] = useState<Array<{ pemeriksaan: string; subPemeriksaan: string; detail: string }>>(
+        (so_perawat as any)?.tableData?.httItems || [],
+    );
 
     // Tab navigation state
     const [activeTab, setActiveTab] = useState('subyektif');
@@ -228,6 +271,291 @@ export default function PemeriksaanPerawat() {
             months += 12;
         }
         return { years, months };
+    };
+
+    // Validation functions with real-time feedback
+    const validateTensi = (sistol: string, distol: string, umur: number) => {
+        if (!sistol || !distol) return { isValid: false, status: '', message: '' };
+
+        const s = parseInt(sistol);
+        const d = parseInt(distol);
+        if (isNaN(s) || isNaN(d)) return { isValid: false, status: '', message: '' };
+
+        let status = '';
+        let message = '';
+        let isValid = true;
+
+        if (umur <= 5) {
+            if (s <= 74 || d <= 49) {
+                status = 'Hipotensi';
+                message = 'Tekanan darah terlalu rendah';
+                isValid = false;
+            } else if (s >= 75 && s <= 100 && d >= 50 && d <= 65) {
+                status = 'Normal';
+                message = 'Tekanan darah normal';
+            } else if (s >= 101 || d >= 66) {
+                status = 'Hipertensi';
+                message = 'Tekanan darah terlalu tinggi';
+                isValid = false;
+            }
+        } else if (umur <= 12) {
+            if (s <= 89 || d <= 59) {
+                status = 'Hipotensi';
+                message = 'Tekanan darah terlalu rendah';
+                isValid = false;
+            } else if (s >= 90 && s <= 110 && d >= 60 && d <= 75) {
+                status = 'Normal';
+                message = 'Tekanan darah normal';
+            } else if (s >= 111 || d >= 76) {
+                status = 'Hipertensi';
+                message = 'Tekanan darah terlalu tinggi';
+                isValid = false;
+            }
+        } else if (umur <= 17) {
+            if (s <= 89 || d <= 59) {
+                status = 'Hipotensi';
+                message = 'Tekanan darah terlalu rendah';
+                isValid = false;
+            } else if (s >= 90 && s <= 120 && d >= 60 && d <= 80) {
+                status = 'Normal';
+                message = 'Tekanan darah normal';
+            } else if (s >= 121 || d >= 81) {
+                status = 'Hipertensi';
+                message = 'Tekanan darah terlalu tinggi';
+                isValid = false;
+            }
+        } else if (umur <= 64) {
+            if (s <= 89 || d <= 59) {
+                status = 'Hipotensi';
+                message = 'Tekanan darah terlalu rendah';
+                isValid = false;
+            } else if (s >= 90 && s <= 120 && d >= 60 && d <= 80) {
+                status = 'Normal';
+                message = 'Tekanan darah normal';
+            } else if (s >= 121 || d >= 81) {
+                status = 'Hipertensi';
+                message = 'Tekanan darah terlalu tinggi';
+                isValid = false;
+            }
+        } else if (umur >= 65) {
+            if (s <= 89 || d <= 59) {
+                status = 'Hipotensi';
+                message = 'Tekanan darah terlalu rendah';
+                isValid = false;
+            } else if (s >= 90 && s <= 140 && d >= 60 && d <= 90) {
+                status = 'Normal';
+                message = 'Tekanan darah normal';
+            } else if (s >= 141 || d >= 91) {
+                status = 'Hipertensi';
+                message = 'Tekanan darah terlalu tinggi';
+                isValid = false;
+            }
+        }
+
+        return { isValid, status, message };
+    };
+
+    const validateRR = (rr: string, umur: number) => {
+        if (!rr) return { isValid: false, status: '', message: '' };
+
+        const rrValue = parseInt(rr);
+        if (isNaN(rrValue)) return { isValid: false, status: '', message: '' };
+
+        let status = '';
+        let message = '';
+        let isValid = true;
+
+        if (umur === 0) {
+            // 0-12 bulan
+            if (rrValue < 30) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (30-60)';
+                isValid = false;
+            } else if (rrValue > 60) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (30-60)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (30-60)';
+            }
+        } else if (umur <= 2) {
+            if (rrValue < 24) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (24-40)';
+                isValid = false;
+            } else if (rrValue > 40) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (24-40)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (24-40)';
+            }
+        } else if (umur <= 5) {
+            if (rrValue < 22) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (22-34)';
+                isValid = false;
+            } else if (rrValue > 34) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (22-34)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (22-34)';
+            }
+        } else if (umur <= 12) {
+            if (rrValue < 18) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (18-30)';
+                isValid = false;
+            } else if (rrValue > 30) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (18-30)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (18-30)';
+            }
+        } else if (umur <= 17) {
+            if (rrValue < 12) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (12-20)';
+                isValid = false;
+            } else if (rrValue > 20) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (12-20)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (12-20)';
+            }
+        } else if (umur <= 64) {
+            if (rrValue < 18) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (18-24)';
+                isValid = false;
+            } else if (rrValue > 24) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (18-24)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (18-24)';
+            }
+        } else if (umur >= 65) {
+            if (rrValue < 12) {
+                status = 'Terlalu Rendah';
+                message = 'RR di bawah normal (12-28)';
+                isValid = false;
+            } else if (rrValue > 28) {
+                status = 'Terlalu Cepat';
+                message = 'RR di atas normal (12-28)';
+                isValid = false;
+            } else {
+                status = 'Normal';
+                message = 'RR normal (12-28)';
+            }
+        }
+
+        return { isValid, status, message };
+    };
+
+    const validateSuhu = (suhu: string) => {
+        if (!suhu) return { isValid: false, status: '', message: '' };
+
+        const suhuNumber = parseFloat(suhu);
+        if (isNaN(suhuNumber)) return { isValid: false, status: '', message: '' };
+
+        let status = '';
+        let message = '';
+        let isValid = true;
+
+        if (suhuNumber < 34.4) {
+            status = 'Hipotermia';
+            message = 'Suhu tubuh terlalu rendah';
+            isValid = false;
+        } else if (suhuNumber >= 34.4 && suhuNumber <= 37.4) {
+            status = 'Normal';
+            message = 'Suhu tubuh normal';
+        } else if (suhuNumber >= 37.5 && suhuNumber <= 37.9) {
+            status = 'Demam Ringan';
+            message = 'Kemungkinan infeksi ringan';
+            isValid = false;
+        } else if (suhuNumber >= 38 && suhuNumber <= 38.9) {
+            status = 'Demam';
+            message = 'Tubuh melawan infeksi';
+            isValid = false;
+        } else if (suhuNumber >= 39) {
+            status = 'Demam Tinggi';
+            message = 'Segera konsultasi medis';
+            isValid = false;
+        }
+
+        return { isValid, status, message };
+    };
+
+    const validateSpo2 = (spo2: string) => {
+        if (!spo2) return { isValid: false, status: '', message: '' };
+
+        const value = parseFloat(spo2);
+        if (isNaN(value)) return { isValid: false, status: '', message: '' };
+
+        let status = '';
+        let message = '';
+        let isValid = true;
+
+        if (value < 90) {
+            status = 'Kritis';
+            message = 'SpO2 sangat rendah, segera konsultasi';
+            isValid = false;
+        } else if (value >= 90 && value < 95) {
+            status = 'Rendah';
+            message = 'SpO2 di bawah normal';
+            isValid = false;
+        } else if (value >= 95 && value <= 100) {
+            status = 'Normal';
+            message = 'SpO2 dalam rentang normal';
+        } else {
+            status = 'Tidak Valid';
+            message = 'Nilai SpO2 tidak valid';
+            isValid = false;
+        }
+
+        return { isValid, status, message };
+    };
+
+    const validateBMI = (tinggi: string, berat: string) => {
+        if (!tinggi || !berat) return { isValid: false, status: '', message: '' };
+
+        const t = parseFloat(tinggi) / 100; // Convert cm to m
+        const b = parseFloat(berat);
+        if (isNaN(t) || isNaN(b) || t <= 0) return { isValid: false, status: '', message: '' };
+
+        const bmi = b / (t * t);
+        let status = '';
+        let message = '';
+        let isValid = true;
+
+        if (bmi < 18.5) {
+            status = 'Kurus';
+            message = 'BMI di bawah normal';
+            isValid = false;
+        } else if (bmi >= 18.5 && bmi < 25) {
+            status = 'Normal';
+            message = 'BMI dalam rentang normal';
+        } else if (bmi >= 25 && bmi < 30) {
+            status = 'Gemuk';
+            message = 'BMI di atas normal';
+            isValid = false;
+        } else if (bmi >= 30) {
+            status = 'Obesitas';
+            message = 'BMI sangat tinggi';
+            isValid = false;
+        }
+
+        return { isValid, status, message, bmi: bmi.toFixed(1) };
     };
 
     const handleTensiBlur = async () => {
@@ -498,6 +826,47 @@ export default function PemeriksaanPerawat() {
         }
     };
 
+    // Fetch HTT options from API (source of truth controller master)
+    useEffect(() => {
+        const loadHtt = async () => {
+            try {
+                const res = await fetch('/api/master/htt/pemeriksaan', { headers: { Accept: 'application/json' } });
+                if (res.ok) {
+                    const data = await res.json();
+                    setHttOptions(Array.isArray(data) ? data : []);
+                } else {
+                    setHttOptions(htt_pemeriksaan || []);
+                }
+            } catch {
+                setHttOptions(htt_pemeriksaan || []);
+            }
+        };
+        loadHtt();
+    }, []);
+
+    useEffect(() => {
+        const loadSub = async () => {
+            if (!selectedHtt) {
+                setSubOptions([]);
+                return;
+            }
+            try {
+                const res = await fetch(`/api/master/htt/subpemeriksaan/${selectedHtt}`, { headers: { Accept: 'application/json' } });
+                if (res.ok) {
+                    const data = await res.json();
+                    setSubOptions(Array.isArray(data) ? data : []);
+                } else {
+                    const local = httOptions.find((p) => String(p.id) === selectedHtt)?.htt_subpemeriksaans || [];
+                    setSubOptions(local as HttSubpemeriksaan[]);
+                }
+            } catch {
+                const local = httOptions.find((p) => String(p.id) === selectedHtt)?.htt_subpemeriksaans || [];
+                setSubOptions(local as HttSubpemeriksaan[]);
+            }
+        };
+        loadSub();
+    }, [selectedHtt, httOptions]);
+
     // Calculate BMI when tinggi or berat changes
     useEffect(() => {
         if (tinggi && berat) {
@@ -505,7 +874,7 @@ export default function PemeriksaanPerawat() {
             if (heightInMeters > 0) {
                 const bmiValue = parseFloat(berat) / (heightInMeters * heightInMeters);
                 setNilaiBmi(bmiValue.toFixed(2));
-                
+
                 // Set status BMI based on value
                 if (bmiValue < 18.5) {
                     setStatusBmi('Kurus');
@@ -520,17 +889,48 @@ export default function PemeriksaanPerawat() {
         }
     }, [tinggi, berat]);
 
+    // Calculate GCS kesadaran when eye, verbal, or motorik changes
+    useEffect(() => {
+        if (gcsEye && gcsVerbal && gcsMotorik) {
+            const eyeScore = parseInt(gcsEye);
+            const verbalScore = parseInt(gcsVerbal);
+            const motorikScore = parseInt(gcsMotorik);
+
+            if (!isNaN(eyeScore) && !isNaN(verbalScore) && !isNaN(motorikScore)) {
+                const totalScore = eyeScore + verbalScore + motorikScore;
+
+                // Map total score to kesadaran level based on GCS seeder
+                let kesadaran = '';
+                if (totalScore >= 14) {
+                    kesadaran = 'COMPOS MENTIS';
+                } else if (totalScore >= 12) {
+                    kesadaran = 'APATIS';
+                } else if (totalScore >= 7) {
+                    kesadaran = 'SOMNOLEN';
+                } else if (totalScore >= 5) {
+                    kesadaran = 'SOPOR';
+                } else if (totalScore >= 4) {
+                    kesadaran = 'SEMI COMA';
+                } else {
+                    kesadaran = 'KOMA';
+                }
+
+                setGcsKesadaran(kesadaran);
+            }
+        }
+    }, [gcsEye, gcsVerbal, gcsMotorik]);
+
     const handleAddKeluhan = () => {
         if (!keluhan.trim()) {
             toast.error('Keluhan harus diisi');
             return;
         }
-        
+
         if (!durasi.trim()) {
             toast.error('Durasi harus diisi');
             return;
         }
-        
+
         const durasiWithUnit = `${durasi} ${durasiUnit}`;
         setKeluhanList([...keluhanList, { keluhan, durasi: durasiWithUnit }]);
         setKeluhan('');
@@ -544,9 +944,17 @@ export default function PemeriksaanPerawat() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         try {
             const payload = {
+                // Identitas untuk linking & audit
+                no_rawat: pelayanan?.nomor_register || '',
+                nomor_rm: pelayanan?.nomor_rm || '',
+                nama: pelayanan?.nama || '',
+                seks: pelayanan?.jenis_kelamin || '',
+                penjamin: pelayanan?.penjamin || '',
+                tanggal_lahir: pelayanan?.tanggal_lahir || '',
+                umur: pelayanan?.umur || '',
                 sistol,
                 distol,
                 tensi: tensi || `${sistol}/${distol}`,
@@ -566,7 +974,11 @@ export default function PemeriksaanPerawat() {
                 motorik: gcsMotorik,
                 kesadaran: gcsKesadaran,
                 summernote: catatan,
-                htt_items: httItems,
+                tableData: JSON.stringify({
+                    keluhanList,
+                    httItems,
+                }),
+                files: undefined,
             };
 
             if (isEditMode && norawat) {
@@ -606,7 +1018,7 @@ export default function PemeriksaanPerawat() {
             <Head title={pageTitle} />
             {ConfirmDialog}
 
-            <div className="p-6 space-y-6">
+            <div className="space-y-6 p-6">
                 <Card>
                     <CardHeader>
                         <CardTitle>Data Pasien</CardTitle>
@@ -614,26 +1026,83 @@ export default function PemeriksaanPerawat() {
                     <CardContent>
                         {/* ... */}
                         {pelayanan ? (
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div><Label>Nomor RM</Label><Input value={pelayanan?.nomor_rm || ''} readOnly /></div>
-                                <div><Label>Nama</Label><Input value={pelayanan?.nama || ''} readOnly /></div>
-                                <div><Label>Nomor Rawat</Label><Input value={pelayanan?.nomor_register || ''} readOnly /></div>
-                                <div><Label>Jenis Kelamin</Label><Input value={pelayanan?.jenis_kelamin || ''} readOnly /></div>
-                                <div><Label>Penjamin</Label><Input value={pelayanan?.penjamin || ''} readOnly /></div>
-                                <div><Label>Tanggal Lahir</Label><Input value={pelayanan?.tanggal_lahir || ''} readOnly /></div>
-                                <div><Label>Umur</Label><Input value={pelayanan?.umur || ''} readOnly /></div>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                                <div>
+                                    <Label>Nomor RM</Label>
+                                    <Input value={pelayanan?.nomor_rm || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Nama</Label>
+                                    <Input value={pelayanan?.nama || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Nomor Rawat</Label>
+                                    <Input value={pelayanan?.nomor_register || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Jenis Kelamin</Label>
+                                    <Input value={pelayanan?.jenis_kelamin || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Penjamin</Label>
+                                    <Input value={pelayanan?.penjamin || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Tanggal Lahir</Label>
+                                    <Input value={pelayanan?.tanggal_lahir || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Umur</Label>
+                                    <Input
+                                        value={
+                                            pelayanan?.umur
+                                                ? (() => {
+                                                      // Ambil angka di depan (sebelum spasi/tahun), bulatkan ke bawah, lalu tambahkan " Tahun"
+                                                      const match = String(pelayanan.umur).match(/^([\d.]+)/);
+                                                      if (match) {
+                                                          const tahun = Math.floor(Number(match[1]));
+                                                          return `${tahun} Tahun`;
+                                                      }
+                                                      return pelayanan.umur;
+                                                  })()
+                                                : ''
+                                        }
+                                        readOnly
+                                    />
+                                </div>
                             </div>
                         ) : (
-                            <div className="text-center py-4">
+                            <div className="py-4 text-center">
                                 <p className="text-yellow-500">Menggunakan data dummy untuk pengujian.</p>
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-                                    <div><Label>Nomor RM</Label><Input value="DUM001" readOnly /></div>
-                                    <div><Label>Nama</Label><Input value="Pasien Dummy" readOnly /></div>
-                                    <div><Label>Nomor Rawat</Label><Input value="DUMREG001" readOnly /></div>
-                                    <div><Label>Jenis Kelamin</Label><Input value="Laki-laki" readOnly /></div>
-                                    <div><Label>Penjamin</Label><Input value="Umum" readOnly /></div>
-                                    <div><Label>Tanggal Lahir</Label><Input value="1990-01-01" readOnly /></div>
-                                    <div><Label>Umur</Label><Input value="35 Tahun" readOnly /></div>
+                                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+                                    <div>
+                                        <Label>Nomor RM</Label>
+                                        <Input value="DUM001" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Nama</Label>
+                                        <Input value="Pasien Dummy" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Nomor Rawat</Label>
+                                        <Input value="DUMREG001" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Jenis Kelamin</Label>
+                                        <Input value="Laki-laki" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Penjamin</Label>
+                                        <Input value="Umum" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Tanggal Lahir</Label>
+                                        <Input value="1990-01-01" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Umur</Label>
+                                        <Input value="35 Tahun" readOnly />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -659,9 +1128,11 @@ export default function PemeriksaanPerawat() {
                                             <CardContent className="space-y-4">
                                                 <div className="space-y-4">
                                                     <div className="flex items-start gap-4">
-                                                        <Label htmlFor="keluhan" className="mt-3">Keluhan</Label>
+                                                        <Label htmlFor="keluhan" className="mt-3">
+                                                            Keluhan
+                                                        </Label>
                                                         <div className="flex-1">
-                                                            <Textarea 
+                                                            <Textarea
                                                                 id="keluhan"
                                                                 value={keluhan}
                                                                 onChange={(e) => setKeluhan(e.target.value)}
@@ -670,9 +1141,9 @@ export default function PemeriksaanPerawat() {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-4">
-                                                        <Label className="mb-0 mr-4">Sejak</Label>
+                                                        <Label className="mr-4 mb-0">Sejak</Label>
                                                         <div className="flex-1">
-                                                            <Input 
+                                                            <Input
                                                                 id="durasi"
                                                                 value={durasi}
                                                                 onChange={(e) => setDurasi(e.target.value)}
@@ -694,12 +1165,14 @@ export default function PemeriksaanPerawat() {
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
-                                                        <Button type="button" onClick={handleAddKeluhan}>Tambah</Button>
+                                                        <Button type="button" onClick={handleAddKeluhan}>
+                                                            Tambah
+                                                        </Button>
                                                     </div>
                                                 </div>
                                             </CardContent>
                                         </Card>
-                                        
+
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle>Daftar Keluhan</CardTitle>
@@ -720,8 +1193,8 @@ export default function PemeriksaanPerawat() {
                                                                     <TableCell>{item.keluhan}</TableCell>
                                                                     <TableCell>{item.durasi}</TableCell>
                                                                     <TableCell className="text-right">
-                                                                        <Button 
-                                                                            variant="destructive" 
+                                                                        <Button
+                                                                            variant="destructive"
                                                                             size="sm"
                                                                             onClick={() => handleRemoveKeluhan(index)}
                                                                         >
@@ -733,178 +1206,260 @@ export default function PemeriksaanPerawat() {
                                                         </TableBody>
                                                     </Table>
                                                 ) : (
-                                                    <p className="text-center text-gray-500 py-4">Belum ada keluhan yang ditambahkan</p>
+                                                    <p className="py-4 text-center text-gray-500">Belum ada keluhan yang ditambahkan</p>
                                                 )}
                                             </CardContent>
                                         </Card>
                                     </div>
-                                    <div className="flex justify-end mt-4">
-                                        <Button type="button" onClick={() => setActiveTab('obyektif')}>Next</Button>
+                                    <div className="mt-4 flex justify-end">
+                                        <Button type="button" onClick={() => setActiveTab('obyektif')}>
+                                            Next
+                                        </Button>
                                     </div>
                                 </TabsContent>
 
                                 <TabsContent value="obyektif" className="mt-4">
                                     <div className="space-y-6">
+                                        {/* Top Section: Vital Signs & Anthropometry */}
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Tanda Vital</CardTitle>
+                                                <CardTitle>Tanda Vital & Antropometri</CardTitle>
                                             </CardHeader>
                                             <CardContent>
-                                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                                                     <div>
-                                                        <Label htmlFor="tensi">Tensi (mmHg)</Label>
-                                                        <div className="flex items-center gap-1">
-                                                            <Input 
+                                                        <Label htmlFor="tensi" className="text-sm font-semibold">
+                                                            Tensi (mmHg)
+                                                        </Label>
+                                                        <div className="mt-1 flex items-center gap-1">
+                                                            <Input
                                                                 id="sistol"
                                                                 value={sistol}
                                                                 onChange={(e) => setSistol(e.target.value)}
                                                                 onBlur={handleTensiBlur}
                                                                 placeholder="Sistol"
-                                                                className="w-1/2"
+                                                                className="w-1/2 text-sm"
                                                             />
-                                                            <span>/</span>
-                                                            <Input 
+                                                            <span className="text-gray-500">/</span>
+                                                            <Input
                                                                 id="distol"
                                                                 value={distol}
                                                                 onChange={(e) => setDistol(e.target.value)}
                                                                 onBlur={handleTensiBlur}
                                                                 placeholder="Distol"
-                                                                className="w-1/2"
+                                                                className="w-1/2 text-sm"
                                                             />
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="suhu">Suhu (°C)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="suhu" className="text-sm font-semibold">
+                                                            Suhu (°C)
+                                                        </Label>
+                                                        <Input
                                                             id="suhu"
                                                             value={suhu}
                                                             onChange={(e) => setSuhu(e.target.value)}
                                                             onBlur={handleSuhuBlur}
                                                             placeholder="Suhu"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="nadi">Nadi (/Menit)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="nadi" className="text-sm font-semibold">
+                                                            Nadi (/mnt)
+                                                        </Label>
+                                                        <Input
                                                             id="nadi"
                                                             value={nadi}
                                                             onChange={(e) => setNadi(e.target.value)}
                                                             onBlur={handleNadiBlur}
                                                             placeholder="Nadi"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="rr">RR (/Menit)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="rr" className="text-sm font-semibold">
+                                                            RR (/mnt)
+                                                        </Label>
+                                                        <Input
                                                             id="rr"
                                                             value={rr}
                                                             onChange={(e) => setRr(e.target.value)}
                                                             onBlur={handleRrBlur}
                                                             placeholder="RR"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="tinggi">Tinggi (cm)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="tinggi" className="text-sm font-semibold">
+                                                            Tinggi (Cm)
+                                                        </Label>
+                                                        <Input
                                                             id="tinggi"
                                                             value={tinggi}
                                                             onChange={(e) => setTinggi(e.target.value)}
                                                             onBlur={handleBmiBlur}
                                                             placeholder="Tinggi"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="berat">Berat (kg)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="berat" className="text-sm font-semibold">
+                                                            Berat (/Kg)
+                                                        </Label>
+                                                        <Input
                                                             id="berat"
                                                             value={berat}
                                                             onChange={(e) => setBerat(e.target.value)}
                                                             onBlur={handleBmiBlur}
                                                             placeholder="Berat"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
                                                 </div>
-                                                
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                                            </CardContent>
+                                        </Card>
+
+                                        {/* Middle Section: SpO2, Allergy, Waist, BMI */}
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle>Data Tambahan</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                                     <div>
-                                                        <Label htmlFor="spo2">SpO2 (%)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="spo2" className="text-sm font-semibold">
+                                                            SpO2
+                                                        </Label>
+                                                        <Input
                                                             id="spo2"
                                                             value={spo2}
                                                             onChange={(e) => setSpo2(e.target.value)}
                                                             onBlur={handleSpo2Blur}
                                                             placeholder="SpO2"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
-                                                    
-                                                    <div>
-                                                        <Label htmlFor="jenisAlergi">Jenis Alergi</Label>
-                                                        <Select value={jenisAlergi} onValueChange={setJenisAlergi}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Jenis Alergi" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="Obat">Obat</SelectItem>
-                                                                <SelectItem value="Makanan">Makanan</SelectItem>
-                                                                <SelectItem value="Lainnya">Lainnya</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
+
+                                                    <div className="col-span-2">
+                                                        <Label className="text-sm font-semibold">Alergi dan jenis</Label>
+                                                        <div className="mt-1 grid grid-cols-2 gap-2">
+                                                            <Select
+                                                                value={jenisAlergi}
+                                                                onValueChange={(value) => {
+                                                                    setJenisAlergi(value);
+                                                                    setAlergi(''); // Reset alergi when jenis changes
+                                                                }}
+                                                                disabled={!alergi_data || alergi_data.length === 0}
+                                                            >
+                                                                <SelectTrigger className="text-sm">
+                                                                    <SelectValue
+                                                                        placeholder={
+                                                                            !alergi_data || alergi_data.length === 0
+                                                                                ? 'Tidak ada data'
+                                                                                : '-- Pilih --'
+                                                                        }
+                                                                    />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {jenisAlergiOptions.map((jenis) => (
+                                                                        <SelectItem key={jenis} value={jenis}>
+                                                                            {jenis}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <Select value={alergi} onValueChange={setAlergi} disabled={!jenisAlergi}>
+                                                                <SelectTrigger className="text-sm">
+                                                                    <SelectValue placeholder={!jenisAlergi ? 'Pilih jenis dulu' : '-- Pilih --'} />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {jenisAlergi && alergi_data && alergi_data.length > 0 ? (
+                                                                        alergi_data
+                                                                            .filter((item) => item.jenis_alergi?.trim() === jenisAlergi?.trim())
+                                                                            .map((item) => (
+                                                                                <SelectItem key={item.id} value={item.nama}>
+                                                                                    {item.nama}
+                                                                                </SelectItem>
+                                                                            ))
+                                                                    ) : jenisAlergi ? (
+                                                                        <SelectItem value="no-data" disabled>
+                                                                            Tidak ada data untuk jenis ini
+                                                                        </SelectItem>
+                                                                    ) : (
+                                                                        <SelectItem value="select-first" disabled>
+                                                                            Pilih jenis alergi dulu
+                                                                        </SelectItem>
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        {/* Debug info removed */}
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="alergi">Alergi</Label>
-                                                        <Input 
-                                                            id="alergi"
-                                                            value={alergi}
-                                                            onChange={(e) => setAlergi(e.target.value)}
-                                                            placeholder="Alergi"
-                                                        />
-                                                    </div>
-                                                    
-                                                    <div>
-                                                        <Label htmlFor="lingkarPerut">Lingkar Perut (cm)</Label>
-                                                        <Input 
+                                                        <Label htmlFor="lingkarPerut" className="text-sm font-semibold">
+                                                            Lingkar Perut
+                                                        </Label>
+                                                        <Input
                                                             id="lingkarPerut"
                                                             value={lingkarPerut}
                                                             onChange={(e) => setLingkarPerut(e.target.value)}
                                                             placeholder="Lingkar Perut"
+                                                            className="mt-1 text-sm"
                                                         />
                                                     </div>
                                                 </div>
-                                                
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+
+                                                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                                     <div>
-                                                        <Label htmlFor="nilaiBmi">Nilai BMI</Label>
-                                                        <Input 
+                                                        <Label htmlFor="nilaiBmi" className="text-sm font-semibold">
+                                                            Data BMI
+                                                        </Label>
+                                                        <Input
                                                             id="nilaiBmi"
                                                             value={nilaiBmi}
                                                             readOnly
                                                             placeholder="Nilai BMI"
+                                                            className="mt-1 bg-gray-100 text-sm"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
-                                                        <Label htmlFor="statusBmi">Status BMI</Label>
-                                                        <Input 
+                                                        <Label htmlFor="statusBmi" className="text-sm font-semibold">
+                                                            Status BMI
+                                                        </Label>
+                                                        <Input
                                                             id="statusBmi"
                                                             value={statusBmi}
                                                             readOnly
                                                             placeholder="Status BMI"
+                                                            className="mt-1 bg-gray-100 text-sm"
                                                         />
                                                     </div>
                                                 </div>
-                                                
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            </CardContent>
+                                        </Card>
+
+                                        {/* Bottom Section: GCS */}
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle>Glasgow Coma Scale (GCS)</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                                     <div>
-                                                        <Label htmlFor="gcsEye">Eye</Label>
+                                                        <Label htmlFor="gcsEye" className="text-sm font-semibold">
+                                                            EYE
+                                                        </Label>
                                                         <Select value={gcsEye} onValueChange={setGcsEye}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Eye" />
+                                                            <SelectTrigger className="mt-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap">
+                                                                <SelectValue className="truncate" placeholder="-- Pilih --" />
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 {gsc_eye.map((item) => (
@@ -915,11 +1470,14 @@ export default function PemeriksaanPerawat() {
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
+
                                                     <div>
-                                                        <Label htmlFor="gcsVerbal">Verbal</Label>
+                                                        <Label htmlFor="gcsVerbal" className="text-sm font-semibold">
+                                                            VERBAL
+                                                        </Label>
                                                         <Select value={gcsVerbal} onValueChange={setGcsVerbal}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Verbal" />
+                                                            <SelectTrigger className="mt-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap">
+                                                                <SelectValue className="truncate" placeholder="-- Pilih --" />
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 {gcs_verbal.map((item) => (
@@ -930,11 +1488,14 @@ export default function PemeriksaanPerawat() {
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
+
                                                     <div>
-                                                        <Label htmlFor="gcsMotorik">Motorik</Label>
+                                                        <Label htmlFor="gcsMotorik" className="text-sm font-semibold">
+                                                            MOTORIK
+                                                        </Label>
                                                         <Select value={gcsMotorik} onValueChange={setGcsMotorik}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Motorik" />
+                                                            <SelectTrigger className="mt-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap">
+                                                                <SelectValue className="truncate" placeholder="-- Pilih --" />
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 {gcs_motorik.map((item) => (
@@ -945,28 +1506,30 @@ export default function PemeriksaanPerawat() {
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
+
                                                     <div>
-                                                        <Label htmlFor="gcsKesadaran">Kesadaran</Label>
-                                                        <Select value={gcsKesadaran} onValueChange={setGcsKesadaran}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Kesadaran" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {gcs_kesadaran.map((item) => (
-                                                                    <SelectItem key={item.skor} value={item.skor}>
-                                                                        {item.nama}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <Label htmlFor="gcsKesadaran" className="text-sm font-semibold">
+                                                            Kesadaran
+                                                        </Label>
+                                                        <Input
+                                                            id="gcsKesadaran"
+                                                            value={gcsKesadaran}
+                                                            readOnly
+                                                            placeholder="Otomatis terisi"
+                                                            className="mt-1 bg-gray-100 text-sm"
+                                                        />
                                                     </div>
                                                 </div>
                                             </CardContent>
                                         </Card>
                                     </div>
-                                    <div className="flex justify-between mt-4">
-                                        <Button type="button" variant="outline" onClick={() => setActiveTab('subyektif')}>Previous</Button>
-                                        <Button type="button" onClick={() => setActiveTab('htt')}>Next</Button>
+                                    <div className="mt-4 flex justify-between">
+                                        <Button type="button" variant="outline" onClick={() => setActiveTab('subyektif')}>
+                                            Previous
+                                        </Button>
+                                        <Button type="button" onClick={() => setActiveTab('htt')}>
+                                            Next
+                                        </Button>
                                     </div>
                                 </TabsContent>
 
@@ -978,30 +1541,33 @@ export default function PemeriksaanPerawat() {
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="space-y-4">
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                                                         <div>
                                                             <Label htmlFor="htt_pemeriksaan">Pemeriksaan</Label>
-                                                            <Select value={selectedHtt} onValueChange={(value) => {
-                                                                setSelectedHtt(value);
-                                                                setSelectedSubPemeriksaan(''); // Reset sub-pemeriksaan when main changes
-                                                            }}>
+                                                            <Select
+                                                                value={selectedHtt}
+                                                                onValueChange={(value) => {
+                                                                    setSelectedHtt(value);
+                                                                    setSelectedSubPemeriksaan(''); // Reset sub-pemeriksaan when main changes
+                                                                }}
+                                                            >
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder="Pilih Jenis Pemeriksaan" />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    {htt_pemeriksaan.map((item) => (
-                                                                        <SelectItem key={item.id} value={item.id}>
+                                                                    {httOptions.map((item) => (
+                                                                        <SelectItem key={item.id} value={String(item.id)}>
                                                                             {item.nama_pemeriksaan}
                                                                         </SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
-                                                        
+
                                                         <div>
                                                             <Label htmlFor="sub_pemeriksaan">Sub Pemeriksaan</Label>
-                                                            <Select 
-                                                                value={selectedSubPemeriksaan} 
+                                                            <Select
+                                                                value={selectedSubPemeriksaan}
                                                                 onValueChange={setSelectedSubPemeriksaan}
                                                                 disabled={!selectedHtt}
                                                             >
@@ -1009,23 +1575,18 @@ export default function PemeriksaanPerawat() {
                                                                     <SelectValue placeholder="Pilih Sub Pemeriksaan" />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    {selectedHtt && 
-                                                                        htt_pemeriksaan
-                                                                            .find(p => p.id === selectedHtt)
-                                                                            ?.htt_subpemeriksaans
-                                                                            ?.map((subItem) => (
-                                                                                <SelectItem key={subItem.id} value={subItem.id}>
-                                                                                    {subItem.nama}
-                                                                                </SelectItem>
-                                                                            ))
-                                                                    }
+                                                                    {subOptions.map((subItem) => (
+                                                                        <SelectItem key={subItem.id} value={String(subItem.id)}>
+                                                                            {subItem.nama}
+                                                                        </SelectItem>
+                                                                    ))}
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
-                                                        
+
                                                         <div>
                                                             <Label htmlFor="htt_pemeriksaan_detail">Detail</Label>
-                                                            <Input 
+                                                            <Input
                                                                 id="htt_pemeriksaan_detail"
                                                                 value={httDetailText}
                                                                 onChange={(e) => setHttDetailText(e.target.value)}
@@ -1034,42 +1595,44 @@ export default function PemeriksaanPerawat() {
                                                             />
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div className="flex justify-end">
-                                                        <Button 
-                                                            type="button" 
+                                                        <Button
+                                                            type="button"
                                                             onClick={() => {
                                                                 // Add validation
                                                                 if (!selectedHtt || !selectedSubPemeriksaan) {
                                                                     toast.error('Harap pilih pemeriksaan dan sub pemeriksaan');
                                                                     return;
                                                                 }
-                                                                
+
                                                                 // Get names for display
-                                                                const pemeriksaanName = htt_pemeriksaan.find(p => p.id === selectedHtt)?.nama_pemeriksaan || '';
-                                                                const subPemeriksaanName = htt_pemeriksaan
-                                                                    .find(p => p.id === selectedHtt)
-                                                                    ?.htt_subpemeriksaans
-                                                                    ?.find(s => s.id === selectedSubPemeriksaan)?.nama || '';
-                                                                
+                                                                const pemeriksaanName =
+                                                                    httOptions.find((p) => String(p.id) === selectedHtt)?.nama_pemeriksaan || '';
+                                                                const subPemeriksaanName =
+                                                                    subOptions.find((s) => String(s.id) === selectedSubPemeriksaan)?.nama || '';
+
                                                                 // Add to items list
-                                                                setHttItems([...httItems, {
-                                                                    pemeriksaan: pemeriksaanName,
-                                                                    subPemeriksaan: subPemeriksaanName,
-                                                                    detail: httDetailText
-                                                                }]);
-                                                                
+                                                                setHttItems([
+                                                                    ...httItems,
+                                                                    {
+                                                                        pemeriksaan: pemeriksaanName,
+                                                                        subPemeriksaan: subPemeriksaanName,
+                                                                        detail: httDetailText,
+                                                                    },
+                                                                ]);
+
                                                                 // Reset form
                                                                 setSelectedSubPemeriksaan('');
                                                                 setHttDetailText('');
-                                                                
+
                                                                 toast.success('Data berhasil ditambahkan');
                                                             }}
                                                         >
                                                             Tambahkan
                                                         </Button>
                                                     </div>
-                                                    
+
                                                     {/* Display added items */}
                                                     {httItems.length > 0 && (
                                                         <div className="mt-6">
@@ -1089,9 +1652,9 @@ export default function PemeriksaanPerawat() {
                                                                             <TableCell>{item.subPemeriksaan}</TableCell>
                                                                             <TableCell>{item.detail}</TableCell>
                                                                             <TableCell className="text-right">
-                                                                                <Button 
-                                                                                    type="button" 
-                                                                                    variant="destructive" 
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="destructive"
                                                                                     size="sm"
                                                                                     onClick={() => {
                                                                                         setHttItems(httItems.filter((_, i) => i !== index));
@@ -1106,23 +1669,14 @@ export default function PemeriksaanPerawat() {
                                                             </Table>
                                                         </div>
                                                     )}
-                                                    
-                                                    <div>
-                                                        <Label htmlFor="summernote">Catatan</Label>
-                                                        <Textarea 
-                                                            id="summernote"
-                                                            value={catatan}
-                                                            onChange={(e) => setCatatan(e.target.value)}
-                                                            placeholder="Masukkan catatan..."
-                                                            className="min-h-[150px]"
-                                                        />
-                                                    </div>
                                                 </div>
                                             </CardContent>
                                         </Card>
                                     </div>
-                                    <div className="flex justify-between mt-4">
-                                        <Button type="button" variant="outline" onClick={() => setActiveTab('obyektif')}>Previous</Button>
+                                    <div className="mt-4 flex justify-between">
+                                        <Button type="button" variant="outline" onClick={() => setActiveTab('obyektif')}>
+                                            Previous
+                                        </Button>
                                         <Button type="submit">{submitButtonText}</Button>
                                     </div>
                                 </TabsContent>

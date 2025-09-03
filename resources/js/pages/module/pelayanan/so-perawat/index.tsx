@@ -25,6 +25,7 @@ interface Poli {
 
 interface Dokter {
     id: number;
+    nama?: string;
     namauser: {
         name: string;
     };
@@ -62,7 +63,7 @@ interface PelayananData {
 }
 
 interface PageProps {
-    pelayanan?: PelayananData[];
+    pelayanans?: PelayananData[];
     flash?: {
         success?: string;
         error?: string;
@@ -75,7 +76,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function PelayananSoPerawat() {
-    const { pelayanan: initialPelayanan = [], flash } = usePage().props as unknown as PageProps;
+    const { pelayanans: initialPelayanan = [], flash } = usePage().props as unknown as PageProps;
     const [pelayanan, setPelayanan] = useState<PelayananData[]>(initialPelayanan);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
@@ -97,7 +98,7 @@ export default function PelayananSoPerawat() {
 
     const reloadPelayanan = () => {
         router.reload({
-            only: ['pelayanan'],
+            only: ['pelayanans'],
             onStart: () => setLoading(true),
             onFinish: () => setLoading(false),
             onError: () => toast.error('Gagal memuat ulang data pelayanan'),
@@ -325,7 +326,7 @@ export default function PelayananSoPerawat() {
                                                 {row.tanggal_kujungan ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id }) : '-'}
                                             </TableCell>
                                             <TableCell>{row.poli?.nama}</TableCell>
-                                            <TableCell>{row.dokter?.namauser?.name}</TableCell>
+                                            <TableCell>{row.dokter?.namauser?.name || row.dokter?.nama || 'Tidak ada data'}</TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex flex-col items-center gap-2">{getActionButtons(row)}</div>
                                             </TableCell>

@@ -176,8 +176,22 @@ class DaftarObatSyncService
 
         $appliedCount = 0;
         $actions = $this->getRecentActions(1000);
+        
+        // Get the last applied timestamp to avoid processing old actions
+        $lastAppliedTimestamp = $this->getLastAppliedTimestamp();
+        $newActions = [];
 
         foreach ($actions as $action) {
+            $actionTimestamp = $action['timestamp'] ?? null;
+            
+            // Only process actions newer than the last applied timestamp
+            if (!$lastAppliedTimestamp || !$actionTimestamp || 
+                strtotime($actionTimestamp) > strtotime($lastAppliedTimestamp)) {
+                $newActions[] = $action;
+            }
+        }
+
+        foreach ($newActions as $action) {
             try {
                 switch ($action['action']) {
                     case 'create':
@@ -198,8 +212,38 @@ class DaftarObatSyncService
             }
         }
 
-        Log::info("Applied {$appliedCount} actions from Redis");
+        // Update the last applied timestamp
+        if ($appliedCount > 0) {
+            $this->setLastAppliedTimestamp(now()->toISOString());
+        }
+
+        Log::info("Applied {$appliedCount} new actions from Redis");
         return $appliedCount;
+    }
+
+    /**
+     * Get the last applied timestamp from Redis
+     */
+    protected function getLastAppliedTimestamp(): ?string
+    {
+        try {
+            return $this->redis->get($this->getRedisKey('last_applied_timestamp'));
+        } catch (\Exception $e) {
+            Log::error('Failed to get last applied timestamp', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Set the last applied timestamp in Redis
+     */
+    protected function setLastAppliedTimestamp(string $timestamp): void
+    {
+        try {
+            $this->redis->set($this->getRedisKey('last_applied_timestamp'), $timestamp);
+        } catch (\Exception $e) {
+            Log::error('Failed to set last applied timestamp', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -255,6 +299,7 @@ class DaftarObatSyncService
         try {
             $this->redis->del($this->getRedisKey('records'));
             $this->redis->del($this->getRedisKey('actions'));
+            $this->redis->del($this->getRedisKey('last_applied_timestamp'));
             Log::info('Cleared Redis data for clinic', ['clinic_code' => $this->getClinicCode()]);
         } catch (\Exception $e) {
             Log::error('Failed to clear Redis data', ['error' => $e->getMessage()]);

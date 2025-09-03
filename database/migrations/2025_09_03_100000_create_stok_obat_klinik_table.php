@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('harga_jual_utamas', function (Blueprint $table) {
+        Schema::create('stok_obat_klinik', function (Blueprint $table) {
             $table->id();
-            $table->string('harga_jual_1');
-            $table->string('harga_jual_2');
-            $table->string('harga_jual_3');
-            $table->string('embalase_poin');
-            $table->text('deskripsi')->nullable();
-            $table->boolean('is_active')->default(true);
+            $table->string('kode_obat_alkes');
+            $table->string('nama_obat_alkes');
+            $table->string('qty');
+            $table->string('tanggal_terima_obat');
+            $table->string('expired')->nullable();
             $table->timestamps();
         });
     }
@@ -28,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('harga_jual_utamas');
+        Schema::dropIfExists('stok_obat_klinik');
     }
 };

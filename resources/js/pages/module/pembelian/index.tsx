@@ -19,7 +19,7 @@ import AppLayout from '../../../layouts/app-layout';
 import type { BreadcrumbItem } from '../../../types';
 
 interface PembelianData {
-    jenis_pembelian: 'obat' | 'inventaris' | '';
+    jenis_pembelian: 'obat' | 'inventaris' | 'obat_klinik' | 'inventaris_klinik' | '';
     nomor_faktur: string;
     supplier: string;
     no_po_sp: string;
@@ -130,11 +130,21 @@ export default function PembelianIndex() {
         }>
     >([]);
 
+    const isObatType = pembelianData.jenis_pembelian === 'obat' || pembelianData.jenis_pembelian === 'obat_klinik';
+    const isInventarisType = pembelianData.jenis_pembelian === 'inventaris' || pembelianData.jenis_pembelian === 'inventaris_klinik';
+
     const fetchDaftarInventaris = async () => {
         try {
-            const res = await axios.get('/api/inventaris/list');
+            const res = await axios.get('/api/barang/list');
             if (res.data?.success) {
-                setInventarisOptions(res.data.data || []);
+                const items = res.data.data || [];
+                setInventarisOptions(
+                    items.map((item: any) => ({
+                        id: item.id,
+                        kode_barang: item.kode,
+                        nama_barang: item.nama_dagang || item.nama,
+                    }))
+                );
             }
         } catch (e) {
             // silently ignore
@@ -143,10 +153,9 @@ export default function PembelianIndex() {
 
     const fetchDaftarObat = async () => {
         try {
-            const res = await axios.get('/api/obat/list');
+            const res = await axios.get('/api/barang/list');
             if (res.data?.success) {
                 setObatOptions(res.data.data || []);
-                console.log(res.data.data);
             }
         } catch (e) {
             // silently ignore
@@ -176,7 +185,7 @@ export default function PembelianIndex() {
     ];
 
     // Generate nomor faktur otomatis
-    const generateNomorFaktur = async (jenis: 'obat' | 'inventaris') => {
+    const generateNomorFaktur = async (jenis: 'obat' | 'inventaris' | 'obat_klinik' | 'inventaris_klinik') => {
         setIsGeneratingFaktur(true);
         try {
             const response = await axios.post('/api/pembelian/generate-faktur', {
@@ -213,7 +222,7 @@ export default function PembelianIndex() {
     };
 
     // Step 1: Jenis Pembelian
-    const handleJenisPembelianChange = (value: 'obat' | 'inventaris') => {
+    const handleJenisPembelianChange = (value: 'obat' | 'inventaris' | 'obat_klinik' | 'inventaris_klinik') => {
         setPembelianData((prev) => ({ ...prev, jenis_pembelian: value }));
         // Auto-generate nomor faktur saat jenis pembelian dipilih
         generateNomorFaktur(value);
@@ -236,7 +245,7 @@ export default function PembelianIndex() {
             diskon: '0',
             // exp dipakai untuk inventaris sebagai masa akhir penggunaan
             exp:
-                pembelianData.jenis_pembelian === 'inventaris'
+                isInventarisType
                     ? new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0]
                     : '',
             batch: '',
@@ -253,7 +262,7 @@ export default function PembelianIndex() {
             tanggal_pembelian: pembelianData.tgl_pembelian,
             deskripsi_barang: '',
         });
-        if (pembelianData.jenis_pembelian === 'inventaris' && inventarisOptions.length === 0) {
+        if (isInventarisType && inventarisOptions.length === 0) {
             fetchDaftarInventaris();
         }
         setIsModalOpen(true);
@@ -316,7 +325,7 @@ export default function PembelianIndex() {
             const updatedItem = { ...prev, [field]: value };
 
             // Apply same calculation logic as before
-            if (pembelianData.jenis_pembelian === 'obat') {
+            if (isObatType) {
                 // Sync harga satuan besar/kecil saat input harga berubah
                 if (field === 'harga_satuan') {
                     const konversi = prev.nilai_konversi || 1;
@@ -565,7 +574,7 @@ export default function PembelianIndex() {
                     // Untuk obat, pastikan qty dalam satuan kecil
                     let qtyToSend = detail.qty;
 
-                    if (pembelianData.jenis_pembelian === 'obat') {
+                    if (isObatType) {
                         // Jika menggunakan kemasan besar, konversi ke satuan kecil
                         if (detail.kemasan_besar) {
                             const konversi = detail.nilai_konversi || 1;
@@ -709,10 +718,34 @@ export default function PembelianIndex() {
                                             <ShoppingCart className="h-8 w-8" />
                                             <span>Inventaris</span>
                                         </Button>
+                                        <Button
+                                            variant={pembelianData.jenis_pembelian === 'obat_klinik' ? 'default' : 'outline'}
+                                            className="flex h-24 flex-col gap-2"
+                                            onClick={() => handleJenisPembelianChange('obat_klinik')}
+                                        >
+                                            <Package className="h-8 w-8" />
+                                            <span>Obat Klinik</span>
+                                        </Button>
+                                        <Button
+                                            variant={pembelianData.jenis_pembelian === 'inventaris_klinik' ? 'default' : 'outline'}
+                                            className="flex h-24 flex-col gap-2"
+                                            onClick={() => handleJenisPembelianChange('inventaris_klinik')}
+                                        >
+                                            <ShoppingCart className="h-8 w-8" />
+                                            <span>Inventaris Klinik</span>
+                                        </Button>
                                     </div>
                                     {pembelianData.jenis_pembelian && (
                                         <Badge variant="secondary" className="mt-4">
-                                            Terpilih: {pembelianData.jenis_pembelian === 'obat' ? 'Obat' : 'Inventaris'}
+                                            Terpilih: {
+                                                pembelianData.jenis_pembelian === 'obat'
+                                                    ? 'Obat'
+                                                    : pembelianData.jenis_pembelian === 'inventaris'
+                                                        ? 'Inventaris'
+                                                        : pembelianData.jenis_pembelian === 'obat_klinik'
+                                                            ? 'Obat Klinik'
+                                                            : 'Inventaris Klinik'
+                                            }
                                         </Badge>
                                     )}
                                 </div>
@@ -868,8 +901,8 @@ export default function PembelianIndex() {
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="w-12">No</TableHead>
-                                                    <TableHead>Nama {pembelianData.jenis_pembelian === 'obat' ? 'Obat' : 'Alkes'}</TableHead>
-                                                    {pembelianData.jenis_pembelian === 'obat' && <TableHead>Kemasan</TableHead>}
+                                                    <TableHead>Nama {isObatType ? 'Obat' : 'Barang'}</TableHead>
+                                                    {isObatType && <TableHead>Kemasan</TableHead>}
                                                     <TableHead>Qty</TableHead>
                                                     <TableHead>Harga Satuan</TableHead>
                                                     <TableHead>Diskon</TableHead>
@@ -887,7 +920,7 @@ export default function PembelianIndex() {
                                                                 {detail.exp && <div className="text-sm text-gray-500">Exp: {detail.exp}</div>}
                                                             </div>
                                                         </TableCell>
-                                                        {pembelianData.jenis_pembelian === 'obat' && (
+                                                        {isObatType && (
                                                             <TableCell>
                                                                 <Badge variant={detail.kemasan_besar ? 'default' : 'secondary'}>
                                                                     {detail.kemasan_besar ? 'Besar' : 'Kecil'}
@@ -933,12 +966,12 @@ export default function PembelianIndex() {
                                         <DialogHeader>
                                             <DialogTitle>
                                                 {editingItem ? 'Edit Item' : 'Tambah Item'}{' '}
-                                                {pembelianData.jenis_pembelian === 'obat' ? 'Obat' : 'Inventaris'}
+                                                {isObatType ? 'Obat' : 'Inventaris'}
                                             </DialogTitle>
                                         </DialogHeader>
 
                                         <div className="space-y-8 p-2">
-                                            {pembelianData.jenis_pembelian === 'obat' ? (
+                                            {isObatType ? (
                                                 // Modal UI untuk Obat
                                                 <div className="space-y-6">
                                                     {/* Baris 1: Nama Obat dan Kemasan */}

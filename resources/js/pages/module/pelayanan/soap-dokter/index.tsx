@@ -245,7 +245,12 @@ export default function PelayananSoapDokter() {
                                 <FileText className="mr-2 h-4 w-4" />
                                 Permintaan
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePasienSelesai(row.nomor_register)} className="text-green-600 focus:text-green-600">
+                            {/* status_dokter === 2 -> tombol Selesai aktif; jika 1 tetap ada, opsional */}
+                            <DropdownMenuItem
+                                disabled={(row.status_dokter ?? 0) !== 2}
+                                onClick={() => handlePasienSelesai(row.nomor_register)}
+                                className="text-green-600 focus:text-green-600"
+                            >
                                 <UserCheck className="mr-2 h-4 w-4" />
                                 Selesai
                             </DropdownMenuItem>

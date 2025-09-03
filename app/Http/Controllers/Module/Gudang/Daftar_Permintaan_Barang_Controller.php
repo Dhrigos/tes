@@ -7,8 +7,9 @@ use App\Models\Module\Gudang\Permintaan_Barang;
 use App\Models\Module\Gudang\Permintaan_Barang_Detail;
 use App\Models\Module\Gudang\Permintaan_Barang_Konfirmasi;
 use App\Models\Module\Gudang\Data_Barang_Keluar;
-use App\Models\Module\Master\Data\Gudang\Daftar_Obat;
+use App\Models\Module\Master\Data\Gudang\Daftar_Barang;
 use App\Models\Module\Gudang\Stok_Barang;
+use App\Models\Module\Gudang\Stok_Inventaris;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -17,7 +18,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
     public function index(Request $request) {
         $title = "Daftar Permintaan Barang";
         $permintaan = Permintaan_Barang::all();
-        $dabar = Daftar_Obat::all();
+        $dabar = Daftar_Barang::all();
         return Inertia::render('module/gudang/daftar-permintaan-barang/index', [
             'title' => $title,
             'permintaan' => $permintaan,
@@ -72,7 +73,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
 
             if (!empty($kode_request)) {
                 $details = Permintaan_Barang_Detail::where('kode_request', $kode_request)
-                    ->select('kode_obat_alkes', 'nama_obat_alkes', 'qty')
+                    ->select('kode_obat_alkes', 'nama_obat_alkes', 'qty', 'jenis_barang')
                     ->get();
                 \Log::info('Found ' . $details->count() . ' details for kode_request: ' . $kode_request);
             }
@@ -124,23 +125,35 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                 foreach ($items as $item) {
                     $kodeObat = $item['kode_obat'];
                     $jumlahDibutuhkan = intval($item['jumlah']);
+                    $jenisBarang = $item['jenis_barang'] ?? 'obat'; // Default to 'obat' if not provided
 
                     // Skip jika jumlah kosong/tidak valid
                     if ($jumlahDibutuhkan <= 0) {
                         continue;
                     }
 
-                    $stokList = Stok_Barang::where('kode_obat_alkes', $kodeObat)
-                                ->where('qty', '>', 0)
-                                ->orderBy('tanggal_terima_obat', 'asc')
-                                ->get();
+                    // Use appropriate table based on jenis_barang
+                    if ($jenisBarang === 'inventaris') {
+                        // For inventaris, check stok_inventaris table
+                        $query = Stok_Inventaris::where('kode_barang', $kodeObat)
+                                    ->where('qty_barang', '>', 0);
+                        $stokList = $query->get();
+                        $totalTersedia = $stokList->sum('qty_barang');
+                    } else {
+                        // For obat/alkes, check stok_barang table
+                        $query = Stok_Barang::where('kode_obat_alkes', $kodeObat)
+                                    ->where('qty', '>', 0)
+                                    ->orderBy('tanggal_terima_obat', 'asc');
+                        $stokList = $query->get();
+                        $totalTersedia = $stokList->sum('qty');
+                    }
 
-                    $totalTersedia = $stokList->sum('qty');
                     if ($totalTersedia < $jumlahDibutuhkan) {
                         // Validasi gagal jika stok tidak mencukupi
+                        $jenisBarangLabel = $jenisBarang === 'inventaris' ? 'inventaris' : 'obat/alkes';
                         return response()->json([
                             'success' => false,
-                            'message' => "Stok tidak cukup untuk kode obat {$kodeObat}. Dibutuhkan: {$jumlahDibutuhkan}, tersedia: {$totalTersedia}",
+                            'message' => "Stok tidak cukup untuk {$jenisBarangLabel} dengan kode {$kodeObat}. Dibutuhkan: {$jumlahDibutuhkan}, tersedia: {$totalTersedia}",
                         ], 422);
                     }
                 }
@@ -154,6 +167,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                 foreach ($items as $item) {
                     $kodeObat = $item['kode_obat'];
                     $jumlahDibutuhkan = intval($item['jumlah']);
+                    $jenisBarang = $item['jenis_barang'] ?? 'obat'; // Default to 'obat' if not provided
 
                     $hargaDasarRaw = $item['harga_dasar'];
                     $hargaDasar = intval(str_replace(['Rp', '.', ' '], '', $hargaDasarRaw));
@@ -163,44 +177,91 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                         continue;
                     }
 
-                    $stokList = Stok_Barang::where('kode_obat_alkes', $kodeObat)
-                                ->where('qty', '>', 0)
-                                ->orderBy('tanggal_terima_obat', 'asc')
-                                ->get();
+                    // Use appropriate table based on jenis_barang
+                    if ($jenisBarang === 'inventaris') {
+                        // For inventaris, use stok_inventaris table
+                        $query = Stok_Inventaris::where('kode_barang', $kodeObat)
+                                    ->where('qty_barang', '>', 0);
+                        $stokList = $query->get();
 
-                    foreach ($stokList as $stok) {
-                        if ($jumlahDibutuhkan <= 0) break;
+                        foreach ($stokList as $stok) {
+                            if ($jumlahDibutuhkan <= 0) break;
 
-                        $ambil = min($stok->qty, $jumlahDibutuhkan);
+                            $ambil = min($stok->qty_barang, $jumlahDibutuhkan);
 
-                        $stok->qty -= $ambil;
-                        $stok->save();
+                            $stok->qty_barang -= $ambil;
+                            $stok->save();
 
-                        $jumlahDibutuhkan -= $ambil;
+                            $jumlahDibutuhkan -= $ambil;
 
-                        Data_Barang_Keluar::create([
-                            'kode_request' => $kodeRequest,
-                            'nama_klinik' => $namaKlinik,
-                            'tanggal_request' => $tanggalRequest,
-                            'kode_obat_alkes' => $kodeObat,
-                            'nama_obat_alkes' => $stok->nama_obat_alkes,
-                            'harga_dasar' => $hargaDasar,
-                            'qty' => $ambil,
-                            'tanggal_terima_obat' => $stok->tanggal_terima_obat,
-                            'expired' => $stok->expired,
-                        ]);
+                            // For inventaris, we need to adapt the data structure
+                            Data_Barang_Keluar::create([
+                                'kode_request' => $kodeRequest,
+                                'nama_klinik' => $namaKlinik,
+                                'tanggal_request' => $tanggalRequest,
+                                'kode_obat_alkes' => $kodeObat,
+                                'nama_obat_alkes' => $stok->nama_barang,
+                                'harga_dasar' => $hargaDasar,
+                                'qty' => $ambil,
+                                'tanggal_terima_obat' => $stok->tanggal_pembelian,
+                                'expired' => null, // Inventaris may not have expiration date
+                            ]);
 
-                        Permintaan_Barang_Konfirmasi::create([
-                            'kode_request' => $kodeRequest,
-                            'nama_klinik' => $namaKlinik,
-                            'tanggal_request' => $tanggalRequest,
-                            'kode_obat_alkes' => $kodeObat,
-                            'nama_obat_alkes' => $stok->nama_obat_alkes,
-                            'harga_dasar' => $hargaDasar,
-                            'qty' => $ambil,
-                            'tanggal_terima_obat' => $stok->tanggal_terima_obat,
-                            'expired' => $stok->expired,
-                        ]);
+                            Permintaan_Barang_Konfirmasi::create([
+                                'kode_request' => $kodeRequest,
+                                'nama_klinik' => $namaKlinik,
+                                'tanggal_request' => $tanggalRequest,
+                                'kode_obat_alkes' => $kodeObat,
+                                'nama_obat_alkes' => $stok->nama_barang,
+                                'harga_dasar' => $hargaDasar,
+                                'qty' => $ambil,
+                                'jenis_barang' => $jenisBarang,
+                                'tanggal_terima_obat' => $stok->tanggal_pembelian,
+                                'expired' => null, // Inventaris may not have expiration date
+                            ]);
+                        }
+                    } else {
+                        // For obat/alkes, use stok_barang table
+                        $query = Stok_Barang::where('kode_obat_alkes', $kodeObat)
+                                    ->where('qty', '>', 0)
+                                    ->orderBy('tanggal_terima_obat', 'asc');
+                        $stokList = $query->get();
+
+                        foreach ($stokList as $stok) {
+                            if ($jumlahDibutuhkan <= 0) break;
+
+                            $ambil = min($stok->qty, $jumlahDibutuhkan);
+
+                            $stok->qty -= $ambil;
+                            $stok->save();
+
+                            $jumlahDibutuhkan -= $ambil;
+
+                            Data_Barang_Keluar::create([
+                                'kode_request' => $kodeRequest,
+                                'nama_klinik' => $namaKlinik,
+                                'tanggal_request' => $tanggalRequest,
+                                'kode_obat_alkes' => $kodeObat,
+                                'nama_obat_alkes' => $stok->nama_obat_alkes,
+                                'harga_dasar' => $hargaDasar,
+                                'qty' => $ambil,
+                                'tanggal_terima_obat' => $stok->tanggal_terima_obat,
+                                'expired' => $stok->expired,
+                            ]);
+
+                            Permintaan_Barang_Konfirmasi::create([
+                                'kode_request' => $kodeRequest,
+                                'nama_klinik' => $namaKlinik,
+                                'tanggal_request' => $tanggalRequest,
+                                'kode_obat_alkes' => $kodeObat,
+                                'nama_obat_alkes' => $stok->nama_obat_alkes,
+                                'harga_dasar' => $hargaDasar,
+                                'qty' => $ambil,
+                                'jenis_barang' => $jenisBarang,
+                                'tanggal_terima_obat' => $stok->tanggal_terima_obat,
+                                'expired' => $stok->expired,
+                            ]);
+                        }
                     }
                 }
 

@@ -159,8 +159,6 @@ class Dokter_Rujukan_Controller extends Controller
             ]);
 
             // Add auth info
-            $validated['user_input_id'] = Auth::id() ?? 1;
-            $validated['user_input_name'] = Auth::user()->name ?? 'System';
             $validated['no_rawat'] = $validated['nomor_register'];
             $validated['tanggal_rujukan'] = $validated['tanggal_rujukan'] ?? now();
 
@@ -206,8 +204,6 @@ class Dokter_Rujukan_Controller extends Controller
             }
 
             // Add auth info
-            $validated['user_input_id'] = Auth::id() ?? $rujukan->user_input_id;
-            $validated['user_input_name'] = Auth::user()->name ?? $rujukan->user_input_name;
 
             // Update database
             $rujukan->update($validated);

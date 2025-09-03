@@ -4,9 +4,9 @@ namespace App\Models\Module\Master\Data\Gudang;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Daftar_Obat extends Model
+class Daftar_Barang extends Model
 {
-    protected $table = 'daftar__obats';
+    protected $table = 'daftar_barang';
 
     protected $fillable = [
         'kode',
@@ -33,6 +33,8 @@ class Daftar_Obat extends Model
         'merek',
         'bentuk_obat',
     ];
+
+
 }
 
 

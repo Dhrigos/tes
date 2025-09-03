@@ -53,6 +53,7 @@ interface DaftarBarang {
     kode_barang: string;
     nama_barang: string;
     satuan: string;
+    jenis_barang: 'obat' | 'alkes' | 'inventaris';
     [key: string]: any;
 }
 
@@ -61,6 +62,7 @@ interface PermintaanItem {
     nama_barang: string;
     jumlah: number;
     satuan: string;
+    jenis_barang: 'obat' | 'alkes' | 'inventaris';
 }
 
 export default function PermintaanBarangIndex({ title, dabar, request, data_kirim, flash }: Props) {
@@ -118,6 +120,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
     const [externalDatabase, setExternalDatabase] = useState("");
     const [searchObat, setSearchObat] = useState("");
     const [selectedObat, setSelectedObat] = useState("");
+    const [jenisBarang, setJenisBarang] = useState<'obat' | 'alkes' | 'inventaris'>('obat');
 
     // Tampilkan notifikasi jika ada pesan flash
     useEffect(() => {
@@ -141,17 +144,21 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
         );
     }) || [];
 
-    // Filter dabar based on search term
+    // Filter dabar based on search term and jenis_barang
     const filteredDabar = dabar?.filter((barang) => {
         const q = searchObat.toLowerCase();
-        return (
-            barang.nama?.toLowerCase().includes(q)
-        );
-    }).slice(0, 5) || [];
+        const matchesSearch = barang.nama?.toLowerCase().includes(q) || barang.kode?.toLowerCase().includes(q);
+        // For jenis_barang filtering, we need to handle the different values that might come from backend
+        const barangJenis = barang.jenis_barang?.toLowerCase();
+        const matchesJenisBarang = jenisBarang === 'obat' ? 
+            (barangJenis === 'farmasi' || barangJenis === 'obat') : 
+            barangJenis === jenisBarang;
+        return matchesSearch && matchesJenisBarang;
+    }).slice(0, 10) || [];
 
     // Handle adding a new item row
     const addItem = () => {
-        setItems([...items, { kode_barang: "", nama_barang: "", jumlah: 1, satuan: "" }]);
+        setItems([...items, { kode_barang: "", nama_barang: "", jumlah: 1, satuan: "", jenis_barang: 'obat' } as PermintaanItem]);
     };
 
     // Handle removing an item row
@@ -235,7 +242,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                         kode_obat_alkes: item.kode_obat_alkes || '',
                         nama_obat_alkes: item.nama_obat_alkes || '',
                         qty: item.qty || 0,
-                        expired: item.expired || ''
+                        expired: item.expired || '-'
                     }))
                 };
                 
@@ -282,7 +289,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
             !item.kode_barang ||
             !item.nama_barang ||
             item.jumlah <= 0 ||
-            !item.satuan
+            (item.jenis_barang !== 'inventaris' && !item.satuan)
         );
 
         if (invalidItem) {
@@ -308,7 +315,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                 setShowCreateModal(false);
                 setKodeRequest("");
                 setCatatan("");
-                setItems([{ kode_barang: "", nama_barang: "", jumlah: 1, satuan: ""}]);
+                setItems([{ kode_barang: "", nama_barang: "", jumlah: 1, satuan: "", jenis_barang: 'obat' } as PermintaanItem]);
                 setCurrentStep(1); // Reset step to the beginning
                 // Success message will be shown via flash messages in useEffect
             },
@@ -317,6 +324,43 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                 // No need for direct toast notifications here
             }
         });
+    };
+
+    // Handle terima semua items
+    const handleTerimaSemua = async () => {
+        if (!selectedKonfirmasi || !selectedKonfirmasi.kode_request || !selectedKonfirmasi.details) {
+            toast.error("Data permintaan tidak valid");
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/permintaan-barang/terima-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({
+                    kode_request: selectedKonfirmasi.kode_request,
+                    items: selectedKonfirmasi.details
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(result.message);
+                setShowKonfirmasiDetailModal(false);
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error(result.message || "Gagal menerima data");
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            toast.error("Terjadi kesalahan saat menerima data");
+        }
     };
 
     return (
@@ -443,10 +487,10 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                     </div>
                                                 </div>
                                                 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                                                     <div className="md:col-span-1">
                                                         <label htmlFor="nama_obat_alkes" className="block text-xs font-medium text-gray-700 mb-2">
-                                                            Obat / Alkes
+                                                            Data Barang
                                                         </label>
                                                         <Select value={selectedObat} onValueChange={setSelectedObat}>
                                                             <SelectTrigger>
@@ -484,7 +528,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                                     filteredDabar.map((barang) => (
                                                                         <SelectItem key={barang.kode} value={barang.kode}>
                                                                             <div className="flex flex-col">
-                                                                                <div className="font-medium" title={barang.nama}>{barang.nama.length > 40 ? `${barang.nama.substring(0, 40)}...` : barang.nama}</div>
+                                                                                <div className="font-medium" title={barang.nama}>{barang.nama.length > 20 ? `${barang.nama.substring(0, 20)}...` : barang.nama}</div>
                                                                             </div>
                                                                         </SelectItem>
                                                                     ))
@@ -522,7 +566,23 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                         />
                                                     </div>
                                                     
-                                                    <div className="md:col-span-1 flex items-end">
+                                                    <div className="md:col-span-1">
+                                                        <label htmlFor="jenis_barang" className="block text-xs font-medium text-gray-700 mb-2">
+                                                            Jenis Barang
+                                                        </label>
+                                                        <Select value={jenisBarang} onValueChange={(value: 'obat' | 'alkes' | 'inventaris') => setJenisBarang(value)}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih Jenis Barang" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="obat">Obat</SelectItem>
+                                                                <SelectItem value="alkes">Alkes</SelectItem>
+                                                                <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    
+                                                    <div className="md:col-span-1 flex items-center">
                                                         <Button 
                                                             type="button" 
                                                             onClick={() => {
@@ -551,11 +611,13 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                                         toast.success(`Jumlah ${selectedBarang.nama} berhasil ditambahkan`);
                                                                     } else {
                                                                         // Jika item belum ada, tambahkan item baru
-                                                                        const newItem = {
+                                                                        // Use the manually selected jenis_barang if the barang doesn't have a jenis_barang or if we want to override it
+                                                                        const newItem: PermintaanItem = {
                                                                             kode_barang: selectedBarang.kode,
                                                                             nama_barang: selectedBarang.nama,
                                                                             jumlah: jumlah,
-                                                                            satuan: selectedBarang.satuan_kecil || selectedBarang.satuan_sedang || selectedBarang.satuan_besar || '',
+                                                                            satuan: selectedBarang.satuan_kecil || selectedBarang.satuan_sedang || selectedBarang.satuan_besar || selectedBarang.satuan || '',
+                                                                            jenis_barang: selectedBarang.jenis_barang ? (selectedBarang.jenis_barang === 'farmasi' || selectedBarang.jenis_barang === 'obat' ? 'obat' : selectedBarang.jenis_barang === 'alkes' ? 'alkes' : 'inventaris') : jenisBarang,
                                                                         };
                                                                         
                                                                         setItems(prevItems => [...prevItems, newItem]);
@@ -565,9 +627,12 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                                     setSelectedObat("");
                                                                     setSearchObat("");
                                                                     jumlahElement.value = '1';
+                                                                } else {
+                                                                    toast.error('Silakan pilih barang terlebih dahulu');
                                                                 }
                                                             }}
                                                             className="w-full md:w-auto"
+                                                            disabled={!selectedObat}
                                                         >
                                                             Tambah Data Sementara
                                                         </Button>
@@ -582,6 +647,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                                     <TableHead style={{ width: '5%' }}>No</TableHead>
                                                                     <TableHead>Kode Obat</TableHead>
                                                                     <TableHead>Nama Obat</TableHead>
+                                                                    <TableHead>Jenis Barang</TableHead>
                                                                     <TableHead>Jumlah</TableHead>
                                                                     <TableHead className="text-right">Aksi</TableHead>
                                                                 </TableRow>
@@ -592,6 +658,11 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                                         <TableCell>{index + 1}</TableCell>
                                                                         <TableCell>{item.kode_barang}</TableCell>
                                                                         <TableCell>{item.nama_barang}</TableCell>
+                                                                        <TableCell>
+                                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>
+                                                                                {item.jenis_barang.charAt(0).toUpperCase() + item.jenis_barang.slice(1)}
+                                                                            </span>
+                                                                        </TableCell>
                                                                         <TableCell>{item.jumlah}</TableCell>
                                                                         <TableCell className="text-right">
                                                                             <Button
@@ -745,6 +816,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                 <TableHead>No</TableHead>
                                                 <TableHead>Kode Barang</TableHead>
                                                 <TableHead>Nama Barang</TableHead>
+                                                <TableHead>Jenis Barang</TableHead>
                                                 <TableHead className="text-right">Jumlah</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -755,6 +827,11 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                         <TableCell className="text-center">{index + 1}</TableCell>
                                                         <TableCell>{item.kode_barang}</TableCell>
                                                         <TableCell>{item.nama_barang}</TableCell>
+                                                        <TableCell>
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>
+                                                                {item.jenis_barang?.charAt(0).toUpperCase() + item.jenis_barang?.slice(1)}
+                                                            </span>
+                                                        </TableCell>
                                                         <TableCell className="text-right">{item.jumlah}</TableCell>
                                                     </TableRow>
                                                 ))
@@ -804,6 +881,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                 <TableHead>No</TableHead>
                                                 <TableHead>Kode Barang</TableHead>
                                                 <TableHead>Nama Barang</TableHead>
+                                                <TableHead>Jenis Barang</TableHead>
                                                 <TableHead>Jumlah</TableHead>
                                                 <TableHead>Expired</TableHead>
                                                 <TableHead className="text-center">Aksi</TableHead>
@@ -816,6 +894,11 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                         <TableCell className="text-center">{index + 1}</TableCell>
                                                         <TableCell>{item.kode_obat_alkes}</TableCell>
                                                         <TableCell>{item.nama_obat_alkes}</TableCell>
+                                                        <TableCell>
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${!item.jenis_barang ? 'bg-gray-100 text-gray-800' : item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>
+                                                                {item.jenis_barang ? (item.jenis_barang.charAt(0).toUpperCase() + item.jenis_barang.slice(1)) : 'Tidak Diketahui'}
+                                                            </span>
+                                                        </TableCell>
                                                         <TableCell>{item.qty}</TableCell>
                                                         <TableCell>{item.expired}</TableCell>
                                                         <TableCell className="flex gap-2 justify-center">
@@ -848,7 +931,18 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                 </div>
                                 
                                 <DialogFooter>
-                                    <Button onClick={() => setShowKonfirmasiDetailModal(false)}>Tutup</Button>
+                                    <Button 
+                                        onClick={handleTerimaSemua}
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                    >
+                                        Terima Semua
+                                    </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        onClick={() => setShowKonfirmasiDetailModal(false)}
+                                    >
+                                        Tutup
+                                    </Button>
                                 </DialogFooter>
                             </div>
                         )}

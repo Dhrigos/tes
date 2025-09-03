@@ -39,4 +39,14 @@ class Pembelian extends Model
     {
         return $this->hasMany(PembelianDetail::class, 'nomor_faktur', 'nomor_faktur');
     }
+
+    public function obatDetails()
+    {
+        return $this->hasMany(PembelianObatDetail::class, 'nomor_faktur', 'nomor_faktur');
+    }
+
+    public function inventarisDetails()
+    {
+        return $this->hasMany(PembelianInventarisDetail::class, 'kode', 'nomor_faktur');
+    }
 }

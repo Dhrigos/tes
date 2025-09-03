@@ -7,12 +7,12 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Log;
-use App\Models\Module\Master\Data\Gudang\Daftar_Obat;
+use App\Models\Module\Master\Data\Gudang\Daftar_Barang;
 use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
 use App\Models\Module\Master\Data\Gudang\Kategori_Barang;
 use App\Services\DaftarObatSyncService;
 
-class Daftar_Obat_Controller extends Controller
+class Daftar_Barang_Controller extends Controller
 {
     protected $syncService;
 
@@ -23,12 +23,12 @@ class Daftar_Obat_Controller extends Controller
 
     public function index()
     {
-        $daftarObat = Daftar_Obat::latest()->get();
-        $satuanObats = Satuan_Barang::orderBy('nama')->get(['id', 'nama']);
+        $daftarBarang = Daftar_Barang::latest()->get();
+        $satuanBarangs = Satuan_Barang::orderBy('nama')->get(['id', 'nama']);
         $kategoriBarangs = Kategori_Barang::orderBy('nama')->get(['id', 'nama']);
 
         // Transform data untuk menampilkan nama yang sesuai berdasarkan jenis
-        $daftarObat = $daftarObat->map(function ($item) {
+        $daftarBarang = $daftarBarang->map(function ($item) {
             // Untuk inventaris, gunakan deskripsi sebagai nama dagang
             if ($item->jenis_barang === 'inventaris') {
                 $item->nama_dagang = $item->deskripsi;
@@ -39,17 +39,17 @@ class Daftar_Obat_Controller extends Controller
             return $item;
         });
 
-        return Inertia::render('module/master/gudang/daftar-obat/index', [
-            'daftarObat' => $daftarObat,
-            'satuanObats' => $satuanObats,
-            'kategoriObats' => $kategoriBarangs,
+        return Inertia::render('module/master/gudang/daftar-barang/index', [
+            'daftarBarang' => $daftarBarang,
+            'satuanBarangs' => $satuanBarangs,
+            'kategoriBarangs' => $kategoriBarangs,
         ]);
     }
 
     // JSON list for frontend selects
     public function list()
     {
-        $items = Daftar_Obat::orderBy('nama')->get([
+        $items = Daftar_Barang::orderBy('nama')->get([
             'id',
             'kode',
             'nama',
@@ -75,10 +75,15 @@ class Daftar_Obat_Controller extends Controller
                 'jenis_obat' => 'nullable|string|in:Reguler,Khusus,Darurat',
                 'jenis_generik' => 'nullable|string|in:Non-Generic,Generic Polos,Branded Generic',
                 'jenis_formularium' => 'nullable|string|in:Formularium,Non-Formularium',
-                'bentuk_obat' => 'nullable|string|in:padat,cair,gas',
+                'bentuk_barang' => 'nullable|string|in:padat,cair,gas',
             ]);
 
             $data = $validated;
+            
+            // Auto-generate code if not provided
+            if (empty($request->kode) && !empty($request->jenis_barang)) {
+                $data['kode'] = $this->generateKode($request->jenis_barang);
+            }
             
             if ($request->jenis_barang === 'inventaris') {
                 $data += $request->only([
@@ -91,7 +96,6 @@ class Daftar_Obat_Controller extends Controller
             } else {
                 // For farmasi and alkes
                 $data += $request->only([
-                    'kode',
                     'jenis_formularium',
                     'kfa_kode',
                     'nama_industri',
@@ -108,7 +112,7 @@ class Daftar_Obat_Controller extends Controller
                     'gudang_kategori',
                     'jenis_obat',
                     'jenis_generik',
-                    'bentuk_obat',
+                    'bentuk_barang',
                 ]);
 
                 // Set default values for required fields
@@ -122,7 +126,7 @@ class Daftar_Obat_Controller extends Controller
                 }
             }
 
-            $obat = Daftar_Obat::create($data);
+            $barang = Daftar_Barang::create($data);
 
             // Note: Sync to Redis is now manual trigger only via Sinkron button
 
@@ -132,7 +136,7 @@ class Daftar_Obat_Controller extends Controller
                 ->withErrors($e->errors())
                 ->withInput();
         } catch (\Exception $e) {
-            Log::error('Error creating daftar obat: ' . $e->getMessage());
+            Log::error('Error creating daftar barang: ' . $e->getMessage());
             return Redirect::back()
                 ->with('error', 'Terjadi kesalahan saat menyimpan data: ' . $e->getMessage())
                 ->withInput();
@@ -149,10 +153,10 @@ class Daftar_Obat_Controller extends Controller
                 'jenis_obat' => 'nullable|string|in:Reguler,Khusus,Darurat',
                 'jenis_generik' => 'nullable|string|in:Non-Generic,Generic Polos,Branded Generic',
                 'jenis_formularium' => 'nullable|string|in:Formularium,Non-Formularium',
-                'bentuk_obat' => 'nullable|string|in:padat,cair,gas',
+                'bentuk_barang' => 'nullable|string|in:padat,cair,gas',
             ]);
 
-            $obat = Daftar_Obat::findOrFail($id);
+            $barang = Daftar_Barang::findOrFail($id);
             
             $updateData = $validated;
 
@@ -184,7 +188,7 @@ class Daftar_Obat_Controller extends Controller
                     'gudang_kategori',
                     'jenis_obat',
                     'jenis_generik',
-                    'bentuk_obat',
+                    'bentuk_barang',
                 ]);
 
                 // Set default values for required fields
@@ -198,7 +202,7 @@ class Daftar_Obat_Controller extends Controller
                 }
             }
 
-            $obat->update($updateData);
+            $barang->update($updateData);
 
             // Note: Sync to Redis is now manual trigger only via Sinkron button
 
@@ -208,7 +212,7 @@ class Daftar_Obat_Controller extends Controller
                 ->withErrors($e->errors())
                 ->withInput();
         } catch (\Exception $e) {
-            Log::error('Error updating daftar obat: ' . $e->getMessage());
+            Log::error('Error updating daftar barang: ' . $e->getMessage());
             return Redirect::back()
                 ->with('error', 'Terjadi kesalahan saat memperbarui data: ' . $e->getMessage())
                 ->withInput();
@@ -217,12 +221,12 @@ class Daftar_Obat_Controller extends Controller
 
     public function destroy($id)
     {
-        $obat = Daftar_Obat::findOrFail($id);
+        $barang = Daftar_Barang::findOrFail($id);
         
         // Note: Sync to Redis is now manual trigger only via Sinkron button
         
-        $obat->delete();
-        return Redirect::back()->with('success', 'Obat berhasil dihapus');
+        $barang->delete();
+        return Redirect::back()->with('success', 'Barang berhasil dihapus');
     }
 
     /**
@@ -279,16 +283,16 @@ class Daftar_Obat_Controller extends Controller
                 ], 403);
             }
 
-            // Get all daftar obat data
-            $allObat = Daftar_Obat::all();
+            // Get all daftar barang data
+            $allBarang = Daftar_Barang::all();
             $syncedCount = 0;
 
             // Clear existing Redis data first
             $this->syncService->clearRedisData();
 
             // Sync all data to Redis
-            foreach ($allObat as $obat) {
-                $this->syncService->syncToRedis($obat, 'create');
+            foreach ($allBarang as $barang) {
+                $this->syncService->syncToRedis($barang, 'create');
                 $syncedCount++;
             }
             
@@ -373,5 +377,31 @@ class Daftar_Obat_Controller extends Controller
                 'message' => 'Failed to get recent actions: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Generate automatic code based on jenis_barang
+     */
+    private function generateKode(string $jenisBarang): string
+    {
+        $prefix = match ($jenisBarang) {
+            'alkes' => 'ALK',
+            'farmasi' => 'OBT',
+            'inventaris' => 'INV',
+            default => 'UNK'
+        };
+
+        // Get the last record with the same prefix
+        $lastRecord = Daftar_Barang::where('kode', 'like', $prefix . '-%')
+            ->orderBy('kode', 'desc')
+            ->first();
+
+        if (!$lastRecord || !preg_match('/^' . $prefix . '-(\d{4})$/', $lastRecord->kode, $match)) {
+            $nextNumber = 1;
+        } else {
+            $nextNumber = (int)$match[1] + 1;
+        }
+
+        return $prefix . '-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 }

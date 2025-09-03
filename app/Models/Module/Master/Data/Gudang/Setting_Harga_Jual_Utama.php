@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Setting_Harga_Jual_Utama extends Model
 {
-    protected $table = 'harga_jual_utamas';
+    protected $table = 'setting_harga_jual_utamas';
 
     protected $fillable = [
         'harga_jual_1',

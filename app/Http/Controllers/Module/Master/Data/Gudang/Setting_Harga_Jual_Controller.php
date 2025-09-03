@@ -35,6 +35,7 @@ class Setting_Harga_Jual_Controller extends Controller
     }
 
     // Method untuk sinkronisasi manual - hanya sync harga jual, tidak embalase
+    // Method untuk sinkronisasi manual - hanya sync harga jual, tidak embalase
     public function syncFromUtama()
     {
         try {
@@ -51,16 +52,24 @@ class Setting_Harga_Jual_Controller extends Controller
             $currentKlinik = Setting_Harga_Jual::first();
             $currentEmbalase = $currentKlinik ? $currentKlinik->embalase_poin : '0';
 
-
-            // Update harga jual klinik dengan data dari utama
-            $result = Setting_Harga_Jual::updateOrCreate(
-                [
+            // Hanya update record yang ada - pastikan hanya ada 1 record setting
+            if ($currentKlinik) {
+                $currentKlinik->update([
                     'harga_jual_1' => $settingUtama->harga_jual_1,
                     'harga_jual_2' => $settingUtama->harga_jual_2,
                     'harga_jual_3' => $settingUtama->harga_jual_3,
                     'embalase_poin' => $currentEmbalase, // Tetap gunakan embalase yang sudah ada
-                ]
-            );
+                ]);
+                $result = $currentKlinik;
+            } else {
+                // Jika belum ada record, buat baru (hanya untuk kasus pertama kali)
+                $result = Setting_Harga_Jual::create([
+                    'harga_jual_1' => $settingUtama->harga_jual_1,
+                    'harga_jual_2' => $settingUtama->harga_jual_2,
+                    'harga_jual_3' => $settingUtama->harga_jual_3,
+                    'embalase_poin' => $currentEmbalase, // Tetap gunakan embalase yang sudah ada
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -80,27 +89,59 @@ class Setting_Harga_Jual_Controller extends Controller
     {
         try {
             $request->validate([
-                'harga_jual_1' => 'required|string',
-                'harga_jual_2' => 'required|string',
-                'harga_jual_3' => 'required|string',
+                'harga_jual_1'  => 'required|string',
+                'harga_jual_2'  => 'required|string',
+                'harga_jual_3'  => 'required|string',
                 'embalase_poin' => 'required|string',
+            ], [
+                'harga_jual_1'  => 'Harga Jual 1',
+                'harga_jual_2'  => 'Harga Jual 2',
+                'harga_jual_3'  => 'Harga Jual 3',
+                'embalase_poin' => 'Embalase Poin',
             ]);
-
-            // Update atau create - hanya boleh ada 1 record setting per klinik
-            Setting_Harga_Jual::updateOrCreate(
-                [
-                    'harga_jual_1' => $request->harga_jual_1,
-                    'harga_jual_2' => $request->harga_jual_2,
-                    'harga_jual_3' => $request->harga_jual_3,
-                    'embalase_poin' => $request->embalase_poin,
-                ]
-            );
-
-            return response()->json(['message' => 'Setting Harga Jual berhasil disimpan']);
+    
+            // Bersihkan prefix atau simbol dari input agar hanya angka saja
+            $harga_jual_1  = preg_replace('/[^\d]/', '', $request->input('harga_jual_1'));
+            $harga_jual_2  = preg_replace('/[^\d]/', '', $request->input('harga_jual_2'));
+            $harga_jual_3  = preg_replace('/[^\d]/', '', $request->input('harga_jual_3'));
+            $embalase_poin = preg_replace('/[^\d]/', '', $request->input('embalase_poin'));
+    
+            // Hanya update record yang ada - pastikan hanya ada 1 record setting per klinik
+            $setting = Setting_Harga_Jual::first();
+            
+            if ($setting) {
+                $setting->update([
+                    'harga_jual_1' => $harga_jual_1,
+                    'harga_jual_2' => $harga_jual_2,
+                    'harga_jual_3' => $harga_jual_3,
+                    'embalase_poin' => $embalase_poin,
+                ]);
+            } else {
+                // Jika belum ada record, buat baru (hanya untuk kasus pertama kali)
+                Setting_Harga_Jual::create([
+                    'harga_jual_1' => $harga_jual_1,
+                    'harga_jual_2' => $harga_jual_2,
+                    'harga_jual_3' => $harga_jual_3,
+                    'embalase_poin' => $embalase_poin,
+                ]);
+            }
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Setting harga jual berhasil ditambahkan!',
+                'data' => $setting ?? Setting_Harga_Jual::first()
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Setting harga jual sudah ada!',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Failed to save settings',
-                'message' => $e->getMessage()
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan setting harga jual!',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -108,43 +149,47 @@ class Setting_Harga_Jual_Controller extends Controller
     public function storeUtama(Request $request)
     {
         try {
-            // Debug request data
-
-
-            $validated = $request->validate([
-                'harga_jual_1' => 'required|string',
-                'harga_jual_2' => 'required|string',
-                'harga_jual_3' => 'required|string',
+            $request->validate([
+                'harga_jual_1'  => 'required|string',
+                'harga_jual_2'  => 'required|string',
+                'harga_jual_3'  => 'required|string',
+            ], [
+                'harga_jual_1'  => 'Harga Jual 1',
+                'harga_jual_2'  => 'Harga Jual 2',
+                'harga_jual_3'  => 'Harga Jual 3'
             ]);
-
-
-
-            // Update atau create untuk tabel tanpa kolom id menggunakan Query Builder
-            $count = DB::table('harga_jual_utamas')->count();
-
-            $data = [
-                'harga_jual_1' => $request->harga_jual_1,
-                'harga_jual_2' => $request->harga_jual_2,
-                'harga_jual_3' => $request->harga_jual_3,
-                'updated_at' => now(),
-            ];
-
-            if ($count > 0) {
-                DB::table('harga_jual_utamas')->update($data);
+    
+            // Bersihkan prefix atau simbol dari input agar hanya angka saja
+            $harga_jual_1  = preg_replace('/[^\d]/', '', $request->input('harga_jual_1'));
+            $harga_jual_2  = preg_replace('/[^\d]/', '', $request->input('harga_jual_2'));
+            $harga_jual_3  = preg_replace('/[^\d]/', '', $request->input('harga_jual_3'));
+    
+            // Hanya update record yang ada - pastikan hanya ada 1 record setting
+            $settingUtama = Setting_Harga_Jual_Utama::first();
+            
+            if ($settingUtama) {
+                $settingUtama->update([
+                    'harga_jual_1' => $harga_jual_1,
+                    'harga_jual_2' => $harga_jual_2,
+                    'harga_jual_3' => $harga_jual_3,
+                ]);
             } else {
-                $data['created_at'] = now();
-                DB::table('harga_jual_utamas')->insert($data);
+                // Jika belum ada record, buat baru (hanya untuk kasus pertama kali)
+                Setting_Harga_Jual_Utama::create([
+                    'harga_jual_1' => $harga_jual_1,
+                    'harga_jual_2' => $harga_jual_2,
+                    'harga_jual_3' => $harga_jual_3,
+                ]);
             }
-
-            $resultUtama = DB::table('harga_jual_utamas')->first();
-
+    
+            $resultUtama = Setting_Harga_Jual_Utama::first();
+    
             return response()->json([
                 'success' => true,
                 'message' => 'Setting Harga Jual Utama berhasil disimpan',
                 'data' => $resultUtama
-            ]);
+            ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
-
             return response()->json([
                 'success' => false,
                 'error' => 'Validation failed',
@@ -152,7 +197,6 @@ class Setting_Harga_Jual_Controller extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to save settings utama',
@@ -160,7 +204,6 @@ class Setting_Harga_Jual_Controller extends Controller
             ], 500);
         }
     }
-
     public function update(Request $request, Setting_Harga_Jual $settingHargaJual)
     {
         $request->validate([

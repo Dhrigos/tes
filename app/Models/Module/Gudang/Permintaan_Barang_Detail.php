@@ -16,6 +16,7 @@ class Permintaan_Barang_Detail extends Model
         'kode_obat_alkes',
         'nama_obat_alkes',
         'qty',
+        'jenis_barang',
     ];
 
     public function permintaanBarang()

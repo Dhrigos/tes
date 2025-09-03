@@ -63,12 +63,20 @@ const mainNavItems = [
         icon: LayoutGrid,
         children: [
             {
-                title: 'Stok Obat',
+                title: 'Stok Obat utama',
                 href: '/gudang/stok-barang',
             },
             {
-                title: 'Stok Inventaris',
+                title: 'Stok Inventaris utama',
                 href: '/gudang/stok-inventaris',
+            },
+            {
+                title: 'Stok Obat Klinik',
+                href: '/gudang/stok-obat-klinik',
+            },
+            {
+                title: 'Stok Inventaris Klinik',
+                href: '/gudang/stok-inventaris-klinik',
             },
             {
                 title: 'Daftar Permintaan Barang',
@@ -150,8 +158,7 @@ const mainNavItems = [
                     { title: 'Kategori Barang', href: '/datamaster/gudang/kategori-barang' },
                     { title: 'Supplier', href: '/datamaster/gudang/supplier' },
                     { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
-                    { title: 'Daftar Obat', href: '/datamaster/gudang/daftar-obat' },
-                    { title: 'Daftar Inventaris', href: '/datamaster/gudang/daftar-inventaris' },
+                    { title: 'Daftar Barang', href: '/datamaster/gudang/daftar-barang' },
                 ],
             },
         ],

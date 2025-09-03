@@ -13,7 +13,10 @@ export interface User {
 }
 
 export interface PageProps {
+    [key: string]: any;
     auth: {
         user: User;
     };
 }
+
+export interface SharedData extends PageProps {}

@@ -17,6 +17,13 @@ class Htt_Pemeriksaan_Controller extends Controller
         ]);
     }
 
+    // API: list all pemeriksaan (JSON)
+    public function listAll()
+    {
+        $list = Htt_Pemeriksaan::with('htt_subpemeriksaans')->get();
+        return response()->json($list);
+    }
+
     public function store(Request $request)
     {
         $request->validate([

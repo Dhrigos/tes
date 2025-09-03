@@ -86,8 +86,6 @@ class Pelayanan_Permintaan_Controller extends Controller
             ]);
 
             // Add auth info
-            $validated['user_input_id'] = Auth::id() ?? 1;
-            $validated['user_input_name'] = Auth::user()->name ?? 'System';
             $validated['tanggal_permintaan'] = now();
             $validated['status'] = 'pending';
             $validated['no_rawat'] = $validated['nomor_register'];
@@ -130,8 +128,6 @@ class Pelayanan_Permintaan_Controller extends Controller
             }
 
             // Add auth info
-            $validated['user_input_id'] = Auth::id() ?? $permintaan->user_input_id;
-            $validated['user_input_name'] = Auth::user()->name ?? $permintaan->user_input_name;
 
             // Update database
             $permintaan->update($validated);

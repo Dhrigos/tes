@@ -54,4 +54,11 @@ class Htt_Subpemeriksaan_Controller extends Controller
         $subpemeriksaans = Htt_Subpemeriksaan::where('id_htt_pemeriksaan', $pemeriksaanId)->get();
         return response()->json($subpemeriksaans);
     }
+
+    // API: list all subpemeriksaan (optional)
+    public function listAll()
+    {
+        $list = Htt_Subpemeriksaan::with('htt_pemeriksaan')->get();
+        return response()->json($list);
+    }
 }

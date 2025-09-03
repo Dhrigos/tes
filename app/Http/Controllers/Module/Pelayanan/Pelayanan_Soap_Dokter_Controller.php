@@ -9,6 +9,8 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Obat;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_status;
+use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
+use App\Services\PelayananStatusService;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Verbal;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Motorik;
@@ -61,7 +63,6 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                     continue;
                 }
 
-                // Dokter hanya boleh jika daftar=2 dan perawat=2
                 $tindakan = 'panggil';
                 if (!($statusDaftar < 2 || $statusPerawat < 2)) {
                     if ($statusDokter === 0) {
@@ -71,6 +72,10 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                         $existingSoap = Pelayanan_Soap_Dokter::where('no_rawat', $p->nomor_register)->first();
                         $tindakan = $existingSoap ? 'edit' : 'soap';
                     } elseif ($statusDokter === 2) {
+                        // tindakan lanjutan (rujukan, permintaan, edit)
+                        $tindakan = 'edit';
+                    } elseif ($statusDokter === 3) {
+                        // pelayanan selesai
                         $tindakan = 'Complete';
                     }
                 }
@@ -136,28 +141,30 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Get SOAP dokter data (may be null for create mode)
             $soapDokter = Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->first();
 
+            // Get SO Perawat data to display hasil perawat on doctor's page
+            $soPerawat = Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->first();
+
             // Guard akses pemeriksaan dokter: daftar harus 2 dan perawat 2
-            $ps = \App\Models\Module\Pelayanan\Pelayanan_status::where('nomor_register', $nomor_register)->first();
-            $statusDaftar = (int)($ps->status_daftar ?? 0);
-            $statusPerawat = (int)($ps->status_perawat ?? 0);
+            $status = app(PelayananStatusService::class)->ambilStatus($nomor_register);
+            $statusDaftar = $status['status_daftar'];
+            $statusPerawat = $status['status_perawat'];
             if ($statusDaftar < 2 || $statusPerawat < 2) {
                 return redirect()
                     ->route('pelayanan.so-dokter.index')
                     ->with('error', 'Tahap sebelumnya belum selesai (pendaftaran/perawat)');
             }
 
-            // If no patient data from database, use dummy data
+            // Jika dokter mulai memeriksa (dibuka halaman ini), tandai dokter berjalan dan pastikan perawat selesai
+            if (($status['status_dokter'] ?? 0) === 0) {
+                app(PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register); // =1
+                app(PelayananStatusService::class)->tandaiPerawatFinal($nomor_register); // perawat =3
+            }
+
+            // Jika data pasien tidak ditemukan, kembalikan ke index dengan pesan
             if (!$pelayanan) {
-                $dummyPatientData = [
-                    'nomor_rm' => 'DUM001',
-                    'nama' => 'Pasien Dummy',
-                    'nomor_register' => 'DUMREG001',
-                    'jenis_kelamin' => 'Laki-laki',
-                    'penjamin' => 'Umum',
-                    'tanggal_lahir' => '1990-01-01',
-                    'umur' => '35 Tahun'
-                ];
-                $patientData = $dummyPatientData;
+                return redirect()
+                    ->route('pelayanan.so-dokter.index')
+                    ->with('error', 'Data pasien tidak ditemukan');
             } else {
                 // Calculate age
                 $umur = ($pelayanan->pasien && $pelayanan->pasien->tanggal_lahir)
@@ -198,6 +205,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             return Inertia::render('module/pelayanan/soap-dokter/pemeriksaan', [
                 'pelayanan' => $patientData,
                 'soap_dokter' => $soapDokter, // null for create mode, data for edit mode
+                'so_perawat' => $soPerawat,
                 'gcs_eye' => $gcsEye,
                 'gcs_verbal' => $gcsVerbal,
                 'gcs_motorik' => $gcsMotorik,
@@ -223,6 +231,12 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
         try {
             $validated = $request->validate([
                 'no_rawat' => 'required|string',
+                'nomor_rm' => 'nullable|string',
+                'nama' => 'nullable|string',
+                'seks' => 'nullable|string',
+                'penjamin' => 'nullable|string',
+                'tanggal_lahir' => 'nullable|string',
+                'umur' => 'nullable|string',
                 'sistol' => 'nullable|string',
                 'distol' => 'nullable|string',
                 'tensi' => 'nullable|string',
@@ -247,11 +261,9 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'evaluasi' => 'nullable|string',
                 'plan' => 'nullable|string',
                 'tableData' => 'nullable|array',
+                'status_apotek' => 'nullable|integer',
             ]);
 
-            // Fill Auth info
-            $validated['user_input_id'] = Auth::id() ?? 1;
-            $validated['user_input_name'] = Auth::user()->name ?? 'System';
 
             // If tensi empty but sistol/distol present, compose it
             if ((empty($validated['tensi']) || $validated['tensi'] === null)
@@ -260,8 +272,36 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 $validated['tensi'] = $validated['sistol'] . '/' . $validated['distol'];
             }
 
+            // Lengkapi identitas pasien jika tidak dikirim dari frontend
+            if (empty($validated['nomor_rm']) || empty($validated['nama'])) {
+                $pel = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
+                    ->where('nomor_register', $validated['no_rawat'])
+                    ->first();
+                if ($pel) {
+                    $validated['nomor_rm'] = $validated['nomor_rm'] ?? ($pel->nomor_rm ?? '');
+                    $validated['nama'] = $validated['nama'] ?? (optional($pel->pasien)->nama ?? '');
+                    $validated['seks'] = $validated['seks'] ?? (optional($pel->pasien)->seks ?? '');
+                    $validated['penjamin'] = $validated['penjamin'] ?? (optional(optional($pel->pendaftaran)->penjamin)->nama ?? '');
+                    $validated['tanggal_lahir'] = $validated['tanggal_lahir'] ?? (optional($pel->pasien)->tanggal_lahir ?? '');
+                    $validated['umur'] = $validated['umur'] ?? '';
+                }
+            }
+
+            // Normalisasi tableData jika datang sebagai string JSON (fallback)
+            if (!empty($validated['tableData']) && is_string($validated['tableData'])) {
+                $decoded = json_decode($validated['tableData'], true);
+                $validated['tableData'] = is_array($decoded) ? $decoded : [];
+            }
+
             // Create new SOAP dokter record
+            if (!isset($validated['status_apotek'])) {
+                $validated['status_apotek'] = 0; // skip apotek for now
+            }
             Pelayanan_Soap_Dokter::create($validated);
+
+            // Set status dokter berjalan saat simpan pertama dan kunci perawat final (3)
+            app(PelayananStatusService::class)->tandaiDokterBerjalan($validated['no_rawat']);
+            app(PelayananStatusService::class)->tandaiPerawatFinal($validated['no_rawat']);
 
             return redirect()
                 ->route('pelayanan.so-dokter.index')
@@ -306,6 +346,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'evaluasi' => 'nullable|string',
                 'plan' => 'nullable|string',
                 'tableData' => 'nullable|array',
+                'status_apotek' => 'nullable|integer',
             ]);
 
             $soap = Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->first();
@@ -315,9 +356,6 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                     ->with('error', 'Data SOAP Dokter tidak ditemukan');
             }
 
-            // Fill Auth info
-            $validated['user_input_id'] = Auth::id() ?? $soap->user_input_id;
-            $validated['user_input_name'] = Auth::user()->name ?? $soap->user_input_name;
 
             // If tensi empty but sistol/distol present, compose it
             if ((empty($validated['tensi']) || $validated['tensi'] === null)
@@ -326,7 +364,19 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 $validated['tensi'] = $validated['sistol'] . '/' . $validated['distol'];
             }
 
+            // Normalisasi tableData jika datang sebagai string JSON (fallback)
+            if (!empty($validated['tableData']) && is_string($validated['tableData'])) {
+                $decoded = json_decode($validated['tableData'], true);
+                $validated['tableData'] = is_array($decoded) ? $decoded : [];
+            }
+
+            if (!isset($validated['status_apotek'])) {
+                $validated['status_apotek'] = $soap->status_apotek ?? 0;
+            }
             $soap->update($validated);
+
+            // Saat update, pastikan status dokter minimal berjalan (1)
+            app(PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register);
 
             return redirect()
                 ->route('pelayanan.so-dokter.index')
@@ -372,7 +422,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 ], 404);
             }
 
-            // Update atau buat status pendaftaran menjadi 3 (selesai)
+            // Update atau buat status pendaftaran menjadi 3 (selesai) dan tandai dokter complete (3)
             if ($pendaftaran->status) {
                 $pendaftaran->status->update(['status_pendaftaran' => 3]);
             } else {
@@ -388,6 +438,9 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 ]);
             }
 
+            // Dokter selesai layanan penuh: set 3 (pelayanan selesai)
+            app(PelayananStatusService::class)->tandaiDokterPelayananSelesai($nomor_register);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pasien berhasil diselesaikan'
@@ -396,6 +449,44 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menyelesaikan pasien: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark doctor as present/started (hadir/berjalan)
+     */
+    public function hadirDokter(Request $request, $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat, true);
+            if ($nomor_register === false || $nomor_register === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Parameter tidak valid'
+                ], 400);
+            }
+
+            $pelayanan = Pelayanan::where('nomor_register', $nomor_register)->first();
+            if (!$pelayanan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data pelayanan tidak ditemukan'
+                ], 404);
+            }
+
+            // Tandai dokter mulai memeriksa dan kunci perawat final (3)
+            app(\App\Services\PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register);
+            app(\App\Services\PelayananStatusService::class)->tandaiPerawatFinal($nomor_register);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pasien dipanggil untuk pemeriksaan dokter'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memanggil pasien: ' . $e->getMessage()
             ], 500);
         }
     }

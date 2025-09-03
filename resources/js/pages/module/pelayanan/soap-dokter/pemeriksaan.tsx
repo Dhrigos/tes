@@ -40,6 +40,7 @@ interface SoapDokterData {
     eye?: string;
     verbal?: string;
     motorik?: string;
+    kesadaran?: string;
     htt?: string;
     anamnesa?: string;
     assesmen?: string;
@@ -95,6 +96,7 @@ interface Icd9 {
 interface PageProps {
     pelayanan: PatientData;
     soap_dokter?: SoapDokterData;
+    so_perawat?: any;
     gcs_eye: GcsEye[];
     gcs_verbal: GcsVerbal[];
     gcs_motorik: GcsMotorik[];
@@ -117,40 +119,49 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function PemeriksaanSoapDokter() {
-    const { pelayanan, soap_dokter, gcs_eye, gcs_verbal, gcs_motorik, gcs_kesadaran, htt_pemeriksaan, icd10, icd9, norawat, errors } = usePage()
-        .props as unknown as PageProps;
+    const { pelayanan, soap_dokter, so_perawat, gcs_eye, gcs_verbal, gcs_motorik, gcs_kesadaran, htt_pemeriksaan, icd10, icd9, norawat, errors } =
+        usePage().props as unknown as PageProps;
 
     // Debug logging
     console.log('PemeriksaanSoapDokter component loaded');
-    console.log('Props received:', { pelayanan, soap_dokter, norawat, errors });
+    console.log('Props received:', { pelayanan, soap_dokter, so_perawat, norawat, errors });
 
     const [activeTab, setActiveTab] = useState('subyektif');
-    const [formData, setFormData] = useState<SoapDokterData>({
-        no_rawat: soap_dokter?.no_rawat || '',
-        sistol: soap_dokter?.sistol || '',
-        distol: soap_dokter?.distol || '',
-        tensi: soap_dokter?.tensi || '',
-        suhu: soap_dokter?.suhu || '',
-        nadi: soap_dokter?.nadi || '',
-        rr: soap_dokter?.rr || '',
-        tinggi: soap_dokter?.tinggi || '',
-        berat: soap_dokter?.berat || '',
-        spo2: soap_dokter?.spo2 || '',
-        lingkar_perut: soap_dokter?.lingkar_perut || '',
-        nilai_bmi: soap_dokter?.nilai_bmi || '',
-        status_bmi: soap_dokter?.status_bmi || '',
-        jenis_alergi: soap_dokter?.jenis_alergi || '',
-        alergi: soap_dokter?.alergi || '',
-        eye: soap_dokter?.eye || '',
-        verbal: soap_dokter?.verbal || '',
-        motorik: soap_dokter?.motorik || '',
-        htt: soap_dokter?.htt || '',
-        anamnesa: soap_dokter?.anamnesa || '',
-        assesmen: soap_dokter?.assesmen || '',
-        expertise: soap_dokter?.expertise || '',
-        evaluasi: soap_dokter?.evaluasi || '',
-        plan: soap_dokter?.plan || '',
-        tableData: soap_dokter?.tableData || [],
+    const [formData, setFormData] = useState<SoapDokterData>(() => {
+        const p = so_perawat as any;
+        const composeTensi = (s: string, d: string, t: string) => {
+            if (t && t.trim() !== '') return t;
+            if (s && d) return `${s}/${d}`;
+            return '';
+        };
+        return {
+            no_rawat: soap_dokter?.no_rawat || pelayanan?.nomor_register || '',
+            sistol: soap_dokter?.sistol || (p?.sistol ? String(p.sistol) : ''),
+            distol: soap_dokter?.distol || (p?.distol ? String(p.distol) : ''),
+            tensi: soap_dokter?.tensi || composeTensi(p?.sistol || '', p?.distol || '', p?.tensi || ''),
+            suhu: soap_dokter?.suhu || (p?.suhu ? String(p.suhu) : ''),
+            nadi: soap_dokter?.nadi || (p?.nadi ? String(p.nadi) : ''),
+            rr: soap_dokter?.rr || (p?.rr ? String(p.rr) : ''),
+            tinggi: soap_dokter?.tinggi || (p?.tinggi ? String(p.tinggi) : ''),
+            berat: soap_dokter?.berat || (p?.berat ? String(p.berat) : ''),
+            spo2: soap_dokter?.spo2 || (p?.spo2 ? String(p.spo2) : ''),
+            lingkar_perut: soap_dokter?.lingkar_perut || (p?.lingkar_perut ? String(p.lingkar_perut) : ''),
+            nilai_bmi: soap_dokter?.nilai_bmi || (p?.nilai_bmi ? String(p.nilai_bmi) : ''),
+            status_bmi: soap_dokter?.status_bmi || (p?.status_bmi ? String(p.status_bmi) : ''),
+            jenis_alergi: soap_dokter?.jenis_alergi || p?.jenis_alergi || '',
+            alergi: soap_dokter?.alergi || p?.alergi || '',
+            eye: soap_dokter?.eye || (p?.eye !== undefined && p?.eye !== null ? String(p.eye) : ''),
+            verbal: soap_dokter?.verbal || (p?.verbal !== undefined && p?.verbal !== null ? String(p.verbal) : ''),
+            motorik: soap_dokter?.motorik || (p?.motorik !== undefined && p?.motorik !== null ? String(p.motorik) : ''),
+            kesadaran: soap_dokter?.kesadaran || p?.kesadaran || '',
+            htt: soap_dokter?.htt || '',
+            anamnesa: soap_dokter?.anamnesa || '',
+            assesmen: soap_dokter?.assesmen || '',
+            expertise: soap_dokter?.expertise || '',
+            evaluasi: soap_dokter?.evaluasi || '',
+            plan: soap_dokter?.plan || '',
+            tableData: (soap_dokter?.tableData && Array.isArray(soap_dokter.tableData) ? soap_dokter.tableData : p?.tableData || []) as any[],
+        };
     });
 
     // Collapsible states for Objektif sections
@@ -185,6 +196,40 @@ export default function PemeriksaanSoapDokter() {
         }
     }, [formData.tinggi, formData.berat]);
 
+    // Calculate GCS kesadaran when eye, verbal, or motorik changes
+    useEffect(() => {
+        if (formData.eye && formData.verbal && formData.motorik) {
+            const eyeScore = parseInt(formData.eye);
+            const verbalScore = parseInt(formData.verbal);
+            const motorikScore = parseInt(formData.motorik);
+
+            if (!isNaN(eyeScore) && !isNaN(verbalScore) && !isNaN(motorikScore)) {
+                const totalScore = eyeScore + verbalScore + motorikScore;
+
+                // Map total score to kesadaran level based on GCS seeder
+                let kesadaran = '';
+                if (totalScore >= 14) {
+                    kesadaran = 'COMPOS MENTIS';
+                } else if (totalScore >= 12) {
+                    kesadaran = 'APATIS';
+                } else if (totalScore >= 7) {
+                    kesadaran = 'SOMNOLEN';
+                } else if (totalScore >= 5) {
+                    kesadaran = 'SOPOR';
+                } else if (totalScore >= 4) {
+                    kesadaran = 'SEMI COMA';
+                } else {
+                    kesadaran = 'KOMA';
+                }
+
+                setFormData((prev) => ({
+                    ...prev,
+                    kesadaran: kesadaran,
+                }));
+            }
+        }
+    }, [formData.eye, formData.verbal, formData.motorik]);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -209,11 +254,10 @@ export default function PemeriksaanSoapDokter() {
         };
 
         try {
-            if (soap_dokter && norawat) {
+            if (isEditMode && norawat) {
                 router.put(`/pelayanan/soap-dokter/${norawat}`, payload, {
                     onSuccess: () => {
                         toast.success('Pemeriksaan berhasil diperbarui');
-                        router.visit('/pelayanan/soap-dokter');
                     },
                     onError: (errors) => {
                         toast.error('Gagal memperbarui pemeriksaan');
@@ -223,7 +267,6 @@ export default function PemeriksaanSoapDokter() {
                 router.post('/pelayanan/soap-dokter', payload, {
                     onSuccess: () => {
                         toast.success('Pemeriksaan berhasil disimpan');
-                        router.visit('/pelayanan/soap-dokter');
                     },
                     onError: (errors) => {
                         toast.error('Gagal menyimpan pemeriksaan');
@@ -251,42 +294,93 @@ export default function PemeriksaanSoapDokter() {
             <div className="space-y-6 p-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>{pageTitle}</CardTitle>
+                        <CardTitle>Data Pasien</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {/* Patient Information */}
-                        <div className="mb-6 rounded-lg bg-gray-50 p-4">
-                            <h3 className="mb-3 text-lg font-semibold">Informasi Pasien</h3>
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        {pelayanan ? (
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                 <div>
-                                    <Label className="text-sm font-medium">No. RM</Label>
-                                    <p className="font-medium">{pelayanan.nomor_rm || '-'}</p>
+                                    <Label>Nomor RM</Label>
+                                    <Input value={pelayanan?.nomor_rm || ''} readOnly />
                                 </div>
                                 <div>
-                                    <Label className="text-sm font-medium">Nama Pasien</Label>
-                                    <p className="font-medium">{pelayanan.nama || '-'}</p>
+                                    <Label>Nama</Label>
+                                    <Input value={pelayanan?.nama || ''} readOnly />
                                 </div>
                                 <div>
-                                    <Label className="text-sm font-medium">Jenis Kelamin</Label>
-                                    <p className="font-medium">{pelayanan.jenis_kelamin || '-'}</p>
+                                    <Label>Nomor Rawat</Label>
+                                    <Input value={pelayanan?.nomor_register || ''} readOnly />
                                 </div>
                                 <div>
-                                    <Label className="text-sm font-medium">Umur</Label>
-                                    <p className="font-medium">{pelayanan.umur || '-'}</p>
+                                    <Label>Jenis Kelamin</Label>
+                                    <Input value={pelayanan?.jenis_kelamin || ''} readOnly />
                                 </div>
                                 <div>
-                                    <Label className="text-sm font-medium">Penjamin</Label>
-                                    <p className="font-medium">{pelayanan.penjamin || '-'}</p>
+                                    <Label>Penjamin</Label>
+                                    <Input value={pelayanan?.penjamin || ''} readOnly />
                                 </div>
                                 <div>
-                                    <Label className="text-sm font-medium">Tanggal Lahir</Label>
-                                    <p className="font-medium">{pelayanan.tanggal_lahir || '-'}</p>
+                                    <Label>Tanggal Lahir</Label>
+                                    <Input value={pelayanan?.tanggal_lahir || ''} readOnly />
+                                </div>
+                                <div>
+                                    <Label>Umur</Label>
+                                    <Input
+                                        value={
+                                            pelayanan?.umur
+                                                ? (() => {
+                                                      // Ambil angka di depan (sebelum spasi/tahun), bulatkan ke bawah, lalu tambahkan " Tahun"
+                                                      const match = String(pelayanan.umur).match(/^([\d.]+)/);
+                                                      if (match) {
+                                                          const tahun = Math.floor(Number(match[1]));
+                                                          return `${tahun} Tahun`;
+                                                      }
+                                                      return pelayanan.umur;
+                                                  })()
+                                                : ''
+                                        }
+                                        readOnly
+                                    />
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="py-4 text-center">
+                                <p className="text-yellow-500">Menggunakan data dummy untuk pengujian.</p>
+                                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+                                    <div>
+                                        <Label>Nomor RM</Label>
+                                        <Input value="DUM001" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Nama</Label>
+                                        <Input value="Pasien Dummy" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Nomor Rawat</Label>
+                                        <Input value="DUMREG001" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Jenis Kelamin</Label>
+                                        <Input value="Laki-laki" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Penjamin</Label>
+                                        <Input value="Umum" readOnly />
+                                    </div>
+                                    <div>
+                                        <Label>Tanggal Lahir</Label>
+                                        <Input value="1990-01-01" readOnly />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
-                        {/* SOAP Form */}
-                        <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit}>
+                    <Card>
+                        <CardContent className="p-6">
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-4">
                                     <TabsTrigger value="subyektif">Subyektif</TabsTrigger>
@@ -306,7 +400,7 @@ export default function PemeriksaanSoapDokter() {
                                                 value={formData.anamnesa}
                                                 onChange={handleInputChange}
                                                 rows={6}
-                                                className="mt-1"
+                                                className="mt-1 border-input bg-background"
                                             />
                                         </div>
                                     </div>
@@ -325,15 +419,68 @@ export default function PemeriksaanSoapDokter() {
                                         </Button>
                                     </div>
                                     <div className="space-y-6">
+                                        {/* Ringkasan dari Perawat */}
+                                        {so_perawat?.tableData && (
+                                            <Card>
+                                                <CardHeader>
+                                                    <CardTitle className="text-lg">Ringkasan Perawat</CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    {(() => {
+                                                        const td = so_perawat.tableData as any;
+                                                        const kel = Array.isArray(td?.keluhanList) ? td.keluhanList : [];
+                                                        const htt = Array.isArray(td?.httItems) ? td.httItems : [];
+                                                        return (
+                                                            <div className="space-y-4">
+                                                                {kel.length > 0 && (
+                                                                    <div>
+                                                                        <Label>Daftar Keluhan</Label>
+                                                                        <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                                                                            {kel.map((it: any, idx: number) => (
+                                                                                <li key={idx}>
+                                                                                    {it.keluhan} — {it.durasi}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                )}
+                                                                {htt.length > 0 && (
+                                                                    <div>
+                                                                        <Label>Head To Toe</Label>
+                                                                        <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                                                                            {htt.map((it: any, idx: number) => (
+                                                                                <li key={idx}>
+                                                                                    {it.pemeriksaan} / {it.subPemeriksaan} — {it.detail}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                )}
+                                                                {so_perawat?.summernote && (
+                                                                    <div>
+                                                                        <Label>Catatan Perawat</Label>
+                                                                        <div className="prose mt-1 max-w-none text-sm whitespace-pre-wrap">
+                                                                            {so_perawat.summernote}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </CardContent>
+                                            </Card>
+                                        )}
                                         {/* Vital Signs */}
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
-                                                <CardTitle className="text-lg">Vital Signs</CardTitle>
+                                                <CardTitle className="text-lg">Tanda Vital</CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenVital(!openVital)}>
-                                                    {openVital ? 'Tutup' : 'Buka'}
+                                                    {openVital ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            {openVital && (
+                                            <div
+                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openVital ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                                            >
                                                 <CardContent className="space-y-4">
                                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                                         <div>
@@ -358,7 +505,7 @@ export default function PemeriksaanSoapDokter() {
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="tensi">Tensi</Label>
-                                                            <Input id="tensi" name="tensi" value={formData.tensi} readOnly className="bg-gray-50" />
+                                                            <Input id="tensi" name="tensi" value={formData.tensi} readOnly />
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="suhu">Suhu (°C)</Label>
@@ -414,7 +561,7 @@ export default function PemeriksaanSoapDokter() {
                                                         </div>
                                                     </div>
                                                 </CardContent>
-                                            )}
+                                            </div>
                                         </Card>
 
                                         {/* Antropometri */}
@@ -427,10 +574,12 @@ export default function PemeriksaanSoapDokter() {
                                                     size="sm"
                                                     onClick={() => setOpenAntropometri(!openAntropometri)}
                                                 >
-                                                    {openAntropometri ? 'Tutup' : 'Buka'}
+                                                    {openAntropometri ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            {openAntropometri && (
+                                            <div
+                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openAntropometri ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                                            >
                                                 <CardContent>
                                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                                         <div>
@@ -455,27 +604,15 @@ export default function PemeriksaanSoapDokter() {
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="nilai_bmi">Nilai BMI</Label>
-                                                            <Input
-                                                                id="nilai_bmi"
-                                                                name="nilai_bmi"
-                                                                value={formData.nilai_bmi}
-                                                                readOnly
-                                                                className="bg-gray-50"
-                                                            />
+                                                            <Input id="nilai_bmi" name="nilai_bmi" value={formData.nilai_bmi} readOnly />
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="status_bmi">Status BMI</Label>
-                                                            <Input
-                                                                id="status_bmi"
-                                                                name="status_bmi"
-                                                                value={formData.status_bmi}
-                                                                readOnly
-                                                                className="bg-gray-50"
-                                                            />
+                                                            <Input id="status_bmi" name="status_bmi" value={formData.status_bmi} readOnly />
                                                         </div>
                                                     </div>
                                                 </CardContent>
-                                            )}
+                                            </div>
                                         </Card>
 
                                         {/* Alergi */}
@@ -483,10 +620,12 @@ export default function PemeriksaanSoapDokter() {
                                             <CardHeader className="flex flex-row items-center justify-between">
                                                 <CardTitle className="text-lg">Alergi</CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenAlergi(!openAlergi)}>
-                                                    {openAlergi ? 'Tutup' : 'Buka'}
+                                                    {openAlergi ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            {openAlergi && (
+                                            <div
+                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openAlergi ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                                            >
                                                 <CardContent>
                                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                         <div>
@@ -519,7 +658,7 @@ export default function PemeriksaanSoapDokter() {
                                                         </div>
                                                     </div>
                                                 </CardContent>
-                                            )}
+                                            </div>
                                         </Card>
 
                                         {/* GCS */}
@@ -527,12 +666,14 @@ export default function PemeriksaanSoapDokter() {
                                             <CardHeader className="flex flex-row items-center justify-between">
                                                 <CardTitle className="text-lg">Glasgow Coma Scale (GCS)</CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenGcs(!openGcs)}>
-                                                    {openGcs ? 'Tutup' : 'Buka'}
+                                                    {openGcs ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            {openGcs && (
+                                            <div
+                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openGcs ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                                            >
                                                 <CardContent>
-                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                                         <div>
                                                             <Label htmlFor="eye">Eye Response</Label>
                                                             <Select value={formData.eye} onValueChange={(value) => handleSelectChange('eye', value)}>
@@ -584,9 +725,20 @@ export default function PemeriksaanSoapDokter() {
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
+                                                        <div>
+                                                            <Label htmlFor="kesadaran">Kesadaran</Label>
+                                                            <Input
+                                                                id="kesadaran"
+                                                                name="kesadaran"
+                                                                value={formData.kesadaran}
+                                                                readOnly
+                                                                className="border-input bg-background"
+                                                                placeholder="Otomatis terisi"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </CardContent>
-                                            )}
+                                            </div>
                                         </Card>
 
                                         {/* HTT */}
@@ -594,10 +746,12 @@ export default function PemeriksaanSoapDokter() {
                                             <CardHeader className="flex flex-row items-center justify-between">
                                                 <CardTitle className="text-lg">Head To Toe (HTT)</CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenHtt(!openHtt)}>
-                                                    {openHtt ? 'Tutup' : 'Buka'}
+                                                    {openHtt ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            {openHtt && (
+                                            <div
+                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openHtt ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                                            >
                                                 <CardContent>
                                                     <div>
                                                         <Label htmlFor="htt">Pemeriksaan HTT</Label>
@@ -607,12 +761,12 @@ export default function PemeriksaanSoapDokter() {
                                                             value={formData.htt}
                                                             onChange={handleInputChange}
                                                             rows={4}
-                                                            className="mt-1"
+                                                            className="mt-1 border-input bg-background"
                                                             placeholder="Masukkan hasil pemeriksaan head to toe..."
                                                         />
                                                     </div>
                                                 </CardContent>
-                                            )}
+                                            </div>
                                         </Card>
                                     </div>
                                     <div className="mt-4 flex justify-between">
@@ -641,7 +795,7 @@ export default function PemeriksaanSoapDokter() {
                                                         value={formData.assesmen}
                                                         onChange={handleInputChange}
                                                         rows={6}
-                                                        className="mt-1"
+                                                        className="mt-1 border-input bg-background"
                                                         placeholder="Masukkan diagnosis atau assessment pasien..."
                                                     />
                                                 </div>
@@ -654,7 +808,7 @@ export default function PemeriksaanSoapDokter() {
                                                         value={formData.expertise}
                                                         onChange={handleInputChange}
                                                         rows={4}
-                                                        className="mt-1"
+                                                        className="mt-1 border-input bg-background"
                                                         placeholder="Masukkan expertise atau konsultasi yang diperlukan..."
                                                     />
                                                 </div>
@@ -667,7 +821,7 @@ export default function PemeriksaanSoapDokter() {
                                                         value={formData.evaluasi}
                                                         onChange={handleInputChange}
                                                         rows={4}
-                                                        className="mt-1"
+                                                        className="mt-1 border-input bg-background"
                                                         placeholder="Masukkan evaluasi kondisi pasien..."
                                                     />
                                                 </div>
@@ -700,7 +854,7 @@ export default function PemeriksaanSoapDokter() {
                                                         value={formData.plan}
                                                         onChange={handleInputChange}
                                                         rows={8}
-                                                        className="mt-1"
+                                                        className="mt-1 border-input bg-background"
                                                         placeholder="Masukkan rencana tindakan, terapi, atau pengobatan untuk pasien..."
                                                     />
                                                 </div>
@@ -715,9 +869,9 @@ export default function PemeriksaanSoapDokter() {
                                     </div>
                                 </TabsContent>
                             </Tabs>
-                        </form>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+                </form>
             </div>
         </AppLayout>
     );
