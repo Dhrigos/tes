@@ -16,11 +16,10 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
 use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual;
+use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual as SettingHargaJual;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama as SettingHargaJualUtama;
-use App\Models\Module\Master\Data\Gudang\Harga_Jual_Utama as HargaJualUtama;
 use App\Models\Settings\Web_Setting;
 
 class Pembelian_Controller extends Controller
@@ -28,20 +27,6 @@ class Pembelian_Controller extends Controller
     public function index()
     {
         $title = "Pembelian";
-        // $supplier = gudang_supplier_industri::all();
-        // $gudang = WebSetting::first()->is_gudangutama_active;
-        // if ($gudang == 1) {
-        //     $dabar = gudang_barang_utama::all();
-        // } else {
-        //     $dabar = gudang_barang::all();
-        // }
-        // $user = User::all();
-        // if ($gudang == 1) {
-        //     $settingHarga = gudang_setting_harga_utama::first();
-        // } else {
-        //     $settingHarga = gudang_setting_harga::first();
-        // }
-
         return Inertia::render('module/pembelian/index', compact(
             'title'
         ));
@@ -93,7 +78,6 @@ class Pembelian_Controller extends Controller
                     'details.*.sub_total.required' => 'Sub total wajib diisi',
                 ]);
 
-                // Cek apakah nomor faktur sudah ada
                 $existingPembelian = Pembelian::where('nomor_faktur', $request->nomor_faktur)->first();
                 if ($existingPembelian) {
                     return response()->json([
@@ -102,7 +86,6 @@ class Pembelian_Controller extends Controller
                     ], 422);
                 }
 
-                // Simpan data secara atomik agar master dan detail konsisten
                 $pembelian = DB::transaction(function () use ($request) {
                     $header = Pembelian::create([
                         'jenis_pembelian' => $request->jenis_pembelian,
@@ -127,39 +110,22 @@ class Pembelian_Controller extends Controller
 
                     $details = $request->input('details', []);
 
-                    // Load pricing settings for both jenis: 'utama' and 'klinik'
-                    $webSetting = Web_Setting::first(); // still used by UI but not necessary for storing both types
-
                     $klinikSetting = SettingHargaJual::first();
-                    // Build query robustly without assuming specific columns exist for utama template
-                    $utamaQuery = HargaJualUtama::query();
-                    if (Schema::hasColumn('harga_jual_utamas', 'is_active')) {
-                        $utamaQuery->where('is_active', true);
-                    }
-                    if (Schema::hasColumn('harga_jual_utamas', 'id')) {
-                        $utamaQuery->orderByDesc('id');
-                    } elseif (Schema::hasColumn('harga_jual_utamas', 'created_at')) {
-                        $utamaQuery->orderByDesc('created_at');
-                    }
-                    $utamaTemplate = $utamaQuery->first();
                     $utamaSetting = SettingHargaJualUtama::first();
 
-                    // Utama percentages & embalase
-                    $uPercent1 = (float) (($utamaTemplate?->harga_jual_1 ?? $utamaSetting?->harga_jual_1 ?? $klinikSetting?->harga_jual_1 ?? '0'));
-                    $uPercent2 = (float) (($utamaTemplate?->harga_jual_2 ?? $utamaSetting?->harga_jual_2 ?? $klinikSetting?->harga_jual_2 ?? '0'));
-                    $uPercent3 = (float) (($utamaTemplate?->harga_jual_3 ?? $utamaSetting?->harga_jual_3 ?? $klinikSetting?->harga_jual_3 ?? '0'));
-                    $uEmbalase = (float) (($utamaTemplate?->embalase_poin ?? $klinikSetting?->embalase_poin ?? '0'));
+                    $uPercent1 = (float) (($utamaSetting?->harga_jual_1 ?? $klinikSetting?->harga_jual_1 ?? '0'));
+                    $uPercent2 = (float) (($utamaSetting?->harga_jual_2 ?? $klinikSetting?->harga_jual_2 ?? '0'));
+                    $uPercent3 = (float) (($utamaSetting?->harga_jual_3 ?? $klinikSetting?->harga_jual_3 ?? '0'));
+                    $uEmbalase = (float) ($klinikSetting?->embalase_poin ?? '0');
 
-                    // Klinik percentages & embalase
-                    $kPercent1 = (float) (($klinikSetting?->harga_jual_1 ?? $utamaTemplate?->harga_jual_1 ?? $utamaSetting?->harga_jual_1 ?? '0'));
-                    $kPercent2 = (float) (($klinikSetting?->harga_jual_2 ?? $utamaTemplate?->harga_jual_2 ?? $utamaSetting?->harga_jual_2 ?? '0'));
-                    $kPercent3 = (float) (($klinikSetting?->harga_jual_3 ?? $utamaTemplate?->harga_jual_3 ?? $utamaSetting?->harga_jual_3 ?? '0'));
-                    $kEmbalase = (float) (($klinikSetting?->embalase_poin ?? $utamaTemplate?->embalase_poin ?? '0'));
+                    $kPercent1 = (float) (($klinikSetting?->harga_jual_1 ?? $utamaSetting?->harga_jual_1 ?? '0'));
+                    $kPercent2 = (float) (($klinikSetting?->harga_jual_2 ?? $utamaSetting?->harga_jual_2 ?? '0'));
+                    $kPercent3 = (float) (($klinikSetting?->harga_jual_3 ?? $utamaSetting?->harga_jual_3 ?? '0'));
+                    $kEmbalase = (float) ($klinikSetting?->embalase_poin ?? '0');
 
                     $ppnPercent = (float) ($request->pajak_ppn ?: '0');
                     $metodeHna = (string) ($request->metode_hna ?: '1');
                     foreach ($details as $detail) {
-                        // Lewati entri kosong jika ada
                         if (!(isset($detail['nama_obat_alkes'], $detail['kode_obat_alkes'], $detail['qty'], $detail['harga_satuan'], $detail['sub_total']))) {
                             continue;
                         }
@@ -244,7 +210,6 @@ class Pembelian_Controller extends Controller
                                 ]);
                             }
 
-                            // Persist pricing into daftar_harga_juals for obat/obat_klinik
                             $qty = (float) ($detail['qty'] ?? '0');
                             if ($qty <= 0) { $qty = 1; }
                             $hargaSatuan = (float) ($detail['harga_satuan'] ?? '0');
@@ -281,21 +246,17 @@ class Pembelian_Controller extends Controller
                                     break;
                             }
 
-                            // Hitung harga jual untuk UTAMA
                             $uJual1 = $hargaDasar * (1 + $uPercent1 / 100.0) + $uEmbalase;
                             $uJual2 = $hargaDasar * (1 + $uPercent2 / 100.0) + $uEmbalase;
                             $uJual3 = $hargaDasar * (1 + $uPercent3 / 100.0) + $uEmbalase;
 
-                            // Hitung harga jual untuk KLINIK
                             $kJual1 = $hargaDasar * (1 + $kPercent1 / 100.0) + $kEmbalase;
                             $kJual2 = $hargaDasar * (1 + $kPercent2 / 100.0) + $kEmbalase;
                             $kJual3 = $hargaDasar * (1 + $kPercent3 / 100.0) + $kEmbalase;
 
                             $tglMasuk = $request->tanggal_terima_barang ?: now()->format('Y-m-d');
-                            // Tentukan target jenis berdasarkan jenis pembelian (obat => utama, obat_klinik => klinik)
                             $targetJenis = ($request->jenis_pembelian === 'obat_klinik') ? 'klinik' : 'utama';
 
-                            // Pilih harga jual sesuai dengan target jenis
                             if ($targetJenis === 'utama') {
                                 $jual1 = $uJual1;
                                 $jual2 = $uJual2;
@@ -306,32 +267,47 @@ class Pembelian_Controller extends Controller
                                 $jual3 = $kJual3;
                             }
 
-                            // Upsert hanya untuk jenis target
-                            Daftar_Harga_Jual::updateOrCreate(
-                                [
-                                    'kode_obat_alkes' => $detail['kode_obat_alkes'],
-                                    'jenis' => $targetJenis,
-                                ],
-                                [
-                                    'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                                    'harga_dasar' => (string) $hargaDasar,
-                                    'harga_jual_1' => (string) $jual1,
-                                    'harga_jual_2' => (string) $jual2,
-                                    'harga_jual_3' => (string) $jual3,
-                                    'diskon' => (string) $diskonRaw,
-                                    'ppn' => (string) $ppnPercent,
-                                    'tanggal_obat_masuk' => $tglMasuk,
-                                    'user_input_id' => (string) (Auth::id() ?? '0'),
-                                    'user_input_name' => (string) (Auth::user()->name ?? 'System'),
-                                    'jenis' => $targetJenis,
-                                ]
-                            );
+                            if ($targetJenis === 'klinik') {
+                                Daftar_Harga_Jual_Klinik::updateOrCreate(
+                                    [
+                                        'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                                    ],
+                                    [
+                                        'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                                        'harga_dasar' => (string) $hargaDasar,
+                                        'harga_jual_1' => (string) $jual1,
+                                        'harga_jual_2' => (string) $jual2,
+                                        'harga_jual_3' => (string) $jual3,
+                                        'diskon' => (string) $diskonRaw,
+                                        'ppn' => (string) $ppnPercent,
+                                        'tanggal_obat_masuk' => $tglMasuk,
+                                        'jenis' => $targetJenis,
+                                    ]
+                                );
+                            } else {
+                                Daftar_Harga_Jual::updateOrCreate(
+                                    [
+                                        'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                                        'jenis' => $targetJenis,
+                                    ],
+                                    [
+                                        'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                                        'harga_dasar' => (string) $hargaDasar,
+                                        'harga_jual_1' => (string) $jual1,
+                                        'harga_jual_2' => (string) $jual2,
+                                        'harga_jual_3' => (string) $jual3,
+                                        'diskon' => (string) $diskonRaw,
+                                        'ppn' => (string) $ppnPercent,
+                                        'tanggal_obat_masuk' => $tglMasuk,
+                                        'user_input_id' => (string) (Auth::id() ?? '0'),
+                                        'user_input_name' => (string) (Auth::user()->name ?? 'System'),
+                                        'jenis' => $targetJenis,
+                                    ]
+                                );
+                            }
                         }
-
-                        // akhir foreach detail
                     }
 
-                    // Kembalikan header pembelian untuk response
                     return $header;
                 });
 
@@ -363,7 +339,6 @@ class Pembelian_Controller extends Controller
             $jenisPembelian = $request->input('jenis_pembelian');
             $today = date('Ymd'); // Format menjadi YYYYMMDD
 
-            // Tentukan prefix berdasarkan jenis pembelian
             if ($jenisPembelian === 'inventaris') {
                 $prefix = 'FIP-' . $today . '-'; // Faktur Inventaris Pembelian
             } elseif ($jenisPembelian === 'inventaris_klinik') {
@@ -374,14 +349,12 @@ class Pembelian_Controller extends Controller
                 $prefix = 'INV-' . $today . '-'; // Invoice untuk obat
             }
 
-            // Cari nomor faktur terakhir untuk tanggal yang sama dengan jenis pembelian yang sama
             $lastPembelian = Pembelian::where('nomor_faktur', 'LIKE', $prefix . '%')
                 ->whereDate('created_at', '=', date('Y-m-d'))
                 ->where('jenis_pembelian', $jenisPembelian)
                 ->latest('nomor_faktur')
                 ->first();
 
-            // Jika ada nomor faktur terakhir dengan kode yang sama, ambil angka di akhir dan tambahkan 1
             if ($lastPembelian) {
                 if ($jenisPembelian === 'inventaris') {
                     preg_match('/FIP-\d{8}-(\d{5})$/', $lastPembelian->nomor_faktur, $matches);
@@ -394,11 +367,9 @@ class Pembelian_Controller extends Controller
                 }
                 $nextNumber = isset($matches[1]) ? (int) $matches[1] + 1 : 1;
             } else {
-                // Jika tidak ada nomor faktur sebelumnya untuk jenis ini hari ini, mulai dari 1
                 $nextNumber = 1;
             }
 
-            // Format nomor faktur dengan padding 5 digit
             $nextNomorFaktur = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
             return response()->json([
@@ -422,25 +393,19 @@ class Pembelian_Controller extends Controller
             $today = date('Ymd'); // Tanggal hari ini dalam format YYYYMMDD
             $prefix = 'FIP-' . $today . '-';
 
-            // Cari nomor inventaris terakhir untuk tanggal yang sama dengan prefix yang sama
-            // Menggunakan model pembelian untuk inventaris (sesuaikan dengan model yang tersedia)
             $lastInventaris = Pembelian::where('nomor_faktur', 'LIKE', $prefix . '%')
                 ->whereDate('created_at', '=', date('Y-m-d'))
-                ->where('jenis_pembelian', 'inventaris') // Filter berdasarkan jenis pembelian
+                ->where('jenis_pembelian', 'inventaris')
                 ->latest('nomor_faktur')
                 ->first();
 
-            // Jika ada nomor inventaris sebelumnya dengan kode yang sama
             if ($lastInventaris) {
-                // Ambil nomor urut terakhir dari kode nomor faktur
                 preg_match('/FIP-\d{8}-(\d{5})$/', $lastInventaris->nomor_faktur, $matches);
                 $nextNumber = isset($matches[1]) ? ((int)$matches[1] + 1) : 1;
             } else {
-                // Jika tidak ada nomor inventaris sebelumnya untuk hari ini, mulai dari 1
                 $nextNumber = 1;
             }
 
-            // Generate kode inventaris baru
             $kodeInventaris = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
             return response()->json([

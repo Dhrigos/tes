@@ -10,11 +10,19 @@ use App\Models\Module\Gudang\Data_Barang_Keluar;
 use App\Models\Module\Master\Data\Gudang\Daftar_Barang;
 use App\Models\Module\Gudang\Stok_Barang;
 use App\Models\Module\Gudang\Stok_Inventaris;
+use App\Services\PermintaanBarangWebSocketService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class Daftar_Permintaan_Barang_Controller extends Controller
 {
+    protected $webSocketService;
+
+    public function __construct(PermintaanBarangWebSocketService $webSocketService)
+    {
+        $this->webSocketService = $webSocketService;
+    }
+
     public function index(Request $request) {
         $title = "Daftar Permintaan Barang";
         $permintaan = Permintaan_Barang::all();
@@ -163,6 +171,15 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                     'status' => 2,
                 ]);
 
+                // Broadcast WebSocket event untuk konfirmasi permintaan
+                $this->webSocketService->broadcastKonfirmasi([
+                    'kode_request' => $kodeRequest,
+                    'kode_klinik' => $found->kode_klinik,
+                    'nama_klinik' => $namaKlinik,
+                    'status' => 2,
+                    'tanggal_request' => $tanggalRequest
+                ]);
+
                 // Process all items since we know they all have sufficient stock
                 foreach ($items as $item) {
                     $kodeObat = $item['kode_obat'];
@@ -264,6 +281,16 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                         }
                     }
                 }
+
+                // Broadcast WebSocket event untuk pengiriman barang
+                $this->webSocketService->broadcastPengiriman([
+                    'kode_request' => $kodeRequest,
+                    'kode_klinik' => $found->kode_klinik,
+                    'nama_klinik' => $namaKlinik,
+                    'status' => 2,
+                    'tanggal_request' => $tanggalRequest,
+                    'items' => $items
+                ]);
 
                 // Return jika berhasil
                 return response()->json([

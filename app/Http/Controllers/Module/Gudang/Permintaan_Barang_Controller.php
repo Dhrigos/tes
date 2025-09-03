@@ -14,6 +14,7 @@ use App\Models\Module\Gudang\Stok_Obat_Klinik;
 use App\Models\Module\Gudang\Harga_Barang;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual;
 use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual;
+use App\Services\PermintaanBarangWebSocketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +25,13 @@ use Carbon\Carbon;
 
 class Permintaan_Barang_Controller extends Controller
 {
+    protected $webSocketService;
+
+    public function __construct(PermintaanBarangWebSocketService $webSocketService)
+    {
+        $this->webSocketService = $webSocketService;
+    }
+
     public function index()
     {
         $title = "Request Stok Obat Alkes";
@@ -128,9 +136,7 @@ class Permintaan_Barang_Controller extends Controller
             ]);
 
             // Simpan detail permintaan barang
-            \Log::info('Jumlah item yang akan disimpan: ' . count($validatedData['items']));
             foreach ($validatedData['items'] as $index => $item) {
-                \Log::info('Menyimpan item ke-' . ($index + 1) . ': ', $item);
                 try {
                     Permintaan_Barang_Detail::create([
                         'kode_request' => $validatedData['kode_request'],
@@ -139,11 +145,23 @@ class Permintaan_Barang_Controller extends Controller
                         'qty' => $item['jumlah'],
                         'jenis_barang' => $item['jenis_barang'],
                     ]);
-                    \Log::info('Item ke-' . ($index + 1) . ' berhasil disimpan');
                 } catch (\Exception $e) {
-                    \Log::error('Gagal menyimpan item ke-' . ($index + 1) . ': ' . $e->getMessage());
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal menyimpan item ke-' . ($index + 1) . ': ' . $e->getMessage()
+                    ], 500);
                 }
             }
+
+            // Broadcast WebSocket event untuk permintaan baru
+            $this->webSocketService->broadcastPermintaanBaru([
+                'kode_request' => $validatedData['kode_request'],
+                'kode_klinik' => $validatedData['kode_klinik'],
+                'nama_klinik' => $validatedData['nama_klinik'],
+                'status' => $validatedData['status'],
+                'tanggal_input' => now(),
+                'items' => $validatedData['items']
+            ]);
 
             // Return Inertia response with success message
             return redirect()->back()->with([
@@ -405,7 +423,7 @@ class Permintaan_Barang_Controller extends Controller
                             'nama_barang' => $namaObatAlkes,
                             'kategori_barang' => 'inventaris',
                             'jenis_barang' => 'inventaris',
-                            'qty_barang' => (string)$qty, // Converting to string as per migration
+                            'qty_barang' => $qty, // No need for string conversion
                             'harga_barang' => '0', // Default value
                             'tanggal_pembelian' => now()->toDateString(),
                             'detail_barang' => 'Pembelian inventaris',
@@ -428,6 +446,16 @@ class Permintaan_Barang_Controller extends Controller
                 // Update status of permintaan to 'selesai' (status 3)
                 $permintaan->update([
                     'status' => 3
+                ]);
+
+                // Broadcast WebSocket event untuk penerimaan barang
+                $this->webSocketService->broadcastPenerimaan([
+                    'kode_request' => $kodeRequest,
+                    'kode_klinik' => $permintaan->kode_klinik,
+                    'nama_klinik' => $permintaan->nama_klinik,
+                    'status' => 3,
+                    'items' => $items,
+                    'tanggal_terima' => now()
                 ]);
 
                 // Process pricing for each item (only for non-inventaris items)

@@ -35,6 +35,7 @@ use App\Http\Controllers\Module\Master\Data\Medis\Instruksi_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Penggunaan_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Controller;
+use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Barang_Controller;
 // use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Inventaris_Controller;
 // use App\Http\Controllers\Module\Master\Data\Gudang\Kategori_Obat_Controller;
@@ -314,6 +315,14 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::post('/daftar-harga-jual', [Daftar_Harga_Jual_Controller::class, 'store'])->name('daftar-harga-jual.store');
         Route::put('/daftar-harga-jual/{daftarHargaJual}', [Daftar_Harga_Jual_Controller::class, 'update'])->name('daftar-harga-jual.update');
         Route::delete('/daftar-harga-jual/{daftarHargaJual}', [Daftar_Harga_Jual_Controller::class, 'destroy'])->name('daftar-harga-jual.destroy');
+
+
+
+        // Daftar Harga Jual Klinik
+        Route::get('/daftar-harga-jual-klinik',  [Daftar_Harga_Jual_Klinik_Controller::class, 'index'])->name('daftar-harga-jual-klinik.index');
+        Route::post('/daftar-harga-jual-klinik', [Daftar_Harga_Jual_Klinik_Controller::class, 'store'])->name('daftar-harga-jual-klinik.store');
+        Route::put('/daftar-harga-jual-klinik/{daftarHargaJualKlinik}', [Daftar_Harga_Jual_Klinik_Controller::class, 'update'])->name('daftar-harga-jual-klinik.update');
+        Route::delete('/daftar-harga-jual-klinik/{daftarHargaJualKlinik}', [Daftar_Harga_Jual_Klinik_Controller::class, 'destroy'])->name('daftar-harga-jual-klinik.destroy');
 
         // API routes untuk dialog setting harga jual
         Route::get('/setting-harga-jual/get-settings', [Setting_Harga_Jual_Controller::class, 'getSettings'])

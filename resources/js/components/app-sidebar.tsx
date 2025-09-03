@@ -158,6 +158,7 @@ const mainNavItems = [
                     { title: 'Kategori Barang', href: '/datamaster/gudang/kategori-barang' },
                     { title: 'Supplier', href: '/datamaster/gudang/supplier' },
                     { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
+                    { title: 'Daftar Harga Jual Klinik', href: '/datamaster/gudang/daftar-harga-jual-klinik' },
                     { title: 'Daftar Barang', href: '/datamaster/gudang/daftar-barang' },
                 ],
             },
@@ -196,7 +197,7 @@ function RenderMenu({ items }: { items: any[] }) {
                     </Collapsible>
                 ) : (
                     <SidebarMenuItem key={index}>
-                        <SidebarMenuButton asChild isActive={url.startsWith(item.href!)}>
+                        <SidebarMenuButton asChild isActive={url === item.href}>
                             <Link href={item.href!} className="flex items-center gap-2">
                                 {item.icon && <item.icon className="h-4 w-4" />}
                                 <span>{item.title}</span>
@@ -211,7 +212,7 @@ function RenderMenu({ items }: { items: any[] }) {
 
 // helper cek aktif
 function checkActive(item: any, url: string): boolean {
-    if (item.href && url.startsWith(item.href)) return true;
+    if (item.href && url === item.href) return true; // Gunakan exact match untuk menu tanpa children
     if (item.children) {
         return item.children.some((child: any) => checkActive(child, url));
     }

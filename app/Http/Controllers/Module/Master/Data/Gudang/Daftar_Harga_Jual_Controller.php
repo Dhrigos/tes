@@ -61,4 +61,6 @@ class Daftar_Harga_Jual_Controller extends Controller
 
         return redirect()->back()->with('success', 'Data Daftar Harga Jual berhasil dihapus');
     }
+
+
 }

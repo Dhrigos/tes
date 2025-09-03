@@ -11,6 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::dropIfExists('harga_jual_utamas');
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
         Schema::create('harga_jual_utamas', function (Blueprint $table) {
             $table->id();
             $table->string('harga_jual_1');
@@ -21,13 +29,5 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('harga_jual_utamas');
     }
 };

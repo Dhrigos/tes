@@ -94,6 +94,13 @@ Route::get('/test-setting', function () {
     return response()->json(['status' => 'API is working', 'time' => now()]);
 });
 
+// WebSocket API Routes
+Route::prefix('websocket')->group(function () {
+    Route::get('/permintaan-barang', [App\Http\Controllers\Api\WebSocketController::class, 'getPermintaanBarangRealtime']);
+    Route::get('/notification-count', [App\Http\Controllers\Api\WebSocketController::class, 'getNotificationCount']);
+    Route::get('/connection-status', [App\Http\Controllers\Api\WebSocketController::class, 'getConnectionStatus']);
+});
+
 // Web Settings API Routes
 Route::prefix('web-settings')->group(function () {
     Route::get('/show', [Web_Setting_Controller::class, 'show']);
@@ -117,4 +124,5 @@ Route::prefix('daftar-permintaan-barang')->group(function () {
     Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
 
     Route::post('/proses-permintaan', [Daftar_Permintaan_Barang_Controller::class, 'prosesPermintaan']);
+    Route::post('/konfirmasi', [Daftar_Permintaan_Barang_Controller::class, 'konfirmasi']);
 });
