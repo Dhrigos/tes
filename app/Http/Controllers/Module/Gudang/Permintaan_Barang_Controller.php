@@ -55,7 +55,7 @@ class Permintaan_Barang_Controller extends Controller
                 ->get();
             
             // Ambil data pengiriman barang
-            $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik', 'kode_klinik')
+            $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik')
                 ->orderBy('tanggal_request', 'desc')
                 ->get();
                 

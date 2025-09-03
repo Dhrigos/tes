@@ -11,21 +11,28 @@ use Illuminate\Support\Facades\Log;
 
 class PermintaanBarangWebSocketService
 {
-    protected $webSetting;
-
-    public function __construct()
-    {
-        $this->webSetting = Web_Setting::first();
-    }
-
     /**
      * Kirim event permintaan barang baru
      */
     public function broadcastPermintaanBaru($permintaanData)
     {
         try {
-            $kodeKlinik = $this->webSetting->kode_klinik ?? '';
-            $isGudangUtama = $this->webSetting->is_gudangutama_active ?? false;
+            // Ambil web setting fresh setiap kali broadcast
+            $webSetting = Web_Setting::first();
+            if (!$webSetting) {
+                Log::error('WebSocket: Web setting tidak ditemukan');
+                return false;
+            }
+
+            $kodeKlinik = $webSetting->kode_klinik ?? '';
+            $isGudangUtama = $webSetting->is_gudangutama_active ?? false;
+
+            Log::info('WebSocket: Broadcasting permintaan baru', [
+                'kode_klinik' => $kodeKlinik,
+                'is_gudang_utama' => $isGudangUtama,
+                'kode_request' => $permintaanData['kode_request'] ?? '',
+                'source_klinik' => $permintaanData['kode_klinik'] ?? ''
+            ]);
 
             // Broadcast ke semua klinik dalam grup yang sama
             broadcast(new PermintaanBarangEvent(
@@ -37,7 +44,8 @@ class PermintaanBarangWebSocketService
 
             Log::info('WebSocket: Permintaan barang baru berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
-                'kode_request' => $permintaanData['kode_request'] ?? ''
+                'kode_request' => $permintaanData['kode_request'] ?? '',
+                'channel' => "permintaan-barang.{$kodeKlinik}"
             ]);
 
             return true;
@@ -56,8 +64,21 @@ class PermintaanBarangWebSocketService
     public function broadcastKonfirmasi($konfirmasiData)
     {
         try {
-            $kodeKlinik = $this->webSetting->kode_klinik ?? '';
-            $isGudangUtama = $this->webSetting->is_gudangutama_active ?? false;
+            // Ambil web setting fresh setiap kali broadcast
+            $webSetting = Web_Setting::first();
+            if (!$webSetting) {
+                Log::error('WebSocket: Web setting tidak ditemukan');
+                return false;
+            }
+
+            $kodeKlinik = $webSetting->kode_klinik ?? '';
+            $isGudangUtama = $webSetting->is_gudangutama_active ?? false;
+
+            Log::info('WebSocket: Broadcasting konfirmasi', [
+                'kode_klinik' => $kodeKlinik,
+                'is_gudang_utama' => $isGudangUtama,
+                'kode_request' => $konfirmasiData['kode_request'] ?? ''
+            ]);
 
             broadcast(new PermintaanBarangEvent(
                 $konfirmasiData,
@@ -68,7 +89,8 @@ class PermintaanBarangWebSocketService
 
             Log::info('WebSocket: Konfirmasi permintaan berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
-                'kode_request' => $konfirmasiData['kode_request'] ?? ''
+                'kode_request' => $konfirmasiData['kode_request'] ?? '',
+                'channel' => "permintaan-barang.{$kodeKlinik}"
             ]);
 
             return true;
@@ -87,8 +109,21 @@ class PermintaanBarangWebSocketService
     public function broadcastPengiriman($pengirimanData)
     {
         try {
-            $kodeKlinik = $this->webSetting->kode_klinik ?? '';
-            $isGudangUtama = $this->webSetting->is_gudangutama_active ?? false;
+            // Ambil web setting fresh setiap kali broadcast
+            $webSetting = Web_Setting::first();
+            if (!$webSetting) {
+                Log::error('WebSocket: Web setting tidak ditemukan');
+                return false;
+            }
+
+            $kodeKlinik = $webSetting->kode_klinik ?? '';
+            $isGudangUtama = $webSetting->is_gudangutama_active ?? false;
+
+            Log::info('WebSocket: Broadcasting pengiriman', [
+                'kode_klinik' => $kodeKlinik,
+                'is_gudang_utama' => $isGudangUtama,
+                'kode_request' => $pengirimanData['kode_request'] ?? ''
+            ]);
 
             broadcast(new PermintaanBarangEvent(
                 $pengirimanData,
@@ -99,7 +134,8 @@ class PermintaanBarangWebSocketService
 
             Log::info('WebSocket: Pengiriman barang berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
-                'kode_request' => $pengirimanData['kode_request'] ?? ''
+                'kode_request' => $pengirimanData['kode_request'] ?? '',
+                'channel' => "permintaan-barang.{$kodeKlinik}"
             ]);
 
             return true;
@@ -118,8 +154,21 @@ class PermintaanBarangWebSocketService
     public function broadcastPenerimaan($penerimaanData)
     {
         try {
-            $kodeKlinik = $this->webSetting->kode_klinik ?? '';
-            $isGudangUtama = $this->webSetting->is_gudangutama_active ?? false;
+            // Ambil web setting fresh setiap kali broadcast
+            $webSetting = Web_Setting::first();
+            if (!$webSetting) {
+                Log::error('WebSocket: Web setting tidak ditemukan');
+                return false;
+            }
+
+            $kodeKlinik = $webSetting->kode_klinik ?? '';
+            $isGudangUtama = $webSetting->is_gudangutama_active ?? false;
+
+            Log::info('WebSocket: Broadcasting penerimaan', [
+                'kode_klinik' => $kodeKlinik,
+                'is_gudang_utama' => $isGudangUtama,
+                'kode_request' => $penerimaanData['kode_request'] ?? ''
+            ]);
 
             broadcast(new PermintaanBarangEvent(
                 $penerimaanData,
@@ -130,7 +179,8 @@ class PermintaanBarangWebSocketService
 
             Log::info('WebSocket: Penerimaan barang berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
-                'kode_request' => $penerimaanData['kode_request'] ?? ''
+                'kode_request' => $penerimaanData['kode_request'] ?? '',
+                'channel' => "permintaan-barang.{$kodeKlinik}"
             ]);
 
             return true;
