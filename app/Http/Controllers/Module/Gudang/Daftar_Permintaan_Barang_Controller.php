@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Module\Gudang;
 
 use App\Http\Controllers\Controller;
+use App\Models\Settings\Web_Setting;
 use App\Models\Module\Gudang\Permintaan_Barang;
 use App\Models\Module\Gudang\Permintaan_Barang_Detail;
 use App\Models\Module\Gudang\Permintaan_Barang_Konfirmasi;
@@ -12,6 +13,8 @@ use App\Models\Module\Gudang\Stok_Barang;
 use App\Models\Module\Gudang\Stok_Inventaris;
 use App\Services\PermintaanBarangWebSocketService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class Daftar_Permintaan_Barang_Controller extends Controller
@@ -23,19 +26,52 @@ class Daftar_Permintaan_Barang_Controller extends Controller
         $this->webSocketService = $webSocketService;
     }
 
-    public function index(Request $request) {
-        $title = "Daftar Permintaan Barang";
-        $permintaan = Permintaan_Barang::all();
+    /**
+     * KONSEP BARU: Hanya Master yang dapat mengakses daftar permintaan
+     */
+    public function index(Request $request) 
+    {
+        // Cek apakah user adalah Master
+        $webSetting = Web_Setting::first();
+        if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
+            return Inertia::render('errors/unauthorized', [
+                'title' => 'Akses Ditolak',
+                'message' => 'Hanya Master Gudang yang dapat mengakses halaman ini!'
+            ]);
+        }
+
+        $title = "Master Gudang - Daftar Permintaan Barang";
+        
+        // Master dapat melihat semua permintaan dari semua client
+        $permintaan = Permintaan_Barang::select('kode_request', 'tanggal_input', 'nama_klinik', 'kode_klinik', 'status')
+            ->orderBy('tanggal_input', 'desc')
+            ->get();
+            
         $dabar = Daftar_Barang::all();
+        
         return Inertia::render('module/gudang/daftar-permintaan-barang/index', [
             'title' => $title,
             'permintaan' => $permintaan,
             'dabar' => $dabar,
+            'isMaster' => true,
+            'webSetting' => $webSetting
         ]);
     }
 
+    /**
+     * KONSEP BARU: Hanya Master yang dapat mengkonfirmasi permintaan
+     */
     public function konfirmasi(Request $request)
     {
+        // Cek apakah user adalah Master
+        $webSetting = Web_Setting::first();
+        if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya Master Gudang yang dapat mengkonfirmasi permintaan!'
+            ], 403);
+        }
+
         $request->validate([
             'detail_kode_request' => 'required|string',
             'detail_tanggal' => 'required|string',
@@ -47,21 +83,30 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                 ->first();
 
             if (!$found) {
-                // Data tidak ditemukan, return error
                 return response()->json([
                     'success' => false,
                     'message' => 'Data tidak valid atau tidak ditemukan!',
                 ], 404);
             }
 
-            // Update status
+            // Update status menjadi dikonfirmasi
             $found->update([
                 'status' => 1,
             ]);
 
+            // Broadcast WebSocket event untuk memberitahu client
+            $this->webSocketService->broadcastKonfirmasi([
+                'kode_request' => $found->kode_request,
+                'kode_klinik' => $found->kode_klinik,
+                'nama_klinik' => $found->nama_klinik,
+                'status' => 1,
+                'tanggal_input' => $found->tanggal_input,
+                'source' => 'master_confirmation'
+            ]);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Data berhasil dikonfirmasi',
+                'message' => 'Permintaan berhasil dikonfirmasi dan client telah diberitahu',
                 'data' => $found,
             ]);
         } catch (\Exception $e) {
@@ -73,25 +118,38 @@ class Daftar_Permintaan_Barang_Controller extends Controller
         }
     }
 
+    /**
+     * KONSEP BARU: Hanya Master yang dapat melihat detail permintaan
+     */
     public function getDetail($kode_request)
     {
         try {
-            \Log::info('Fetching details for kode_request: ' . $kode_request);
-            $details = collect(); // Default: koleksi kosong
+            // Cek apakah user adalah Master
+            $webSetting = Web_Setting::first();
+            if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya Master Gudang yang dapat melihat detail permintaan!'
+                ], 403);
+            }
+
+            Log::info('Master fetching details for kode_request: ' . $kode_request);
+            $details = collect();
 
             if (!empty($kode_request)) {
                 $details = Permintaan_Barang_Detail::where('kode_request', $kode_request)
                     ->select('kode_obat_alkes', 'nama_obat_alkes', 'qty', 'jenis_barang')
                     ->get();
-                \Log::info('Found ' . $details->count() . ' details for kode_request: ' . $kode_request);
+                Log::info('Master found ' . $details->count() . ' details for kode_request: ' . $kode_request);
             }
 
             return response()->json([
                 'success' => true,
-                'details' => $details
+                'details' => $details,
+                'isMaster' => true
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error fetching details for kode_request: ' . $kode_request . ' - ' . $e->getMessage());
+            Log::error('Error fetching details for kode_request: ' . $kode_request . ' - ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengambil detail data!',
@@ -100,8 +158,20 @@ class Daftar_Permintaan_Barang_Controller extends Controller
         }
     }
 
-    public function prosesPermintaan(Request $request) //update status request dan kurangi stok
+    /**
+     * KONSEP BARU: Hanya Master yang dapat memproses permintaan dan mengurangi stok
+     */
+    public function prosesPermintaan(Request $request)
     {
+        // Cek apakah user adalah Master
+        $webSetting = Web_Setting::first();
+        if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya Master Gudang yang dapat memproses permintaan!'
+            ], 403);
+        }
+
         try {
             $items = $request->input('items');
             $kodeRequest = $request->input('kode_request');
@@ -120,7 +190,6 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                 ->first();
 
             if (!$found) {
-                // Data tidak ditemukan, return error
                 return response()->json([
                     'success' => false,
                     'message' => 'Data tidak valid atau tidak ditemukan!',
@@ -128,27 +197,24 @@ class Daftar_Permintaan_Barang_Controller extends Controller
             }
 
             // Use database transaction to ensure data consistency
-            return \DB::transaction(function () use ($items, $kodeRequest, $tanggalRequest, $namaKlinik, $found) {
+            return DB::transaction(function () use ($items, $kodeRequest, $tanggalRequest, $namaKlinik, $found) {
                 // First, validate all items have sufficient stock before making any changes
                 foreach ($items as $item) {
                     $kodeObat = $item['kode_obat'];
                     $jumlahDibutuhkan = intval($item['jumlah']);
-                    $jenisBarang = $item['jenis_barang'] ?? 'obat'; // Default to 'obat' if not provided
+                    $jenisBarang = $item['jenis_barang'] ?? 'obat';
 
-                    // Skip jika jumlah kosong/tidak valid
                     if ($jumlahDibutuhkan <= 0) {
                         continue;
                     }
 
                     // Use appropriate table based on jenis_barang
                     if ($jenisBarang === 'inventaris') {
-                        // For inventaris, check stok_inventaris table
                         $query = Stok_Inventaris::where('kode_barang', $kodeObat)
                                     ->where('qty_barang', '>', 0);
                         $stokList = $query->get();
                         $totalTersedia = $stokList->sum('qty_barang');
                     } else {
-                        // For obat/alkes, check stok_barang table
                         $query = Stok_Barang::where('kode_obat_alkes', $kodeObat)
                                     ->where('qty', '>', 0)
                                     ->orderBy('tanggal_terima_obat', 'asc');
@@ -157,7 +223,6 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                     }
 
                     if ($totalTersedia < $jumlahDibutuhkan) {
-                        // Validasi gagal jika stok tidak mencukupi
                         $jenisBarangLabel = $jenisBarang === 'inventaris' ? 'inventaris' : 'obat/alkes';
                         return response()->json([
                             'success' => false,
@@ -166,37 +231,36 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                     }
                 }
 
-                // Update status only after all validations pass
+                // Update status menjadi sedang diproses
                 $found->update([
                     'status' => 2,
                 ]);
 
-                // Broadcast WebSocket event untuk konfirmasi permintaan
+                // Broadcast WebSocket event untuk memberitahu client bahwa permintaan sedang diproses
                 $this->webSocketService->broadcastKonfirmasi([
                     'kode_request' => $kodeRequest,
                     'kode_klinik' => $found->kode_klinik,
                     'nama_klinik' => $namaKlinik,
                     'status' => 2,
-                    'tanggal_request' => $tanggalRequest
+                    'tanggal_request' => $tanggalRequest,
+                    'source' => 'master_processing'
                 ]);
 
                 // Process all items since we know they all have sufficient stock
                 foreach ($items as $item) {
                     $kodeObat = $item['kode_obat'];
                     $jumlahDibutuhkan = intval($item['jumlah']);
-                    $jenisBarang = $item['jenis_barang'] ?? 'obat'; // Default to 'obat' if not provided
+                    $jenisBarang = $item['jenis_barang'] ?? 'obat';
 
                     $hargaDasarRaw = $item['harga_dasar'];
                     $hargaDasar = intval(str_replace(['Rp', '.', ' '], '', $hargaDasarRaw));
 
-                    // Skip jika jumlah kosong/tidak valid
                     if ($jumlahDibutuhkan <= 0) {
                         continue;
                     }
 
                     // Use appropriate table based on jenis_barang
                     if ($jenisBarang === 'inventaris') {
-                        // For inventaris, use stok_inventaris table
                         $query = Stok_Inventaris::where('kode_barang', $kodeObat)
                                     ->where('qty_barang', '>', 0);
                         $stokList = $query->get();
@@ -211,7 +275,6 @@ class Daftar_Permintaan_Barang_Controller extends Controller
 
                             $jumlahDibutuhkan -= $ambil;
 
-                            // For inventaris, we need to adapt the data structure
                             Data_Barang_Keluar::create([
                                 'kode_request' => $kodeRequest,
                                 'nama_klinik' => $namaKlinik,
@@ -221,7 +284,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                                 'harga_dasar' => $hargaDasar,
                                 'qty' => $ambil,
                                 'tanggal_terima_obat' => $stok->tanggal_pembelian,
-                                'expired' => null, // Inventaris may not have expiration date
+                                'expired' => null,
                             ]);
 
                             Permintaan_Barang_Konfirmasi::create([
@@ -234,11 +297,10 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                                 'qty' => $ambil,
                                 'jenis_barang' => $jenisBarang,
                                 'tanggal_terima_obat' => $stok->tanggal_pembelian,
-                                'expired' => null, // Inventaris may not have expiration date
+                                'expired' => null,
                             ]);
                         }
                     } else {
-                        // For obat/alkes, use stok_barang table
                         $query = Stok_Barang::where('kode_obat_alkes', $kodeObat)
                                     ->where('qty', '>', 0)
                                     ->orderBy('tanggal_terima_obat', 'asc');
@@ -282,20 +344,20 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                     }
                 }
 
-                // Broadcast WebSocket event untuk pengiriman barang
+                // Broadcast WebSocket event untuk memberitahu client bahwa barang sudah diproses
                 $this->webSocketService->broadcastPengiriman([
                     'kode_request' => $kodeRequest,
                     'kode_klinik' => $found->kode_klinik,
                     'nama_klinik' => $namaKlinik,
                     'status' => 2,
                     'tanggal_request' => $tanggalRequest,
-                    'items' => $items
+                    'items' => $items,
+                    'source' => 'master_processed'
                 ]);
 
-                // Return jika berhasil
                 return response()->json([
                     'success' => true,
-                    'message' => 'Permintaan berhasil diproses!',
+                    'message' => 'Permintaan berhasil diproses dan client telah diberitahu!',
                     'data' => $kodeRequest,
                 ], 201);
             });
@@ -303,6 +365,73 @@ class Daftar_Permintaan_Barang_Controller extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat memproses permintaan!',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * KONSEP BARU: Method untuk Master mengirim barang ke client
+     */
+    public function kirimBarang(Request $request)
+    {
+        // Cek apakah user adalah Master
+        $webSetting = Web_Setting::first();
+        if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya Master Gudang yang dapat mengirim barang!'
+            ], 403);
+        }
+
+        try {
+            $kodeRequest = $request->input('kode_request');
+            $tanggalRequest = $request->input('tanggal_request');
+            $namaKlinik = $request->input('nama_klinik');
+            
+            if (empty($kodeRequest) || empty($tanggalRequest) || empty($namaKlinik)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data tidak lengkap!',
+                ], 400);
+            }
+
+            $found = Permintaan_Barang::where('kode_request', $kodeRequest)
+                ->where('tanggal_input', $tanggalRequest)
+                ->first();
+
+            if (!$found) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data permintaan tidak ditemukan!',
+                ], 404);
+            }
+
+            // Update status menjadi barang dikirim
+            $found->update([
+                'status' => 3,
+            ]);
+
+            // Broadcast WebSocket event untuk memberitahu client bahwa barang sudah dikirim
+            $this->webSocketService->broadcastPengiriman([
+                'kode_request' => $kodeRequest,
+                'kode_klinik' => $found->kode_klinik,
+                'nama_klinik' => $namaKlinik,
+                'status' => 3,
+                'tanggal_request' => $tanggalRequest,
+                'source' => 'master_shipped'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Barang berhasil dikirim dan client telah diberitahu!',
+                'data' => $kodeRequest,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengirim barang!',
                 'error' => $e->getMessage(),
             ], 500);
         }
