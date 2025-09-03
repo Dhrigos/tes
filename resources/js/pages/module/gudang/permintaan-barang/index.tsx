@@ -242,6 +242,9 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
         // Get web settings from page props
         const webSetting = pageProps.webSetting || {};
 
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
         router.post(
             route('gudang.permintaan-barang.store'),
             {
@@ -256,6 +259,10 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                 })),
             },
             {
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
                 onSuccess: () => {
                     setShowCreateModal(false);
                     setKodeRequest('');

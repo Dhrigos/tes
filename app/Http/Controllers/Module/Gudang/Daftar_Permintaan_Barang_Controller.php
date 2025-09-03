@@ -49,6 +49,11 @@ class Daftar_Permintaan_Barang_Controller extends Controller
             
         $dabar = Daftar_Barang::all();
         
+        // Ambil data pengiriman barang (tanpa kode_klinik karena tidak ada di tabel)
+        $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik')
+            ->orderBy('tanggal_request', 'desc')
+            ->get();
+        
         return Inertia::render('module/gudang/daftar-permintaan-barang/index', [
             'title' => $title,
             'permintaan' => $permintaan,

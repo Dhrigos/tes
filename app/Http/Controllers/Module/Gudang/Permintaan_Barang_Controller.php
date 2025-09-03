@@ -54,7 +54,7 @@ class Permintaan_Barang_Controller extends Controller
                 ->orderBy('tanggal_input', 'desc')
                 ->get();
             
-            // Ambil data pengiriman barang
+            // Ambil data pengiriman barang (tanpa kode_klinik karena tidak ada di tabel)
             $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik')
                 ->orderBy('tanggal_request', 'desc')
                 ->get();
@@ -69,9 +69,9 @@ class Permintaan_Barang_Controller extends Controller
                 ->orderBy('tanggal_input', 'desc')
                 ->get();
             
-            // Ambil data pengiriman barang untuk client ini
-            $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik', 'kode_klinik')
-                ->where('kode_klinik', $kodeKlinik)
+            // Ambil data pengiriman barang untuk client ini (filter berdasarkan nama_klinik)
+            $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik')
+                ->where('nama_klinik', $namaKlinik)
                 ->orderBy('tanggal_request', 'desc')
                 ->get();
         } else {
@@ -278,9 +278,9 @@ class Permintaan_Barang_Controller extends Controller
             $details = Permintaan_Barang_Konfirmasi::where('kode_request', $kodeRequest)
                         ->get();
         } elseif ($webSetting && $webSetting->is_gudangutama_active == 0) {
-            // CLIENT MODE: Hanya dapat melihat konfirmasi sendiri
+            // CLIENT MODE: Hanya dapat melihat konfirmasi sendiri (filter berdasarkan nama_klinik)
             $details = Permintaan_Barang_Konfirmasi::where('kode_request', $kodeRequest)
-                        ->where('kode_klinik', $webSetting->kode_klinik)
+                        ->where('nama_klinik', $webSetting->nama)
                         ->get();
         } else {
             $details = collect();
