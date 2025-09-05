@@ -16,7 +16,13 @@ class Pelayanan_Soap_Dokter_Obat extends Model
         'seks',
         'penjamin',
         'tanggal_lahir',
-        'resep_obat',
+        'penanda',
+        'nama_obat',
+        'jumlah',
+        'instruksi',
+        'signa',
+        'satuan_gudang',
+        'penggunaan',
     ];
 
     public function pelayanan()

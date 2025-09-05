@@ -21,6 +21,7 @@ class Pelayanan extends Model
         'poli_id',
         'dokter_id',
         'kunjungan',
+        'status',
     ];
 
     public function poli()

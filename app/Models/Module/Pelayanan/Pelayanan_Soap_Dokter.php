@@ -3,6 +3,7 @@
 namespace App\Models\Module\Pelayanan;
 
 use App\Models\Module\Master\Data\Medis\Alergi;
+use App\Models\Module\Apotek\Apotek;
 use App\Models\Module\Pasien\Pasien;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Kesadaran;
@@ -60,7 +61,7 @@ class Pelayanan_Soap_Dokter extends Model
 
     public function resep()
     {
-        return $this->hasOne(Pelayanan_Soap_Dokter_Obat::class, 'no_rawat', 'no_rawat');
+        return $this->hasMany(Pelayanan_Soap_Dokter_Obat::class, 'no_rawat', 'no_rawat');
     }
 
     public function pendaftaran()
@@ -73,10 +74,10 @@ class Pelayanan_Soap_Dokter extends Model
         return $this->belongsTo(Pasien::class, 'nomor_rm', 'no_rm');
     }
 
-    // public function apotek()
-    // {
-    //     return $this->hasOne(apotek::class, 'no_rawat', 'no_rawat');
-    // }
+    public function apotek()
+    {
+        return $this->hasOne(Apotek::class, 'no_rawat', 'no_rawat');
+    }
 
     public function icd()
     {
@@ -85,6 +86,11 @@ class Pelayanan_Soap_Dokter extends Model
     public function tindakan()
     {
         return $this->hasOne(Pelayanan_Soap_Dokter_Tindakan::class, 'no_rawat', 'no_rawat');
+    }
+
+    public function diet()
+    {
+        return $this->hasOne(Pelayanan_Soap_Dokter_Diet::class, 'no_rawat', 'no_rawat');
     }
 
     public function alergi_keterangan()

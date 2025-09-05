@@ -10,9 +10,9 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class PermintaanBarangEvent implements ShouldBroadcast
+class PermintaanBarangEvent
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
     public $data;
     public $eventType;
@@ -28,42 +28,5 @@ class PermintaanBarangEvent implements ShouldBroadcast
         $this->eventType = $eventType;
         $this->kodeKlinik = $kodeKlinik;
         $this->isGudangUtama = $isGudangUtama;
-    }
-
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
-     */
-    public function broadcastOn(): array
-    {
-        // Broadcast ke channel berdasarkan kode klinik
-        $channelName = "permintaan-barang.{$this->kodeKlinik}";
-        
-        return [
-            new Channel($channelName),
-        ];
-    }
-
-    /**
-     * Get the data to broadcast.
-     */
-    public function broadcastWith(): array
-    {
-        return [
-            'event_type' => $this->eventType,
-            'data' => $this->data,
-            'kode_klinik' => $this->kodeKlinik,
-            'is_gudang_utama' => $this->isGudangUtama,
-            'timestamp' => now()->toISOString(),
-        ];
-    }
-
-    /**
-     * Get the broadcast event name.
-     */
-    public function broadcastAs(): string
-    {
-        return 'permintaan-barang-updated';
     }
 }

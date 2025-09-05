@@ -17,18 +17,20 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual;
-use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual as SettingHargaJual;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama as SettingHargaJualUtama;
 use App\Models\Settings\Web_Setting;
+use App\Models\Module\Master\Data\Gudang\Supplier;
 
 class Pembelian_Controller extends Controller
 {
     public function index()
     {
         $title = "Pembelian";
+        $suppliers = Supplier::orderBy('nama')->get(['id', 'kode', 'nama', 'nama_pic', 'telepon_pic']);
         return Inertia::render('module/pembelian/index', compact(
-            'title'
+            'title',
+            'suppliers'
         ));
     }
 
@@ -267,44 +269,26 @@ class Pembelian_Controller extends Controller
                                 $jual3 = $kJual3;
                             }
 
-                            if ($targetJenis === 'klinik') {
-                                Daftar_Harga_Jual_Klinik::updateOrCreate(
-                                    [
-                                        'kode_obat_alkes' => $detail['kode_obat_alkes'],
-                                    ],
-                                    [
-                                        'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                                        'harga_dasar' => (string) $hargaDasar,
-                                        'harga_jual_1' => (string) $jual1,
-                                        'harga_jual_2' => (string) $jual2,
-                                        'harga_jual_3' => (string) $jual3,
-                                        'diskon' => (string) $diskonRaw,
-                                        'ppn' => (string) $ppnPercent,
-                                        'tanggal_obat_masuk' => $tglMasuk,
-                                        'jenis' => $targetJenis,
-                                    ]
-                                );
-                            } else {
-                                Daftar_Harga_Jual::updateOrCreate(
-                                    [
-                                        'kode_obat_alkes' => $detail['kode_obat_alkes'],
-                                        'jenis' => $targetJenis,
-                                    ],
-                                    [
-                                        'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                                        'harga_dasar' => (string) $hargaDasar,
-                                        'harga_jual_1' => (string) $jual1,
-                                        'harga_jual_2' => (string) $jual2,
-                                        'harga_jual_3' => (string) $jual3,
-                                        'diskon' => (string) $diskonRaw,
-                                        'ppn' => (string) $ppnPercent,
-                                        'tanggal_obat_masuk' => $tglMasuk,
-                                        'user_input_id' => (string) (Auth::id() ?? '0'),
-                                        'user_input_name' => (string) (Auth::user()->name ?? 'System'),
-                                        'jenis' => $targetJenis,
-                                    ]
-                                );
-                            }
+                            // Upsert consolidated daftar_harga_juals for the target jenis (utama/klinik)
+                            Daftar_Harga_Jual::updateOrCreate(
+                                [
+                                    'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                                    'jenis' => $targetJenis,
+                                ],
+                                [
+                                    'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                                    'harga_dasar' => (string) $hargaDasar,
+                                    'harga_jual_1' => (string) $jual1,
+                                    'harga_jual_2' => (string) $jual2,
+                                    'harga_jual_3' => (string) $jual3,
+                                    'diskon' => (string) $diskonRaw,
+                                    'ppn' => (string) $ppnPercent,
+                                    'tanggal_obat_masuk' => $tglMasuk,
+                                    'user_input_id' => (string) (Auth::id() ?? '0'),
+                                    'user_input_name' => (string) (Auth::user()->name ?? 'System'),
+                                    'jenis' => $targetJenis,
+                                ]
+                            );
                         }
                     }
 

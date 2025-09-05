@@ -86,6 +86,69 @@ class Ws_Pcare_Controller extends Controller
         }
     }
 
+    public function get_poli($tanggal)
+    {
+        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
+        $SERVICE_NAME = "antreanfktp";
+        $feature = 'ref/poli/tanggal';
+        $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->get("{$BASE_URL}/{$SERVICE_NAME}/{$feature}/{$tanggal}");
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            // // Jika error metadata atau response kosong
+            if (!is_array($body)               
+                || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+
+            // Dekripsi
+            $data = $this->decryptBpjsResponse($body['response'], $token);
+
+            if (!$data || empty($data)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Data tidak ditemukan',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            $transformed = array_map(fn($p) => [
+                'kode'  => $p['kodepoli'],
+                'nama'  => $p['namapoli'],                
+                'kode_sub' => $p['kdsubspesialis'],                
+                'nama_sub' => $p['nmsubspesialis'],                
+            ], $data);
+
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $transformed,
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+    
     public function get_dokter($kode_poli, $tanggal)
     {
         $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
@@ -138,6 +201,135 @@ class Ws_Pcare_Controller extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => $transformed,
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+
+    public function post_antrian($data)
+    {
+        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
+        $SERVICE_NAME = "antreanfktp";
+        $feature = 'antrean/add';
+        $token = $this->token();
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            // // Jika error metadata atau response kosong
+            if (!is_array($body)               
+                || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $body['metaData']['message'],
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+
+    public function update_antrian($data)
+    {
+        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
+        $SERVICE_NAME = "antreanfktp";
+        $feature = 'antrean/panggil';
+        $token = $this->token();
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            // // Jika error metadata atau response kosong
+            if (!is_array($body)               
+                || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $body['metaData']['message'],
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+
+    public function delete_antrian($data)
+    {
+        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
+        $SERVICE_NAME = "antreanfktp";
+        $feature = 'antrean/batal';
+        $token = $this->token();
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            // // Jika error metadata atau response kosong
+            if (!is_array($body)               
+                || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $body['metaData']['message'],
                 'response_time' => number_format($responseTime, 2)
             ]);
         } catch (\Exception $e) {

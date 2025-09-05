@@ -108,7 +108,7 @@ export default function Index() {
     const [jenisBarang, setJenisBarang] = useState('');
     // Step 2
     const [satuanKecil, setSatuanKecil] = useState('');
-    const [nilaiSatuanKecil, setNilaiSatuanKecil] = useState<number | ''>(1);
+    const [nilaiSatuanKecil, setNilaiSatuanKecil] = useState<number | ''>('');
     const [satuanSedang, setSatuanSedang] = useState('');
     const [nilaiSatuanSedang, setNilaiSatuanSedang] = useState<number | ''>('');
     const [satuanBesar, setSatuanBesar] = useState('');
@@ -175,7 +175,7 @@ export default function Index() {
                   jenis_barang: jenisBarang,
                   merek,
                   satuan_kecil: satuanKecil,
-                  nilai_satuan_kecil: 1,
+                  nilai_satuan_kecil: nilaiSatuanKecil,
                   satuan_sedang: satuanSedang,
                   nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
                   satuan_besar: satuanBesar,
@@ -221,7 +221,7 @@ export default function Index() {
                       jenis_barang: jenisBarang,
                       merek,
                       satuan_kecil: satuanKecil,
-                      nilai_satuan_kecil: 1,
+                      nilai_satuan_kecil: nilaiSatuanKecil,
                       satuan_sedang: satuanSedang,
                       nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
                       satuan_besar: satuanBesar,
@@ -265,7 +265,7 @@ export default function Index() {
             setMerek(barang.merek ?? barang.nama_dagang ?? '');
             setJenisBarang(barang.jenis_barang ?? '');
             setSatuanKecil(barang.satuan_kecil ?? '');
-            setNilaiSatuanKecil(barang.nilai_satuan_kecil ?? 1);
+            setNilaiSatuanKecil(barang.nilai_satuan_kecil ?? '');
             setSatuanSedang(barang.satuan_sedang ?? '');
             setNilaiSatuanSedang(barang.nilai_satuan_sedang ?? '');
             setSatuanBesar(barang.satuan_besar ?? '');
@@ -312,7 +312,7 @@ export default function Index() {
         setMerek('');
         setJenisBarang('');
         setSatuanKecil('');
-        setNilaiSatuanKecil(1);
+        setNilaiSatuanKecil('');
         setSatuanSedang('');
         setNilaiSatuanSedang('');
         setSatuanBesar('');

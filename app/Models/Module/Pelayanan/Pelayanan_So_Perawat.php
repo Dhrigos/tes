@@ -40,10 +40,9 @@ class Pelayanan_So_Perawat extends Model
         'eye',
         'verbal',
         'motorik',
+        'kesadaran',
         'summernote',
         'files',
-        'user_input_id',
-        'user_input_name',
     ];
 
     protected $casts = [

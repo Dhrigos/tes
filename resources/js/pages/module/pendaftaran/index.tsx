@@ -156,6 +156,7 @@ const PendaftaranDashboard = () => {
     // Action states
     const [selectedAction, setSelectedAction] = useState<{
         id: number;
+        nomor_register: string;
         nama: string;
         type: string;
     } | null>(null);
@@ -228,7 +229,20 @@ const PendaftaranDashboard = () => {
 
     const fetchMasterData = async () => {
         try {
-            const response = await fetch('/api/pendaftaran/master-data');
+            const response = await fetch('/api/pendaftaran/master-data', {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const data = await response.json();
 
             if (data.success) {
@@ -240,14 +254,27 @@ const PendaftaranDashboard = () => {
             }
         } catch (error) {
             console.error('Error fetching master data:', error);
-            toast.error('Gagal memuat data master');
+            toast.error('Gagal memuat data master: ' + (error as Error).message);
         }
     };
 
     const searchPasienAPI = async (searchTerm: string) => {
         setSearchingPasien(true);
         try {
-            const response = await fetch(`/api/master/pasien/search?search=${encodeURIComponent(searchTerm)}&limit=20`);
+            const response = await fetch(`/api/master/pasien/search?search=${encodeURIComponent(searchTerm)}&limit=20`, {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const data = await response.json();
 
             if (data.success) {
@@ -255,7 +282,7 @@ const PendaftaranDashboard = () => {
             }
         } catch (error) {
             console.error('Error searching pasien:', error);
-            toast.error('Gagal mencari pasien');
+            toast.error('Gagal mencari pasien: ' + (error as Error).message);
         } finally {
             setSearchingPasien(false);
         }
@@ -263,7 +290,20 @@ const PendaftaranDashboard = () => {
 
     const fetchHariList = async () => {
         try {
-            const response = await fetch('/api/master/hari');
+            const response = await fetch('/api/master/hari', {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const data = await response.json();
 
             if (data.success) {
@@ -276,7 +316,20 @@ const PendaftaranDashboard = () => {
 
     const fetchPendaftaranData = async () => {
         try {
-            const response = await fetch('/api/pendaftaran/data');
+            const response = await fetch('/api/pendaftaran/data', {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const data = await response.json();
 
             if (data.success) {
@@ -380,7 +433,7 @@ const PendaftaranDashboard = () => {
             }
         } catch (error: any) {
             console.error('Error saving pendaftaran:', error);
-            toast.error(error.message || 'Terjadi kesalahan saat menyimpan');
+            toast.error((error as Error).message || 'Terjadi kesalahan saat menyimpan');
         } finally {
             setLoading(false);
         }
@@ -394,16 +447,17 @@ const PendaftaranDashboard = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/pendaftaran/batal', {
-                method: 'POST',
+            const encodedNorawat = btoa(selectedAction.nomor_register);
+            const response = await fetch(`/api/pelayanan/batal/${encodedNorawat}`, {
+                method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
-                    batalid_delete: selectedAction.id,
-                    alasanpembatalan: alasanBatal,
-                }),
+                    alasan_batal: alasanBatal
+                })
             });
 
             const result = await response.json();
@@ -418,7 +472,7 @@ const PendaftaranDashboard = () => {
             }
         } catch (error: any) {
             console.error('Error cancelling pendaftaran:', error);
-            toast.error(error.message || 'Gagal membatalkan pendaftaran');
+            toast.error((error as Error).message || 'Gagal membatalkan pendaftaran');
         } finally {
             setLoading(false);
         }
@@ -466,7 +520,7 @@ const PendaftaranDashboard = () => {
             }
         } catch (error: any) {
             console.error('Error updating attendance:', error);
-            toast.error(error.message || 'Gagal mengupdate status kehadiran');
+            toast.error((error as Error).message || 'Gagal mengupdate status kehadiran');
         } finally {
             setLoading(false);
         }
@@ -708,6 +762,7 @@ const PendaftaranDashboard = () => {
                                                                         onClick={() => {
                                                                             setSelectedAction({
                                                                                 id: item.id,
+                                                                                nomor_register: item.nomor_register,
                                                                                 nama: item.pasien.nama,
                                                                                 type: 'dokter',
                                                                             });
@@ -733,6 +788,7 @@ const PendaftaranDashboard = () => {
                                                                             onClick={() => {
                                                                                 setSelectedAction({
                                                                                     id: item.id,
+                                                                                    nomor_register: item.nomor_register,
                                                                                     nama: item.pasien.nama,
                                                                                     type: 'hadir',
                                                                                 });
@@ -749,6 +805,7 @@ const PendaftaranDashboard = () => {
                                                                             onClick={() => {
                                                                                 setSelectedAction({
                                                                                     id: item.id,
+                                                                                    nomor_register: item.nomor_register,
                                                                                     nama: item.pasien.nama,
                                                                                     type: 'batal',
                                                                                 });
@@ -769,6 +826,7 @@ const PendaftaranDashboard = () => {
                                                                     onClick={() => {
                                                                         setSelectedAction({
                                                                             id: item.id,
+                                                                            nomor_register: item.nomor_register,
                                                                             nama: item.pasien.nama,
                                                                             type: 'batal-pcare',
                                                                         });

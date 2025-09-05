@@ -51,6 +51,7 @@ interface PemeriksaanPageProps {
         umur: string;
     };
     so_perawat?: Partial<{
+        id?: number;
         sistol: string;
         distol: string;
         tensi: string;
@@ -79,6 +80,7 @@ interface PemeriksaanPageProps {
     htt_pemeriksaan: { id: string; nama_pemeriksaan: string; htt_subpemeriksaans?: HttSubpemeriksaan[] }[];
     alergi_data: { id: number; kode: string; jenis_alergi: string; nama: string }[];
     norawat?: string;
+    mode?: string;
 }
 
 // Breadcrumbs will be set dynamically based on mode
@@ -187,10 +189,23 @@ export default function PemeriksaanPerawat() {
         htt_pemeriksaan = [],
         alergi_data = [],
         norawat,
+        mode: backendMode,
     } = usePage().props as unknown as PemeriksaanPageProps;
 
-    // Determine if this is edit mode (data exists) or create mode (data empty)
-    const isEditMode = so_perawat && Object.keys(so_perawat).length > 0;
+    // Determine if this is edit mode based on backend mode parameter or data existence
+    const mode = backendMode || new URLSearchParams(window.location.search).get('mode');
+
+    // Debug log
+    console.log('Backend mode parameter:', backendMode);
+    console.log('URL mode parameter:', new URLSearchParams(window.location.search).get('mode'));
+    console.log('Final mode:', mode);
+    console.log('SO Perawat data:', so_perawat);
+    console.log('SO Perawat ID:', so_perawat?.id);
+
+    // If mode is explicitly set, use it; otherwise, determine based on data existence
+    const isEditMode = mode === 'edit' || (mode !== 'pemeriksaan' && so_perawat && so_perawat.id && so_perawat.id !== null);
+
+    console.log('Final isEditMode:', isEditMode);
 
     // Dynamic breadcrumbs and title based on mode
     const breadcrumbs: BreadcrumbItem[] = [
@@ -209,7 +224,21 @@ export default function PemeriksaanPerawat() {
     const [keluhan, setKeluhan] = useState('');
     const [durasi, setDurasi] = useState('');
     const [durasiUnit, setDurasiUnit] = useState('Menit');
-    const [keluhanList, setKeluhanList] = useState<Array<{ keluhan: string; durasi: string }>>((so_perawat as any)?.tableData?.keluhanList || []);
+
+    // Parse tableData correctly for edit mode
+    const parseTableData = (tableData: any) => {
+        if (typeof tableData === 'string') {
+            try {
+                return JSON.parse(tableData);
+            } catch {
+                return {};
+            }
+        }
+        return tableData || {};
+    };
+
+    const tableData = parseTableData((so_perawat as any)?.tableData);
+    const [keluhanList, setKeluhanList] = useState<Array<{ keluhan: string; durasi: string }>>(tableData?.keluhanList || []);
 
     // Form state for Obyektif - initialize with existing data if in edit mode
     const [sistol, setSistol] = useState(so_perawat.sistol || '');
@@ -232,6 +261,36 @@ export default function PemeriksaanPerawat() {
     const [gcsKesadaran, setGcsKesadaran] = useState(so_perawat.kesadaran || '');
     const [catatan, setCatatan] = useState(so_perawat.summernote || '');
 
+    // Sync form state when so_perawat props change (prefill edit mode)
+    useEffect(() => {
+        const td = parseTableData((so_perawat as any)?.tableData);
+        setKeluhanList(td?.keluhanList || []);
+        setHttItems(td?.httItems || []);
+
+        setSistol(so_perawat.sistol || '');
+        setDistol(so_perawat.distol || '');
+        setTensi(so_perawat.tensi || '');
+        setSuhu(so_perawat.suhu || '');
+        setNadi(so_perawat.nadi || '');
+        setRr(so_perawat.rr || '');
+        setTinggi(so_perawat.tinggi || '');
+        setBerat(so_perawat.berat || '');
+        setSpo2(so_perawat.spo2 || '');
+        setJenisAlergi(so_perawat.jenis_alergi || '');
+        setAlergi(so_perawat.alergi || '');
+        setLingkarPerut(so_perawat.lingkar_perut || '');
+        setNilaiBmi(so_perawat.nilai_bmi || '');
+        setStatusBmi(so_perawat.status_bmi || '');
+        setGcsEye(so_perawat.eye || '');
+        setGcsVerbal(so_perawat.verbal || '');
+        setGcsMotorik(so_perawat.motorik || '');
+        // kesadaran diturunkan otomatis dari E/V/M melalui effect lain; tetap isi jika tersedia
+        if ((so_perawat as any)?.kesadaran) {
+            setGcsKesadaran((so_perawat as any).kesadaran as string);
+        }
+        setCatatan(so_perawat.summernote || '');
+    }, [so_perawat]);
+
     // Unique jenis alergi options (to avoid duplicate keys/values)
     const jenisAlergiOptions = useMemo(() => {
         if (!Array.isArray(alergi_data)) return [] as string[];
@@ -248,9 +307,7 @@ export default function PemeriksaanPerawat() {
     const [httOptions, setHttOptions] = useState<typeof htt_pemeriksaan>(htt_pemeriksaan || []);
     const [subOptions, setSubOptions] = useState<HttSubpemeriksaan[]>([]);
     const [httDetailText, setHttDetailText] = useState('');
-    const [httItems, setHttItems] = useState<Array<{ pemeriksaan: string; subPemeriksaan: string; detail: string }>>(
-        (so_perawat as any)?.tableData?.httItems || [],
-    );
+    const [httItems, setHttItems] = useState<Array<{ pemeriksaan: string; subPemeriksaan: string; detail: string }>>(tableData?.httItems || []);
 
     // Tab navigation state
     const [activeTab, setActiveTab] = useState('subyektif');
@@ -270,6 +327,13 @@ export default function PemeriksaanPerawat() {
             years--;
             months += 12;
         }
+
+        // Bulatkan umur jika lebih dari 1 tahun
+        if (years > 0) {
+            years = Math.round(years + months / 12);
+            months = 0;
+        }
+
         return { years, months };
     };
 

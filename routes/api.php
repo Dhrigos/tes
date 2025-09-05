@@ -17,8 +17,9 @@ use App\Http\Controllers\Settings\Web_Setting_Controller;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
+use App\Http\Controllers\Module\Gudang\Stok_Obat_Klinik_Controller;
+use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use Illuminate\Http\Request;
-
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
 Route::get('/get_alergi/{kode}', [Pcare_Controller::class, 'get_alergi']);
@@ -57,7 +58,6 @@ Route::prefix('master')->group(function () {
 Route::prefix('pendaftaran')->group(function () {
     Route::get('/master-data', [Pendaftaran_Controller::class, 'getMasterData']);
     Route::post('/', [Pendaftaran_Controller::class, 'store']);
-    Route::post('/batal', [Pendaftaran_Controller::class, 'pendaftaranbatal']);
     Route::post('/hadir', [Pendaftaran_Controller::class, 'pendaftaranhadir']);
     Route::post('/dokter/update', [Pendaftaran_Controller::class, 'updateDokter']);
     Route::get('/data', [Pendaftaran_Controller::class, 'getData']);
@@ -72,6 +72,8 @@ Route::prefix('pelayanan')->group(function () {
     // Hadir dokter dan selesai dokter
     Route::get('/hadir-dokter/{norawat}', [PelayananController::class, 'hadirDokter']);
     Route::post('/selesai-dokter/{norawat}', [PelayananController::class, 'selesaiDokter']);
+    // Batalkan pelayanan dan hapus data terkait
+    Route::delete('/batal/{norawat}', [PelayananController::class, 'batalPelayanan']);
 });
 
 Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
@@ -117,7 +119,10 @@ Route::prefix('permintaan-barang')->group(function () {
     Route::get('/get-last-kode', [Permintaan_Barang_Controller::class, 'getLastKode']);
     Route::get('/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
     Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetailKonfirmasi']);
+    Route::post('/terima-item', [Permintaan_Barang_Controller::class, 'terimaItem'])->name('api.permintaan-barang.terima-item');
+    Route::post('/tolak-item', [Permintaan_Barang_Controller::class, 'tolakItem'])->name('api.permintaan-barang.tolak-item');
     Route::post('/terima-data', [Permintaan_Barang_Controller::class, 'terimaData'])->name('api.permintaan-barang.terima-data');
+    Route::post('/tolak-data/{id?}', [Permintaan_Barang_Controller::class, 'tolakData'])->name('api.permintaan-barang.tolak-data');
 });
 
 Route::prefix('daftar-permintaan-barang')->group(function () {
@@ -125,4 +130,20 @@ Route::prefix('daftar-permintaan-barang')->group(function () {
 
     Route::post('/proses-permintaan', [Daftar_Permintaan_Barang_Controller::class, 'prosesPermintaan']);
     Route::post('/konfirmasi', [Daftar_Permintaan_Barang_Controller::class, 'konfirmasi']);
+    Route::get('/get-harga-dasar/{kode_obat}', [Daftar_Permintaan_Barang_Controller::class, 'getHargaDasar']);
 });
+
+// Apotek API Routes
+Route::prefix('apotek')->group(function () {
+    Route::post('/kodeFaktur', [Apotek_Controller::class, 'getKodeFaktur']);
+    Route::get('/BeliBebas', [Apotek_Controller::class, 'getBeliBebas']);
+    Route::get('/KodeFakturBeliBebas', [Apotek_Controller::class, 'getKodeFakturBeliBebas']);
+    Route::post('/kodeObat', [Apotek_Controller::class, 'getKodeObat']);
+    Route::post('/hargaBebas', [Apotek_Controller::class, 'hargaBebas']);
+});
+
+// API for medicine stock
+Route::get('/obat/tersedia', [Stok_Obat_Klinik_Controller::class, 'getObatTersedia']);
+Route::get('/obat/instruksi', [Stok_Obat_Klinik_Controller::class, 'getInstruksiObat']);
+Route::get('/obat/satuan', [Stok_Obat_Klinik_Controller::class, 'getSatuanBarang']);
+

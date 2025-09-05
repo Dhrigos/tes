@@ -86,6 +86,65 @@ class Pcare_Controller extends Controller
         }
     }
 
+    /**
+    * Kunjungan
+    */ 
+    public function get_rujukan($nokunjung)
+    {
+        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
+        $SERVICE_NAME = "pcare-rest-dev";
+        $feature = 'kunjungan/rujukan';
+        $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->get("{$BASE_URL}/{$SERVICE_NAME}/{$feature}/{$nokunjung}");
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            // Jika error metadata
+            if (($body['metaData']['code'] ?? 0) != 200 || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            // Dekripsi
+            $data = $this->decryptBpjsResponse($body['response'], $token);
+
+            if (!$data || empty($data['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Data tidak ditemukan',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $data['response'],
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+    /**
+    * Kunjungan
+    */ 
 
     /**
      * Ambil daftar Poli FKTP BPJS

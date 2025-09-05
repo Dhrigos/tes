@@ -34,14 +34,6 @@ class PermintaanBarangWebSocketService
                 'source_klinik' => $permintaanData['kode_klinik'] ?? ''
             ]);
 
-            // Broadcast ke semua klinik dalam grup yang sama
-            broadcast(new PermintaanBarangEvent(
-                $permintaanData,
-                'permintaan_baru',
-                $kodeKlinik,
-                $isGudangUtama
-            ))->toOthers();
-
             Log::info('WebSocket: Permintaan barang baru berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
                 'kode_request' => $permintaanData['kode_request'] ?? '',
@@ -80,12 +72,11 @@ class PermintaanBarangWebSocketService
                 'kode_request' => $konfirmasiData['kode_request'] ?? ''
             ]);
 
-            broadcast(new PermintaanBarangEvent(
-                $konfirmasiData,
-                'permintaan_dikonfirmasi',
-                $kodeKlinik,
-                $isGudangUtama
-            ))->toOthers();
+            // Tentukan tipe event berdasarkan status
+            $eventType = 'permintaan_dikonfirmasi';
+            if (isset($konfirmasiData['status']) && (int) $konfirmasiData['status'] === 2) {
+                $eventType = 'barang_diproses';
+            }
 
             Log::info('WebSocket: Konfirmasi permintaan berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
@@ -125,13 +116,6 @@ class PermintaanBarangWebSocketService
                 'kode_request' => $pengirimanData['kode_request'] ?? ''
             ]);
 
-            broadcast(new PermintaanBarangEvent(
-                $pengirimanData,
-                'barang_dikirim',
-                $kodeKlinik,
-                $isGudangUtama
-            ))->toOthers();
-
             Log::info('WebSocket: Pengiriman barang berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,
                 'kode_request' => $pengirimanData['kode_request'] ?? '',
@@ -169,13 +153,6 @@ class PermintaanBarangWebSocketService
                 'is_gudang_utama' => $isGudangUtama,
                 'kode_request' => $penerimaanData['kode_request'] ?? ''
             ]);
-
-            broadcast(new PermintaanBarangEvent(
-                $penerimaanData,
-                'barang_diterima',
-                $kodeKlinik,
-                $isGudangUtama
-            ))->toOthers();
 
             Log::info('WebSocket: Penerimaan barang berhasil di-broadcast', [
                 'kode_klinik' => $kodeKlinik,

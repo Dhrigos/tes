@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { router, usePage } from '@inertiajs/react';
-import { Eye, Plus, Search, X } from 'lucide-react';
+import { Eye, Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -84,10 +85,13 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
         }
     };
 
-    // Helper function to format date to YYYY-MM-DD
+    // Helper function to format date to YYYY-MM-DD (robust for invalid inputs)
     const formatDate = (dateString: string) => {
         if (!dateString) return '';
         const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return typeof dateString === 'string' ? dateString : '';
+        }
         return date.toISOString().split('T')[0];
     };
 
@@ -105,12 +109,24 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
     const [selectedKonfirmasi, setSelectedKonfirmasi] = useState<any>(null);
     const [kodeRequest, setKodeRequest] = useState('');
 
+    const [currentStep, setCurrentStep] = useState(1);
+    const [externalDatabase, setExternalDatabase] = useState('');
+
     const [isGeneratingKode, setIsGeneratingKode] = useState(false);
     const [items, setItems] = useState<PermintaanItem[]>([]);
 
     const [searchObat, setSearchObat] = useState('');
     const [selectedObat, setSelectedObat] = useState('');
     const [jenisBarang, setJenisBarang] = useState<'obat' | 'alkes' | 'inventaris'>('obat');
+
+    // State for rejection functionality
+    const [showRejectDialog, setShowRejectDialog] = useState(false);
+    const [isRejecting, setIsRejecting] = useState(false);
+    const [itemToReject, setItemToReject] = useState<any>(null);
+
+    // State for checkbox selection
+    const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // Tampilkan notifikasi jika ada pesan flash
     useEffect(() => {
@@ -148,6 +164,13 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
             })
             .slice(0, 10) || [];
 
+    // Handle removing an item row
+    const removeItem = (index: number) => {
+        const newItems = [...items];
+        newItems.splice(index, 1);
+        setItems(newItems);
+    };
+
     // Generate kode request
     const generateKodeRequest = async () => {
         setIsGeneratingKode(true);
@@ -183,34 +206,61 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
 
     const fetchPermintaanKonfirmasiDetail = async (kodeRequest: string) => {
         try {
-            const response = await fetch(`/api/permintaan-barang/get-detail/${kodeRequest}`);
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            const response = await fetch(`/api/permintaan-barang/get-detail/${kodeRequest}`, {
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                },
+            });
             const data = await response.json();
 
-            if (data.details && data.details.length > 0) {
-                // Get the first item to extract the main request data
-                const firstItem = data.details[0];
+            if (data.success) {
+                if (data.details && data.details.length > 0) {
+                    // Get the first item to extract the main request data
+                    const firstItem = data.details[0];
 
-                // Transform the data to match the expected structure
-                const formattedData = {
-                    kode_request: firstItem.kode_request,
-                    tanggal_request: firstItem.tanggal_request,
-                    nama_klinik: firstItem.nama_klinik,
-                    details: data.details.map((item: any) => ({
-                        ...item,
-                        kode_obat_alkes: item.kode_obat_alkes || '',
-                        nama_obat_alkes: item.nama_obat_alkes || '',
-                        qty: item.qty || 0,
-                        expired: item.expired || '-',
-                    })),
-                };
+                    // Transform the data to match the expected structure
+                    const formattedData = {
+                        kode_request: firstItem.kode_request,
+                        tanggal_request: firstItem.tanggal_request,
+                        nama_klinik: firstItem.nama_klinik,
+                        details: data.details.map((item: any) => ({
+                            ...item,
+                            kode_obat_alkes: item.kode_obat_alkes || '',
+                            nama_obat_alkes: item.nama_obat_alkes || '',
+                            qty: item.qty || 0,
+                            expired: item.expired || '-',
+                        })),
+                    };
 
-                setSelectedKonfirmasi(formattedData);
-                setShowKonfirmasiDetailModal(true);
+                    setSelectedKonfirmasi(formattedData);
+                    setShowKonfirmasiDetailModal(true);
+                } else {
+                    toast.error('Tidak ada detail permintaan yang ditemukan');
+                }
             } else {
-                toast.error('Tidak ada detail permintaan yang ditemukan');
+                toast.error(data.message || 'Gagal mengambil detail permintaan barang konfirmasi');
             }
         } catch (error) {
+            console.error('Error fetching confirmation details:', error);
             toast.error('Terjadi kesalahan saat mengambil detail permintaan barang konfirmasi');
+        }
+    };
+
+    // Stepper navigation
+    const nextStep = () => {
+        if (currentStep < 2) {
+            setCurrentStep(currentStep + 1);
+        }
+    };
+
+    const prevStep = () => {
+        if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
         }
     };
 
@@ -316,6 +366,307 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
         }
     };
 
+    // Handle reject button click
+    const handleTolakPermintaan = (item: any) => {
+        setItemToReject(item);
+        setShowRejectDialog(true);
+    };
+
+    // Confirm rejection
+    const confirmReject = async () => {
+        if (!itemToReject || !itemToReject.id) return;
+
+        setIsRejecting(true);
+        try {
+            const response = await fetch(`/api/permintaan-barang/tolak-data/${itemToReject.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(result.message);
+                setShowRejectDialog(false);
+                setItemToReject(null);
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error(result.message || 'Gagal menolak data');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Terjadi kesalahan saat menolak data');
+        } finally {
+            setIsRejecting(false);
+        }
+    };
+
+    // Handle reject all
+    const handleTolakSemua = async () => {
+        // Check if we have a kode_request for bulk rejection
+        if (itemToReject && itemToReject.kode_request) {
+            setIsRejecting(true);
+            try {
+                const response = await fetch('/api/permintaan-barang/tolak-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    },
+                    body: JSON.stringify({
+                        kode_request: itemToReject.kode_request,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    toast.success(result.message);
+                    setShowRejectDialog(false);
+                    setShowKonfirmasiDetailModal(false);
+                    setItemToReject(null);
+                    // Refresh the data
+                    window.location.reload();
+                } else {
+                    toast.error(result.message || 'Gagal menolak semua data');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                toast.error('Terjadi kesalahan saat menolak semua data');
+            } finally {
+                setIsRejecting(false);
+            }
+        } else {
+            toast.error('Tidak ada data untuk ditolak');
+            setShowRejectDialog(false);
+        }
+    };
+
+    // Handle reject all button click
+    const handleTolakSemuaClick = () => {
+        setItemToReject({ kode_request: selectedKonfirmasi?.kode_request });
+        setShowRejectDialog(true);
+    };
+
+    // Checkbox helper functions
+    const handleSelectAll = (checked: boolean) => {
+        if (checked && selectedKonfirmasi?.details) {
+            const allIndexes = new Set<number>(selectedKonfirmasi.details.map((_: any, index: number) => index));
+            setSelectedItems(allIndexes);
+        } else {
+            setSelectedItems(new Set<number>());
+        }
+    };
+
+    const handleSelectItem = (index: number, checked: boolean) => {
+        const newSelected = new Set(selectedItems);
+        if (checked) {
+            newSelected.add(index);
+        } else {
+            newSelected.delete(index);
+        }
+        setSelectedItems(newSelected);
+    };
+
+    const isAllSelected = selectedKonfirmasi?.details
+        ? selectedItems.size === selectedKonfirmasi.details.length && selectedKonfirmasi.details.length > 0
+        : false;
+
+    const isIndeterminate = selectedItems.size > 0 && selectedItems.size < (selectedKonfirmasi?.details?.length || 0);
+
+    // Individual accept function
+    const handleTerimaItem = async (item: any, index: number) => {
+        if (!selectedKonfirmasi?.kode_request) {
+            toast.error('Data permintaan tidak valid');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/permintaan-barang/terima-item', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    kode_request: selectedKonfirmasi.kode_request,
+                    item: item,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(result.message || 'Item berhasil diterima');
+                // Remove from selected items
+                const newSelected = new Set(selectedItems);
+                newSelected.delete(index);
+                setSelectedItems(newSelected);
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error(result.message || 'Gagal menerima item');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Terjadi kesalahan saat menerima item');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Individual reject function
+    const handleTolakItem = async (item: any, index: number) => {
+        if (!selectedKonfirmasi?.kode_request) {
+            toast.error('Data permintaan tidak valid');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/permintaan-barang/tolak-item', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    kode_request: selectedKonfirmasi.kode_request,
+                    item: item,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(result.message || 'Item berhasil ditolak');
+                // Remove from selected items
+                const newSelected = new Set(selectedItems);
+                newSelected.delete(index);
+                setSelectedItems(newSelected);
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error(result.message || 'Gagal menolak item');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Terjadi kesalahan saat menolak item');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Bulk accept selected items
+    const handleTerimaSelected = async () => {
+        if (selectedItems.size === 0) {
+            toast.error('Pilih minimal satu item untuk diterima');
+            return;
+        }
+
+        if (!selectedKonfirmasi?.kode_request || !selectedKonfirmasi?.details) {
+            toast.error('Data permintaan tidak valid');
+            return;
+        }
+
+        const selectedItemsData = Array.from(selectedItems).map((index) => selectedKonfirmasi.details[index]);
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/permintaan-barang/terima-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    kode_request: selectedKonfirmasi.kode_request,
+                    items: selectedItemsData,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(result.message || 'Item terpilih berhasil diterima');
+                setSelectedItems(new Set());
+                setShowKonfirmasiDetailModal(false);
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error(result.message || 'Gagal menerima item terpilih');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Terjadi kesalahan saat menerima item terpilih');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Bulk reject selected items
+    const handleTolakSelected = async () => {
+        if (selectedItems.size === 0) {
+            toast.error('Pilih minimal satu item untuk ditolak');
+            return;
+        }
+
+        if (!selectedKonfirmasi?.kode_request || !selectedKonfirmasi?.details) {
+            toast.error('Data permintaan tidak valid');
+            return;
+        }
+
+        const selectedItemsData = Array.from(selectedItems).map((index) => selectedKonfirmasi.details[index]);
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/permintaan-barang/tolak-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    kode_request: selectedKonfirmasi.kode_request,
+                    items: selectedItemsData,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(result.message || 'Item terpilih berhasil ditolak');
+                setSelectedItems(new Set());
+                setShowKonfirmasiDetailModal(false);
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error(result.message || 'Gagal menolak item terpilih');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Terjadi kesalahan saat menolak item terpilih');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Clear selected items when modal closes
+    useEffect(() => {
+        if (!showKonfirmasiDetailModal) {
+            setSelectedItems(new Set());
+        }
+    }, [showKonfirmasiDetailModal]);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
@@ -340,241 +691,353 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                         </DialogHeader>
 
                         <form onSubmit={handleSubmit}>
-                            {/* Form Permintaan Barang - Langsung tanpa step */}
-                            <div className="space-y-6">
-                                {/* Kode Request */}
-                                <div className="form-group">
-                                    <label htmlFor="kode_request" className="mb-2 block text-sm font-medium text-gray-700">
-                                        Kode Permintaan
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            type="text"
-                                            id="kode_request"
-                                            name="kode_request"
-                                            value={kodeRequest}
-                                            onChange={(e) => setKodeRequest(e.target.value)}
-                                            required
-                                            disabled={isGeneratingKode}
-                                            readOnly
-                                            className="flex-1"
-                                        />
-                                        <Button type="button" onClick={generateKodeRequest} disabled={isGeneratingKode} variant="outline">
-                                            {isGeneratingKode ? 'Generating...' : 'Generate'}
-                                        </Button>
+                            {/* Stepper Header */}
+                            <div className="bs-stepper mb-4">
+                                <div className="bs-stepper-header mb-6 flex justify-between" role="tablist">
+                                    {/* Step 1: Pilih Koneksi */}
+                                    <div className={`step flex items-center ${currentStep === 1 ? 'active' : ''}`} data-target="#koneksiExternal">
+                                        <button
+                                            type="button"
+                                            className={`step-trigger flex items-center ${currentStep === 1 ? 'font-bold text-blue-600' : 'text-gray-500'}`}
+                                            role="tab"
+                                            aria-controls="koneksiExternal"
+                                            id="koneksiExternal-trigger"
+                                            onClick={() => setCurrentStep(1)}
+                                        >
+                                            <span
+                                                className={`bs-stepper-circle flex h-8 w-8 items-center justify-center rounded-full ${currentStep === 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+                                            >
+                                                1
+                                            </span>
+                                            <span className="bs-stepper-label ml-2">Pilih Koneksi (Gudang Utama)</span>
+                                        </button>
+                                    </div>
+                                    <div className="line mx-2 flex flex-1 items-center">
+                                        <div className="h-px w-full bg-gray-300"></div>
+                                    </div>
+                                    {/* Step 2: Permintaan Obat */}
+                                    <div className={`step flex items-center ${currentStep === 2 ? 'active' : ''}`} data-target="#requestObatAlkes">
+                                        <button
+                                            type="button"
+                                            className={`step-trigger flex items-center ${currentStep === 2 ? 'font-bold text-blue-600' : 'text-gray-500'}`}
+                                            role="tab"
+                                            aria-controls="requestObatAlkes"
+                                            id="requestObatAlkes-trigger"
+                                            onClick={() => setCurrentStep(2)}
+                                        >
+                                            <span
+                                                className={`bs-stepper-circle flex h-8 w-8 items-center justify-center rounded-full ${currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+                                            >
+                                                2
+                                            </span>
+                                            <span className="bs-stepper-label ml-2">Permintaan Obat / Alkes</span>
+                                        </button>
                                     </div>
                                 </div>
 
-                                {/* Form Input Barang */}
-                                <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-                                    <div className="md:col-span-1">
-                                        <label htmlFor="jenis_barang" className="mb-2 block text-sm font-medium text-gray-700">
-                                            Jenis Barang
-                                        </label>
-                                        <Select value={jenisBarang} onValueChange={(value: 'obat' | 'alkes' | 'inventaris') => setJenisBarang(value)}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Pilih Jenis Barang" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="obat">Obat</SelectItem>
-                                                <SelectItem value="alkes">Alkes</SelectItem>
-                                                <SelectItem value="inventaris">Inventaris</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                <div className="bs-stepper-content">
+                                    {/* Step 1: Koneksi External Database */}
+                                    {currentStep === 1 && (
+                                        <div id="koneksiExternal" className="content" role="tabpanel" aria-labelledby="koneksiExternal-trigger">
+                                            <div className="form-group row mb-4">
+                                                <div className="col-sm-12">
+                                                    <label htmlFor="external_database" className="mb-1 block text-xs font-medium text-gray-700">
+                                                        Pilih Tujuan
+                                                    </label>
+                                                    <select
+                                                        className="form-control w-full rounded border p-2"
+                                                        id="external_database"
+                                                        name="external_database"
+                                                        value={externalDatabase}
+                                                        onChange={(e) => setExternalDatabase(e.target.value)}
+                                                    >
+                                                        <option value="" disabled>
+                                                            Pilih Nama Tujuan
+                                                        </option>
+                                                        <option value="Gudang Utama">Gudang Utama</option>
+                                                        {/* Tambahkan opsi lain jika diperlukan */}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <Button type="button" onClick={nextStep}>
+                                                    Selanjutnya
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
 
-                                    <div className="md:col-span-1">
-                                        <label htmlFor="nama_obat_alkes" className="mb-2 block text-sm font-medium text-gray-700">
-                                            Data Barang
-                                        </label>
-                                        <Select value={selectedObat} onValueChange={setSelectedObat}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Pilih Obat/Alkes" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <div className="p-2">
-                                                    <div className="relative">
-                                                        <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                                                        <Input
-                                                            placeholder="Cari obat/alkes berdasarkan kode atau nama..."
-                                                            value={searchObat}
-                                                            onChange={(e) => setSearchObat(e.target.value)}
-                                                            className="mb-2 pl-8"
-                                                        />
-                                                    </div>
-                                                    {searchObat && (
-                                                        <div className="mb-2 flex items-center justify-between">
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Ditemukan {filteredDabar.length} obat/alkes
-                                                            </p>
+                                    {/* Step 2: Request Obat atau Alkes */}
+                                    {currentStep === 2 && (
+                                        <div id="requestObatAlkes" className="content" role="tabpanel" aria-labelledby="requestObatAlkes-trigger">
+                                            <div className="form-group row">
+                                                <div className="col-md-12 mb-4">
+                                                    <div className="form-group">
+                                                        <label htmlFor="kode_request" className="mb-1 block text-xs font-medium text-gray-700">
+                                                            Kode Permintaan
+                                                        </label>
+                                                        <div className="flex gap-2">
+                                                            <Input
+                                                                type="text"
+                                                                id="kode_request"
+                                                                name="kode_request"
+                                                                value={kodeRequest}
+                                                                onChange={(e) => setKodeRequest(e.target.value)}
+                                                                required
+                                                                disabled={isGeneratingKode}
+                                                                readOnly
+                                                            />
                                                             <Button
                                                                 type="button"
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => setSearchObat('')}
-                                                                className="h-6 px-2 text-xs"
+                                                                onClick={generateKodeRequest}
+                                                                disabled={isGeneratingKode}
+                                                                variant="outline"
                                                             >
-                                                                Reset
+                                                                {isGeneratingKode ? 'Generating...' : 'Generate'}
                                                             </Button>
                                                         </div>
-                                                    )}
-                                                </div>
-                                                {filteredDabar.length > 0 ? (
-                                                    filteredDabar.map((barang) => (
-                                                        <SelectItem key={barang.kode} value={barang.kode}>
-                                                            <div className="flex flex-col">
-                                                                <div className="font-medium" title={barang.nama}>
-                                                                    {barang.nama.length > 20 ? `${barang.nama.substring(0, 20)}...` : barang.nama}
-                                                                </div>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))
-                                                ) : (
-                                                    <div className="p-2 text-center text-muted-foreground">
-                                                        {searchObat ? 'Tidak ada obat/alkes ditemukan' : 'Tidak ada data obat/alkes'}
                                                     </div>
-                                                )}
-                                            </SelectContent>
-                                        </Select>
-                                        <div className="mt-1 text-xs text-muted-foreground">
-                                            Total: {dabar.length} obat/alkes
-                                            {searchObat && <span className="ml-1">(Ditemukan {filteredDabar.length} obat/alkes)</span>}
+                                                </div>
+
+                                                <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+                                                    <div className="md:col-span-1">
+                                                        <label htmlFor="nama_obat_alkes" className="mb-2 block text-xs font-medium text-gray-700">
+                                                            Data Barang
+                                                        </label>
+                                                        <Select value={selectedObat} onValueChange={setSelectedObat}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih Obat/Alkes" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <div className="p-2">
+                                                                    <div className="relative">
+                                                                        <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                                                                        <Input
+                                                                            placeholder="Cari obat/alkes berdasarkan kode atau nama..."
+                                                                            value={searchObat}
+                                                                            onChange={(e) => setSearchObat(e.target.value)}
+                                                                            className="mb-2 pl-8"
+                                                                        />
+                                                                    </div>
+                                                                    {searchObat && (
+                                                                        <div className="mb-2 flex items-center justify-between">
+                                                                            <p className="text-xs text-muted-foreground">
+                                                                                Ditemukan {filteredDabar.length} obat/alkes
+                                                                            </p>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => setSearchObat('')}
+                                                                                className="h-6 px-2 text-xs"
+                                                                            >
+                                                                                Reset
+                                                                            </Button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {filteredDabar.length > 0 ? (
+                                                                    filteredDabar.map((barang) => (
+                                                                        <SelectItem key={barang.kode} value={barang.kode}>
+                                                                            <div className="flex flex-col">
+                                                                                <div className="font-medium" title={barang.nama}>
+                                                                                    {barang.nama.length > 20
+                                                                                        ? `${barang.nama.substring(0, 20)}...`
+                                                                                        : barang.nama}
+                                                                                </div>
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="p-2 text-center text-muted-foreground">
+                                                                        {searchObat ? 'Tidak ada obat/alkes ditemukan' : 'Tidak ada data obat/alkes'}
+                                                                    </div>
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <div className="mt-1 text-xs text-muted-foreground">
+                                                            Total: {dabar.length} obat/alkes
+                                                            {searchObat && (
+                                                                <span className="ml-1">(Ditemukan {filteredDabar.length} obat/alkes)</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="md:col-span-1">
+                                                        <label htmlFor="jumlah_obat_alkes" className="mb-2 block text-xs font-medium text-gray-700">
+                                                            Jumlah
+                                                        </label>
+                                                        <Input
+                                                            type="number"
+                                                            id="jumlah_obat_alkes"
+                                                            name="jumlah_obat_alkes"
+                                                            min="1"
+                                                            defaultValue="1"
+                                                            placeholder="Masukan jumlahnya"
+                                                            className="w-full"
+                                                        />
+                                                    </div>
+
+                                                    <div className="md:col-span-1">
+                                                        <label htmlFor="jenis_barang" className="mb-2 block text-xs font-medium text-gray-700">
+                                                            Jenis Barang
+                                                        </label>
+                                                        <Select
+                                                            value={jenisBarang}
+                                                            onValueChange={(value: 'obat' | 'alkes' | 'inventaris') => setJenisBarang(value)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih Jenis Barang" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="obat">Obat</SelectItem>
+                                                                <SelectItem value="alkes">Alkes</SelectItem>
+                                                                <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <div className="flex items-center md:col-span-1">
+                                                        <Button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                // Ambil nilai dari select dan input
+                                                                const jumlahElement = document.getElementById(
+                                                                    'jumlah_obat_alkes',
+                                                                ) as HTMLInputElement;
+
+                                                                const jumlah = parseInt(jumlahElement.value) || 1;
+
+                                                                // Cari barang berdasarkan kode
+                                                                const selectedBarang = dabar.find((b) => b.kode === selectedObat);
+
+                                                                if (selectedBarang) {
+                                                                    // Cek apakah item sudah ada dalam daftar
+                                                                    const existingItemIndex = items.findIndex(
+                                                                        (item) => item.kode_barang === selectedBarang.kode,
+                                                                    );
+
+                                                                    if (existingItemIndex !== -1) {
+                                                                        // Jika item sudah ada, tambahkan jumlahnya
+                                                                        setItems((prevItems) => {
+                                                                            const updatedItems = [...prevItems];
+                                                                            updatedItems[existingItemIndex] = {
+                                                                                ...updatedItems[existingItemIndex],
+                                                                                jumlah: updatedItems[existingItemIndex].jumlah + jumlah,
+                                                                            };
+                                                                            return updatedItems;
+                                                                        });
+                                                                        toast.success(`Jumlah ${selectedBarang.nama} berhasil ditambahkan`);
+                                                                    } else {
+                                                                        // Jika item belum ada, tambahkan item baru
+                                                                        // Use the manually selected jenis_barang if the barang doesn't have a jenis_barang or if we want to override it
+                                                                        const newItem: PermintaanItem = {
+                                                                            kode_barang: selectedBarang.kode,
+                                                                            nama_barang: selectedBarang.nama,
+                                                                            jumlah: jumlah,
+                                                                            satuan:
+                                                                                selectedBarang.satuan_kecil ||
+                                                                                selectedBarang.satuan_sedang ||
+                                                                                selectedBarang.satuan_besar ||
+                                                                                selectedBarang.satuan ||
+                                                                                '',
+                                                                            jenis_barang: selectedBarang.jenis_barang
+                                                                                ? selectedBarang.jenis_barang === 'farmasi' ||
+                                                                                  selectedBarang.jenis_barang === 'obat'
+                                                                                    ? 'obat'
+                                                                                    : selectedBarang.jenis_barang === 'alkes'
+                                                                                      ? 'alkes'
+                                                                                      : 'inventaris'
+                                                                                : jenisBarang,
+                                                                        };
+
+                                                                        setItems((prevItems) => [...prevItems, newItem]);
+                                                                    }
+
+                                                                    // Reset form
+                                                                    setSelectedObat('');
+                                                                    setSearchObat('');
+                                                                    jumlahElement.value = '1';
+                                                                } else {
+                                                                    toast.error('Silakan pilih barang terlebih dahulu');
+                                                                }
+                                                            }}
+                                                            className="w-full md:w-auto"
+                                                            disabled={!selectedObat}
+                                                        >
+                                                            Tambah Data Sementara
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="col-md-12 mt-3">
+                                                    <div className="table-responsive">
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead style={{ width: '5%' }}>No</TableHead>
+                                                                    <TableHead>Kode Obat</TableHead>
+                                                                    <TableHead>Nama Obat</TableHead>
+                                                                    <TableHead>Jenis Barang</TableHead>
+                                                                    <TableHead>Jumlah</TableHead>
+                                                                    <TableHead className="text-right">Aksi</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {items.map((item, index) => (
+                                                                    <TableRow key={`${item.kode_barang}-${index}`}>
+                                                                        <TableCell>{index + 1}</TableCell>
+                                                                        <TableCell>{item.kode_barang}</TableCell>
+                                                                        <TableCell>{item.nama_barang}</TableCell>
+                                                                        <TableCell>
+                                                                            <span
+                                                                                className={`rounded-full px-2 py-1 text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
+                                                                            >
+                                                                                {item.jenis_barang.charAt(0).toUpperCase() +
+                                                                                    item.jenis_barang.slice(1)}
+                                                                            </span>
+                                                                        </TableCell>
+                                                                        <TableCell>{item.jumlah}</TableCell>
+                                                                        <TableCell className="text-right">
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="destructive"
+                                                                                size="sm"
+                                                                                onClick={() => removeItem(index)}
+                                                                            >
+                                                                                Hapus
+                                                                            </Button>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                                {items.length === 0 && (
+                                                                    <TableRow key="empty-items">
+                                                                        <TableCell colSpan={5} className="text-center">
+                                                                            Tidak ada data permintaan
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                )}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between">
+                                                <Button type="button" variant="outline" onClick={prevStep}>
+                                                    Sebelumnya
+                                                </Button>
+                                                <div className="space-x-2">
+                                                    <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+                                                        Batal
+                                                    </Button>
+                                                    <Button type="submit">Kirim</Button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-
-                                    <div className="md:col-span-1">
-                                        <label htmlFor="jumlah_obat_alkes" className="mb-2 block text-sm font-medium text-gray-700">
-                                            Jumlah
-                                        </label>
-                                        <Input
-                                            type="number"
-                                            id="jumlah_obat_alkes"
-                                            name="jumlah_obat_alkes"
-                                            min="1"
-                                            defaultValue="1"
-                                            placeholder="Masukan jumlahnya"
-                                            className="w-full"
-                                        />
-                                    </div>
-
-                                    <div className="flex items-end md:col-span-1">
-                                        <Button
-                                            type="button"
-                                            onClick={() => {
-                                                // Ambil nilai dari select dan input
-                                                const jumlahElement = document.getElementById('jumlah_obat_alkes') as HTMLInputElement;
-
-                                                const jumlah = parseInt(jumlahElement.value) || 1;
-
-                                                // Cari barang berdasarkan kode
-                                                const selectedBarang = dabar.find((b) => b.kode === selectedObat);
-
-                                                if (selectedBarang) {
-                                                    // Cek apakah item sudah ada dalam daftar
-                                                    const existingItemIndex = items.findIndex((item) => item.kode_barang === selectedBarang.kode);
-
-                                                    if (existingItemIndex !== -1) {
-                                                        // Update jumlah jika item sudah ada
-                                                        const updatedItems = [...items];
-                                                        updatedItems[existingItemIndex].jumlah += jumlah;
-                                                        setItems(updatedItems);
-                                                    } else {
-                                                        // Tambah item baru
-                                                        const newItem: PermintaanItem = {
-                                                            kode_barang: selectedBarang.kode,
-                                                            nama_barang: selectedBarang.nama,
-                                                            jumlah: jumlah,
-                                                            satuan: selectedBarang.satuan || 'pcs',
-                                                            jenis_barang: jenisBarang,
-                                                        };
-                                                        setItems([...items, newItem]);
-                                                    }
-
-                                                    // Reset form
-                                                    setSelectedObat('');
-                                                    setJenisBarang('obat');
-                                                    if (jumlahElement) jumlahElement.value = '1';
-
-                                                    toast.success('Item berhasil ditambahkan ke daftar permintaan');
-                                                } else {
-                                                    toast.error('Barang tidak ditemukan');
-                                                }
-                                            }}
-                                            disabled={!selectedObat}
-                                            className="w-full"
-                                        >
-                                            Tambah ke Daftar
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                {/* Daftar Item yang Dipilih */}
-                                <div className="rounded-lg border p-4">
-                                    <h3 className="mb-4 text-lg font-medium">Daftar Item Permintaan</h3>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>No</TableHead>
-                                                <TableHead>Kode Barang</TableHead>
-                                                <TableHead>Nama Barang</TableHead>
-                                                <TableHead>Jenis</TableHead>
-                                                <TableHead className="text-right">Jumlah</TableHead>
-                                                <TableHead className="text-right">Satuan</TableHead>
-                                                <TableHead className="text-center">Aksi</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {items.length > 0 ? (
-                                                items.map((item, index) => (
-                                                    <TableRow key={index}>
-                                                        <TableCell className="text-center">{index + 1}</TableCell>
-                                                        <TableCell>{item.kode_barang}</TableCell>
-                                                        <TableCell>{item.nama_barang}</TableCell>
-                                                        <TableCell>
-                                                            <span
-                                                                className={`rounded-full px-2 py-1 text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
-                                                            >
-                                                                {item.jenis_barang.charAt(0).toUpperCase() + item.jenis_barang.slice(1)}
-                                                            </span>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">{item.jumlah}</TableCell>
-                                                        <TableCell className="text-right">{item.satuan}</TableCell>
-                                                        <TableCell className="text-center">
-                                                            <Button
-                                                                type="button"
-                                                                variant="destructive"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    const updatedItems = items.filter((_, i) => i !== index);
-                                                                    setItems(updatedItems);
-                                                                    toast.success('Item berhasil dihapus');
-                                                                }}
-                                                            >
-                                                                <X className="h-4 w-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                                                        Belum ada item yang ditambahkan
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                    )}
                                 </div>
                             </div>
-
-                            <DialogFooter className="mt-6">
-                                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
-                                    Batal
-                                </Button>
-                                <Button type="submit" disabled={items.length === 0}>
-                                    Kirim Permintaan
-                                </Button>
-                            </DialogFooter>
                         </form>
                     </DialogContent>
                 </Dialog>
@@ -597,7 +1060,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                 <TableBody>
                                     {data_kirim && data_kirim.length > 0 ? (
                                         data_kirim.map((item: any, index: number) => (
-                                            <TableRow key={item.kode_request} className="text-xs">
+                                            <TableRow key={`${item.kode_request}-${index}`} className="text-xs">
                                                 <TableCell>{item.kode_request}</TableCell>
                                                 <TableCell>{formatDate(item.tanggal_request)}</TableCell>
                                                 <TableCell className="text-center">
@@ -612,7 +1075,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                             </TableRow>
                                         ))
                                     ) : (
-                                        <TableRow>
+                                        <TableRow key="empty-data-kirim">
                                             <TableCell colSpan={5} className="text-center">
                                                 Tidak ada data permintaan yang menunggu persetujuan.
                                             </TableCell>
@@ -641,7 +1104,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                 <TableBody>
                                     {filteredPermintaanBarang.length > 0 ? (
                                         filteredPermintaanBarang.map((item, index) => (
-                                            <TableRow key={item.id} className="text-xs">
+                                            <TableRow key={`${item.id || item.kode_request}-${index}`} className="text-xs">
                                                 <TableCell>{item.kode_request}</TableCell>
                                                 <TableCell>
                                                     <span
@@ -659,7 +1122,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                             </TableRow>
                                         ))
                                     ) : (
-                                        <TableRow>
+                                        <TableRow key="empty-filtered-permintaan">
                                             <TableCell colSpan={5} className="text-center">
                                                 Tidak ada data permintaan obat.
                                             </TableCell>
@@ -696,7 +1159,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                         <TableBody>
                                             {selectedPermintaan.details && selectedPermintaan.details.length > 0 ? (
                                                 selectedPermintaan.details.map((item: any, index: number) => (
-                                                    <TableRow key={index}>
+                                                    <TableRow key={`${item.kode_barang}-${index}`}>
                                                         <TableCell className="text-center">{index + 1}</TableCell>
                                                         <TableCell>{item.kode_barang}</TableCell>
                                                         <TableCell>{item.nama_barang}</TableCell>
@@ -711,8 +1174,8 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                     </TableRow>
                                                 ))
                                             ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={4} className="text-center">
+                                                <TableRow key="empty-selected-permintaan-details">
+                                                    <TableCell colSpan={8} className="text-center">
                                                         Tidak ada detail item.
                                                     </TableCell>
                                                 </TableRow>
@@ -753,6 +1216,18 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
+                                                <TableHead className="w-12">
+                                                    <Checkbox
+                                                        checked={isAllSelected}
+                                                        onCheckedChange={handleSelectAll}
+                                                        ref={(el) => {
+                                                            if (el && el.querySelector('input')) {
+                                                                const input = el.querySelector('input') as HTMLInputElement;
+                                                                input.indeterminate = isIndeterminate;
+                                                            }
+                                                        }}
+                                                    />
+                                                </TableHead>
                                                 <TableHead>No</TableHead>
                                                 <TableHead>Kode Barang</TableHead>
                                                 <TableHead>Nama Barang</TableHead>
@@ -765,7 +1240,13 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                         <TableBody>
                                             {selectedKonfirmasi.details && selectedKonfirmasi.details.length > 0 ? (
                                                 selectedKonfirmasi.details.map((item: any, index: number) => (
-                                                    <TableRow key={index}>
+                                                    <TableRow key={`${item.kode_obat_alkes}-${index}`}>
+                                                        <TableCell>
+                                                            <Checkbox
+                                                                checked={selectedItems.has(index)}
+                                                                onCheckedChange={(checked) => handleSelectItem(index, checked as boolean)}
+                                                            />
+                                                        </TableCell>
                                                         <TableCell className="text-center">{index + 1}</TableCell>
                                                         <TableCell>{item.kode_obat_alkes}</TableCell>
                                                         <TableCell>{item.nama_obat_alkes}</TableCell>
@@ -779,19 +1260,23 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                             </span>
                                                         </TableCell>
                                                         <TableCell>{item.qty}</TableCell>
-                                                        <TableCell>{item.expired}</TableCell>
+                                                        <TableCell>{formatDate(item.expired)}</TableCell>
                                                         <TableCell className="flex justify-center gap-2">
                                                             <Button
                                                                 variant="default"
+                                                                size="sm"
                                                                 className="bg-red-500 font-medium text-white hover:bg-red-600"
-                                                                // onClick={() => handleTolakPermintaan(item)}
+                                                                onClick={() => handleTolakItem(item, index)}
+                                                                disabled={isProcessing}
                                                             >
                                                                 Tolak
                                                             </Button>
                                                             <Button
                                                                 variant="default"
+                                                                size="sm"
                                                                 className="bg-green-500 font-medium text-white hover:bg-green-600"
-                                                                // onClick={() => handleTerimaPermintaan(item)}
+                                                                onClick={() => handleTerimaItem(item, index)}
+                                                                disabled={isProcessing}
                                                             >
                                                                 Terima
                                                             </Button>
@@ -799,8 +1284,8 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                     </TableRow>
                                                 ))
                                             ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={4} className="text-center">
+                                                <TableRow key="empty-selected-konfirmasi-details">
+                                                    <TableCell colSpan={8} className="text-center">
                                                         Tidak ada detail item.
                                                     </TableCell>
                                                 </TableRow>
@@ -809,16 +1294,50 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                     </Table>
                                 </div>
 
-                                <DialogFooter>
-                                    <Button onClick={handleTerimaSemua} className="bg-green-600 text-white hover:bg-green-700">
-                                        Terima Semua
-                                    </Button>
+                                <DialogFooter className="flex flex-wrap gap-2">
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={handleTerimaSelected}
+                                            className="bg-green-600 text-white hover:bg-green-700"
+                                            disabled={selectedItems.size === 0 || isProcessing}
+                                        >
+                                            Terima Terpilih ({selectedItems.size})
+                                        </Button>
+                                        <Button
+                                            variant="destructive"
+                                            onClick={handleTolakSelected}
+                                            className="bg-red-600 text-white hover:bg-red-700"
+                                            disabled={selectedItems.size === 0 || isProcessing}
+                                        >
+                                            Tolak Terpilih ({selectedItems.size})
+                                        </Button>
+                                    </div>
                                     <Button variant="outline" onClick={() => setShowKonfirmasiDetailModal(false)}>
                                         Tutup
                                     </Button>
                                 </DialogFooter>
                             </div>
                         )}
+                    </DialogContent>
+                </Dialog>
+
+                {/* Reject Confirmation Dialog */}
+                <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Konfirmasi Penolakan</DialogTitle>
+                            <DialogDescription>
+                                Apakah Anda yakin ingin menolak permintaan ini? Tindakan ini tidak dapat dibatalkan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
+                                Batal
+                            </Button>
+                            <Button variant="destructive" onClick={confirmReject} disabled={isRejecting}>
+                                {isRejecting ? 'Memproses...' : 'Tolak Permintaan'}
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>

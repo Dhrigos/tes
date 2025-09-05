@@ -56,6 +56,8 @@ class Daftar_Barang_Controller extends Controller
             'nama_dagang',
             'satuan_kecil',
             'nilai_satuan_kecil',
+            'satuan_sedang',
+            'nilai_satuan_sedang',
             'satuan_besar',
             'nilai_satuan_besar',
         ]);

@@ -191,8 +191,8 @@ export default function PelayananSoPerawat() {
         );
     });
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
+    const getStatusBadge = (row: PelayananData) => {
+        switch (row.tindakan_button) {
             case 'panggil':
                 return (
                     <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
@@ -245,7 +245,7 @@ export default function PelayananSoPerawat() {
                         variant="outline"
                         size="xs"
                         className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                        onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}`)}
+                        onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}?mode=pemeriksaan`)}
                     >
                         <FileText className="mr-1 h-4 w-4" />
                         Pemeriksaan
@@ -258,7 +258,7 @@ export default function PelayananSoPerawat() {
                             variant="outline"
                             size="xs"
                             className="border-cyan-600 text-cyan-600 hover:bg-cyan-50"
-                            onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}`)}
+                            onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}?mode=edit`)}
                         >
                             <Edit className="mr-1 h-4 w-4" />
                             Edit
@@ -317,7 +317,7 @@ export default function PelayananSoPerawat() {
                                 {filteredPelayanan.length > 0 ? (
                                     filteredPelayanan.map((row) => (
                                         <TableRow key={row.id}>
-                                            <TableCell className="text-center">{getStatusBadge(row.tindakan_button)}</TableCell>
+                                            <TableCell className="text-center">{getStatusBadge(row)}</TableCell>
                                             <TableCell className="font-mono">{row.nomor_rm}</TableCell>
                                             <TableCell>{row.pasien?.nama}</TableCell>
                                             <TableCell className="text-center font-mono">{row.pendaftaran?.antrian}</TableCell>

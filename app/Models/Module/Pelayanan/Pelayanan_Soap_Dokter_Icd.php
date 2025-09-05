@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pelayanan_Soap_Dokter_Icd extends Model
 {
+    protected $table = 'pelayanan_soap_dokter_icds';
+    
     protected $fillable = [
         'nomor_rm',
         'nama',

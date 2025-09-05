@@ -9,6 +9,7 @@ use App\Models\Module\Gudang\Permintaan_Barang_Detail;
 use App\Models\Module\Gudang\Permintaan_Barang_Konfirmasi;
 use App\Models\Module\Gudang\Data_Barang_Keluar;
 use App\Models\Module\Master\Data\Gudang\Daftar_Barang;
+use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual;
 use App\Models\Module\Gudang\Stok_Barang;
 use App\Models\Module\Gudang\Stok_Inventaris;
 use App\Services\PermintaanBarangWebSocketService;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Illuminate\Support\Carbon;
 
 class Daftar_Permintaan_Barang_Controller extends Controller
 {
@@ -118,6 +120,32 @@ class Daftar_Permintaan_Barang_Controller extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat konfirmasi data!',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get harga dasar obat dari daftar_harga_juals
+     */
+    public function getHargaDasar($kode_obat)
+    {
+        try {
+            $tanggalHariIni = Carbon::today();
+            $tanggal3BulanLalu = $tanggalHariIni->copy()->subMonths(3);
+
+            $harga = Daftar_Harga_Jual::where('kode_obat_alkes', $kode_obat)
+                ->where('jenis', 'utama')
+                ->whereBetween('tanggal_obat_masuk', [$tanggal3BulanLalu, $tanggalHariIni])
+                ->max('harga_dasar');
+
+            return response()->json([
+                'success' => true,
+                'harga_dasar' => $harga
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
                 'error' => $e->getMessage()
             ], 500);
         }

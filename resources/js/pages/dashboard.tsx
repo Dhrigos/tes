@@ -28,7 +28,7 @@ export default function Dashboard({ stats }: DashboardProps) {
             <div className="h-full flex-1 flex flex-col gap-4 rounded-xl p-4">
                 {/* Grid Section */}
                 <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                    {stats.map((item: StatItem, idx) => (
+                    {stats.map((item: StatItem, idx: number) => (
                         <div
                         key={idx}
                         className={`rounded-lg p-4 text-white shadow-md ${item.color}`}

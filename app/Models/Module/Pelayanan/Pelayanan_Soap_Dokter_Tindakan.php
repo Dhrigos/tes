@@ -2,7 +2,7 @@
 
 namespace App\Models\Module\Pelayanan;
 
-// use App\Models\Module\Apotek\Apotek;
+use App\Models\Module\Apotek\Apotek;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Obat;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use Illuminate\Database\Eloquent\Model;
@@ -24,10 +24,10 @@ class Pelayanan_Soap_Dokter_Tindakan extends Model
         'status_kasir',
     ];
 
-    // public function apotek()
-    // {
-    //     return $this->belongsTo(Apotek::class, 'no_rawat', 'no_rawat');
-    // }
+    public function apotek()
+    {
+        return $this->belongsTo(Apotek::class, 'no_rawat', 'no_rawat');
+    }
 
     public function cek_resep()
     {

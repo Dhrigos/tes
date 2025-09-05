@@ -25,7 +25,9 @@ class Pendaftaran extends Model
         'dokter_id',
         'Penjamin',
         'antrian',
-        'no_urut'
+        'no_urut',
+        'alasan_batal',
+        'status'
     ];
 
     public function poli()

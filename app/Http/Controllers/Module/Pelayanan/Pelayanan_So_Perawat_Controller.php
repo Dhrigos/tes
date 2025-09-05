@@ -6,16 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\Module\Pelayanan\Pelayanan;
 use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
 use App\Models\Module\Pelayanan\Pelayanan_status;
-use App\Services\PelayananStatusService;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Obat;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
+use App\Models\Module\Pelayanan\Pelayanan_Rujukan;
+use App\Models\Module\Pelayanan\Pelayanan_Permintaan;
 use App\Models\Module\SDM\Dokter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
-use Inertia\Inertia;
+use Inertia\Inertia;    
 use Inertia\Response as InertiaResponse;
-use Illuminate\Http\RedirectResponse;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Verbal;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Motorik;
@@ -32,9 +37,9 @@ class Pelayanan_So_Perawat_Controller extends Controller
             // Ambil daftar pelayanan HARI INI, join dengan SO Perawat untuk tentukan state tindakan
             $today = Carbon::today();
             
-            // Untuk testing, ambil data dari beberapa hari terakhir
+            // Ambil data hanya untuk hari ini
             $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
-                ->whereDate('tanggal_kujungan', '>=', $today->subDays(7))
+                ->whereDate('tanggal_kujungan', '=', $today)
                 ->whereNotNull('dokter_id') // Pastikan ada dokter_id
                 ->get()
                 ->map(function ($pelayanan) {
@@ -53,6 +58,8 @@ class Pelayanan_So_Perawat_Controller extends Controller
                         $tindakanButton = 'soap';
                     } elseif ($statusPerawat === 2) {
                         $tindakanButton = $soPerawat ? 'edit' : 'soap';
+                    } elseif ($statusPerawat === 3) {
+                        $tindakanButton = 'Complete';
                     }
 
                     return [
@@ -162,6 +169,44 @@ class Pelayanan_So_Perawat_Controller extends Controller
     }
 
     /**
+     * Batalkan kunjungan pasien: hapus data terkait berdasarkan nomor_register (encoded in $norawat)
+     */
+    public function batalKunjungan(Request $request, $norawat): JsonResponse
+    {
+        $nomor_register = base64_decode($norawat);
+
+        try {
+            DB::transaction(function () use ($nomor_register) {
+                // 2) SOAP Dokter and its children
+                Pelayanan_Soap_Dokter_Obat::where('no_rawat', $nomor_register)->delete();
+                Pelayanan_Soap_Dokter_Tindakan::where('no_rawat', $nomor_register)->delete();
+                Pelayanan_Soap_Dokter_Icd::where('no_rawat', $nomor_register)->delete();
+                Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->delete();
+
+                // 3) Rujukan & Permintaan
+                Pelayanan_Rujukan::where('no_rawat', $nomor_register)->delete();
+                Pelayanan_Permintaan::where('no_rawat', $nomor_register)->delete();
+
+                // 4) SO Perawat
+                Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->delete();
+
+                // 5) Status pelayanan
+                Pelayanan_status::where('nomor_register', $nomor_register)->delete();
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Kunjungan berhasil dibatalkan dan data terkait telah dihapus',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membatalkan kunjungan: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Display the pemeriksaan page for a specific patient (unified create/edit)
      */
     public function show(Request $request, $norawat): InertiaResponse|RedirectResponse
@@ -254,7 +299,8 @@ class Pelayanan_So_Perawat_Controller extends Controller
                 'gcs_kesadaran' => $gcsKesadaran,
                 'htt_pemeriksaan' => $httPemeriksaan,
                 'alergi_data' => $alergiData,
-                'norawat' => $norawat
+                'norawat' => $norawat,
+                'mode' => $request->get('mode') // Pass mode parameter to frontend
             ]);
         } catch (\Exception $e) {
             return Inertia::render('module/pelayanan/so-perawat/pemeriksaan', [
@@ -313,9 +359,43 @@ class Pelayanan_So_Perawat_Controller extends Controller
                 $validated['tableData'] = is_array($decoded) ? $decoded : [];
             }
 
-            // Create new SO Perawat record
-            Pelayanan_So_Perawat::create($validated);
+            // Normalisasi UMUR: hitung dari tanggal_lahir agar konsisten (X Tahun)
+            if (!empty($validated['tanggal_lahir'])) {
+                try {
+                    $years = Carbon::parse($validated['tanggal_lahir'])->diffInYears(Carbon::now());
+                    $validated['umur'] = $years . ' Tahun';
+                } catch (\Exception $e) {
+                    // abaikan jika format tidak valid, biarkan nilai apa adanya
+                }
+            }
 
+            // Idempotent save: jika no_rawat sudah ada, isi hanya kolom yang kosong; jika belum ada, create
+            $noRawat = $validated['no_rawat'] ?? null;
+            if ($noRawat) {
+                $existing = Pelayanan_So_Perawat::where('no_rawat', $noRawat)->first();
+                if ($existing) {
+                    $updates = [];
+                    foreach ($existing->getFillable() as $field) {
+                        // Lewati primary key dan no_rawat (kecuali jika no_rawat kosong)
+                        if ($field === 'id') { continue; }
+                        $current = $existing->{$field} ?? null;
+                        $incoming = $validated[$field] ?? null;
+                        $currentEmpty = ($current === null || $current === '' || (is_array($current) && empty($current)));
+                        $incomingHasValue = !($incoming === null || $incoming === '' || (is_array($incoming) && empty($incoming)));
+                        if ($currentEmpty && $incomingHasValue) {
+                            $updates[$field] = $incoming;
+                        }
+                    }
+                    if (!empty($updates)) {
+                        $existing->update($updates);
+                    }
+                } else {
+                    Pelayanan_So_Perawat::create($validated);
+                }
+            } else {
+                // Jika no_rawat kosong, fallback ke create biasa
+                Pelayanan_So_Perawat::create($validated);
+            }
 
             if (!empty($validated['no_rawat'])) {
                 app(PelayananStatusService::class)->tandaiPerawatSelesai($validated['no_rawat']);
@@ -384,10 +464,20 @@ class Pelayanan_So_Perawat_Controller extends Controller
                 $validated['tensi'] = $validated['sistol'] . '/' . $validated['distol'];
             }
 
-            // Normalize tableData JSON string to array
+            // Normalisasi tableData JSON dari string ke array
             if (!empty($validated['tableData']) && is_string($validated['tableData'])) {
                 $decoded = json_decode($validated['tableData'], true);
                 $validated['tableData'] = is_array($decoded) ? $decoded : [];
+            }
+
+            // Normalisasi UMUR saat update
+            if (!empty($validated['tanggal_lahir'])) {
+                try {
+                    $years = Carbon::parse($validated['tanggal_lahir'])->diffInYears(Carbon::now());
+                    $validated['umur'] = $years . ' Tahun';
+                } catch (\Exception $e) {
+                    // abaikan
+                }
             }
 
             $so->update($validated);

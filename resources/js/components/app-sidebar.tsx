@@ -54,10 +54,15 @@ const mainNavItems = [
         ],
     },
     {
-        title: 'Pembelian',
+        title: 'Apotek',
         icon: LayoutGrid,
-        href: '/pembelian',
+        href: '/apotek',
     },
+    {
+        title: 'Kasir',
+        icon: LayoutGrid,
+        href: '/kasir',
+    },    
     {
         title: 'Gudang',
         icon: LayoutGrid,
@@ -89,6 +94,11 @@ const mainNavItems = [
         ],
     },
     {
+        title: 'Pembelian Barang',
+        icon: LayoutGrid,
+        href: '/pembelian',
+    },
+    {
         title: 'SDM',
         icon: LayoutGrid,
         children: [
@@ -109,23 +119,16 @@ const mainNavItems = [
     {
         title: 'Data Master',
         icon: LayoutGrid,
-        children: [
+        children: [            
             {
-                title: 'Umum',
+                title: 'Gudang',
                 children: [
-                    { title: 'Agama', href: '/datamaster/umum/agama' },
-                    { title: 'Asuransi', href: '/datamaster/umum/asuransi' },
-                    { title: 'Bahasa', href: '/datamaster/umum/bahasa' },
-                    { title: 'Bangsa', href: '/datamaster/umum/bangsa' },
-                    { title: 'Bank', href: '/datamaster/umum/bank' },
-                    { title: 'Golongan Darah', href: '/datamaster/umum/golongan-darah' },
-                    { title: 'Jenis Kelamin', href: '/datamaster/umum/kelamin' },
-                    { title: 'Loket', href: '/datamaster/umum/loket' },
-                    { title: 'Pekerjaan', href: '/datamaster/umum/pekerjaan' },
-                    { title: 'Pendidikan', href: '/datamaster/umum/pendidikan' },
-                    { title: 'Penjamin', href: '/datamaster/umum/penjamin' },
-                    { title: 'Pernikahan', href: '/datamaster/umum/pernikahan' },
-                    { title: 'Suku', href: '/datamaster/umum/suku' },
+                    { title: 'Satuan Barang', href: '/datamaster/gudang/satuan-barang' },
+                    { title: 'Kategori Barang', href: '/datamaster/gudang/kategori-barang' },
+                    { title: 'Supplier', href: '/datamaster/gudang/supplier' },
+                    { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
+                    { title: 'Daftar Harga Jual Klinik', href: '/datamaster/gudang/daftar-harga-jual-klinik' },
+                    { title: 'Daftar Barang', href: '/datamaster/gudang/daftar-barang' },
                 ],
             },
             {
@@ -152,16 +155,24 @@ const mainNavItems = [
                 ],
             },
             {
-                title: 'Gudang',
+                title: 'Umum',
                 children: [
-                    { title: 'Satuan Barang', href: '/datamaster/gudang/satuan-barang' },
-                    { title: 'Kategori Barang', href: '/datamaster/gudang/kategori-barang' },
-                    { title: 'Supplier', href: '/datamaster/gudang/supplier' },
-                    { title: 'Daftar Harga Jual', href: '/datamaster/gudang/daftar-harga-jual' },
-                    { title: 'Daftar Harga Jual Klinik', href: '/datamaster/gudang/daftar-harga-jual-klinik' },
-                    { title: 'Daftar Barang', href: '/datamaster/gudang/daftar-barang' },
+                    { title: 'Agama', href: '/datamaster/umum/agama' },
+                    { title: 'Asuransi', href: '/datamaster/umum/asuransi' },
+                    { title: 'Bahasa', href: '/datamaster/umum/bahasa' },
+                    { title: 'Bangsa', href: '/datamaster/umum/bangsa' },
+                    { title: 'Bank', href: '/datamaster/umum/bank' },
+                    { title: 'Golongan Darah', href: '/datamaster/umum/golongan-darah' },
+                    { title: 'Jenis Kelamin', href: '/datamaster/umum/kelamin' },
+                    { title: 'Loket', href: '/datamaster/umum/loket' },
+                    { title: 'Pekerjaan', href: '/datamaster/umum/pekerjaan' },
+                    { title: 'Pendidikan', href: '/datamaster/umum/pendidikan' },
+                    { title: 'Penjamin', href: '/datamaster/umum/penjamin' },
+                    { title: 'Pernikahan', href: '/datamaster/umum/pernikahan' },
+                    { title: 'Suku', href: '/datamaster/umum/suku' },
                 ],
             },
+           
         ],
     },
 ];
