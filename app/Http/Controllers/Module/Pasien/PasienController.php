@@ -594,4 +594,45 @@ class PasienController extends Controller
             return response()->json([]);
         }
     }
+
+
+    // Ambil pasien yang dishare dalam grup klinik
+    public function shared(Request $request)
+    {
+        // Validasi input kode_klinik
+        $request->validate([
+            'kode_klinik' => 'required|string'
+        ]);
+    
+        $kodeKlinikRequest = $request->kode_klinik;
+    
+        // Ambil setting kode klinik dan kode grup dari web_settings
+        $setting = \DB::table('web_settings')
+            ->select('kode_klinik', 'kode_group_klinik')
+            ->first();
+    
+        if (!$setting) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Setting web klinik belum tersedia.'
+            ], 404);
+        }
+    
+        // Cek apakah kode klinik request sesuai dengan setting
+        if ($setting->kode_klinik != $kodeKlinikRequest) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Kode klinik tidak sesuai.'
+            ], 403);
+        }
+    
+        // Ambil semua pasien (tidak ada filter is_shared atau relasi clinic)
+        $patients = Pasien::all();
+    
+        return response()->json([
+            'status' => 'success',
+            'data' => $patients
+        ]);
+    }
+    
 }

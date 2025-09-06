@@ -12,12 +12,9 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Rujukan;
 use App\Models\Module\Pelayanan\Pelayanan_Permintaan;
-use App\Models\Module\SDM\Dokter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Inertia\Inertia;    
 use Inertia\Response as InertiaResponse;
@@ -25,6 +22,8 @@ use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Verbal;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Motorik;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Kesadaran;
+use App\Services\PelayananStatusService;
+use Illuminate\Http\RedirectResponse;
 
 class Pelayanan_So_Perawat_Controller extends Controller
 {

@@ -1,3 +1,4 @@
+import CpptTimeline from '@/components/CpptTimeline';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, FileText, XCircle } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -121,6 +122,15 @@ function useConfirmDialog() {
     const [open, setOpen] = useState(false);
     const [opts, setOpts] = useState<ConfirmOptions>({});
     const resolverRef = useRef<((value: boolean) => void) | undefined>(undefined);
+    const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (open) {
+            setTimeout(() => {
+                confirmButtonRef.current?.focus();
+            }, 100); // Small delay to ensure the element is focusable
+        }
+    }, [open]);
 
     const confirm = (options: ConfirmOptions) => {
         setOpts({
@@ -169,7 +179,9 @@ function useConfirmDialog() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={handleCancel}>{opts.cancelText || 'Batal'}</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleConfirm}>{opts.confirmText || 'Lanjut'}</AlertDialogAction>
+                    <AlertDialogAction ref={confirmButtonRef} onClick={handleConfirm}>
+                        {opts.confirmText || 'Lanjut'}
+                    </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
@@ -281,15 +293,29 @@ export default function PemeriksaanPerawat() {
         setLingkarPerut(so_perawat.lingkar_perut || '');
         setNilaiBmi(so_perawat.nilai_bmi || '');
         setStatusBmi(so_perawat.status_bmi || '');
-        setGcsEye(so_perawat.eye || '');
-        setGcsVerbal(so_perawat.verbal || '');
-        setGcsMotorik(so_perawat.motorik || '');
+        // Ensure GCS values are strings to match SelectItem values
+        setGcsEye(String(so_perawat.eye || ''));
+        setGcsVerbal(String(so_perawat.verbal || ''));
+        setGcsMotorik(String(so_perawat.motorik || ''));
         // kesadaran diturunkan otomatis dari E/V/M melalui effect lain; tetap isi jika tersedia
         if ((so_perawat as any)?.kesadaran) {
             setGcsKesadaran((so_perawat as any).kesadaran as string);
         }
         setCatatan(so_perawat.summernote || '');
     }, [so_perawat]);
+
+    // Calculate GCS kesadaran automatically when eye, verbal, motorik change
+    useEffect(() => {
+        if (gcsEye && gcsVerbal && gcsMotorik) {
+            const eyeScore = parseInt(gcsEye, 10) || 0;
+            const verbalScore = parseInt(gcsVerbal, 10) || 0;
+            const motorikScore = parseInt(gcsMotorik, 10) || 0;
+            const total = eyeScore + verbalScore + motorikScore;
+            setGcsKesadaran(total.toString());
+        } else {
+            setGcsKesadaran('');
+        }
+    }, [gcsEye, gcsVerbal, gcsMotorik]);
 
     // Unique jenis alergi options (to avoid duplicate keys/values)
     const jenisAlergiOptions = useMemo(() => {
@@ -311,6 +337,43 @@ export default function PemeriksaanPerawat() {
 
     // Tab navigation state
     const [activeTab, setActiveTab] = useState('subyektif');
+    const [cpptEntries, setCpptEntries] = useState<any[]>([]);
+    const [cpptLoading, setCpptLoading] = useState(false);
+
+    // Load CPPT data when CPPT tab is accessed
+    const loadCpptData = async () => {
+        if (!pelayanan?.nomor_register) return;
+
+        setCpptLoading(true);
+        try {
+            const response = await fetch(`/api/pelayanan/cppt/timeline/${pelayanan.nomor_register}`, {
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setCpptEntries(data.entries || []);
+            } else {
+                console.error('Failed to load CPPT data');
+            }
+        } catch (error) {
+            console.error('Error loading CPPT data:', error);
+        } finally {
+            setCpptLoading(false);
+        }
+    };
+
+    // Load CPPT data when CPPT tab is selected
+    useEffect(() => {
+        if (activeTab === 'cppt') {
+            loadCpptData();
+        }
+    }, [activeTab, pelayanan?.nomor_register]);
 
     // Helpers & validators for Obyektif inputs
     const calculateAge = (tanggalLahir: string): { years: number; months: number } => {
@@ -1177,10 +1240,11 @@ export default function PemeriksaanPerawat() {
                     <Card>
                         <CardContent className="p-6">
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                <TabsList className="grid w-full grid-cols-3">
+                                <TabsList className="grid w-full grid-cols-4">
                                     <TabsTrigger value="subyektif">1. Subyektif</TabsTrigger>
                                     <TabsTrigger value="obyektif">2. Obyektif</TabsTrigger>
                                     <TabsTrigger value="htt">3. Head To Toe</TabsTrigger>
+                                    <TabsTrigger value="cppt">4. CPPT</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="subyektif" className="mt-4">
@@ -1742,6 +1806,26 @@ export default function PemeriksaanPerawat() {
                                             Previous
                                         </Button>
                                         <Button type="submit">{submitButtonText}</Button>
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="cppt" className="mt-4">
+                                    <div className="space-y-6">
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <FileText className="h-5 w-5" />
+                                                    CPPT (Catatan Perkembangan Pasien Terintegrasi)
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <CpptTimeline
+                                                    nomor_register={pelayanan?.nomor_register || ''}
+                                                    entries={cpptEntries}
+                                                    loading={cpptLoading}
+                                                />
+                                            </CardContent>
+                                        </Card>
                                     </div>
                                 </TabsContent>
                             </Tabs>

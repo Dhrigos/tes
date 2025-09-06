@@ -147,3 +147,4 @@ Route::get('/obat/tersedia', [Stok_Obat_Klinik_Controller::class, 'getObatTersed
 Route::get('/obat/instruksi', [Stok_Obat_Klinik_Controller::class, 'getInstruksiObat']);
 Route::get('/obat/satuan', [Stok_Obat_Klinik_Controller::class, 'getSatuanBarang']);
 
+Route::get('/patients/shared', [PasienController::class, 'shared']);
