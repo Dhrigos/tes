@@ -23,7 +23,7 @@ use App\Models\Module\SDM\PerawatPendidikan;
 use App\Models\Module\SDM\PerawatPelatihan;
 
 
-class Perawat_controller extends Controller
+class Perawat_Controller extends Controller
 {
     public function index()
     {
