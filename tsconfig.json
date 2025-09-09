@@ -118,5 +118,7 @@
         "resources/js/**/*.ts",
         "resources/js/**/*.d.ts",
         "resources/js/**/*.tsx",
+        "resources/js/pages/module/pelayanan/soap-dokter/index.tsx",
+        "resources/js/pages/module/pelayanan/index.tsx"
     ]
 }

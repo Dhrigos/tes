@@ -61,6 +61,7 @@ interface Props {
 export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, auth }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showReadonlyDetailModal, setShowReadonlyDetailModal] = useState(false);
     const [selectedPermintaan, setSelectedPermintaan] = useState<PermintaanBarangWithDetails | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -110,6 +111,9 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
             case '3':
             case 'selesai':
                 return { label: 'Selesai', className: `${baseClass} bg-green-100 text-green-800` };
+            case '4':
+            case 'ditolak':
+                return { label: 'Ditolak', className: `${baseClass} bg-red-100 text-red-800` };
             default:
                 return { label: 'Unknown', className: `${baseClass} bg-gray-100 text-gray-800` };
         }
@@ -120,6 +124,12 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
         if (!dateString) return '';
         const date = new Date(dateString);
         return date.toISOString().split('T')[0];
+    };
+
+    // Readonly when status is selesai (3) or ditolak (4)
+    const isReadonlyStatus = (status: number | string) => {
+        const s = String(status);
+        return s === '3' || s === 'selesai' || s === '4' || s === 'ditolak';
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -380,7 +390,11 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                         ...permintaanData,
                         details: response.data.details,
                     });
-                    setShowDetailModal(true);
+                    if (isReadonlyStatus(permintaanData.status)) {
+                        setShowReadonlyDetailModal(true);
+                    } else {
+                        setShowDetailModal(true);
+                    }
                 }
             } else {
                 toast.error(response.data.message || 'Gagal mengambil detail permintaan barang');
@@ -534,16 +548,18 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                 <div className="max-h-80 overflow-y-auto">
                                                     <Table>
                                                         <TableHeader>
-                                                            <TableRow className="bg-gray-50">
+                                                            <TableRow>
                                                                 {/* Checkbox Header */}
-                                                                <TableHead className="w-6 text-xs">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        className="h-4 w-4"
-                                                                        checked={selectAll}
-                                                                        onChange={handleSelectAll}
-                                                                    />
-                                                                </TableHead>
+                                                                {!isReadonlyStatus(selectedPermintaan.status) && (
+                                                                    <TableHead className="w-6 text-xs">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            className="h-4 w-4"
+                                                                            checked={selectAll}
+                                                                            onChange={handleSelectAll}
+                                                                        />
+                                                                    </TableHead>
+                                                                )}
                                                                 <TableHead className="text-xs">Nama Barang</TableHead>
                                                                 <TableHead className="text-xs">Jenis Barang</TableHead>
                                                                 <TableHead className="text-right text-xs">Jumlah</TableHead>
@@ -554,14 +570,16 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                                 selectedPermintaan.details.map((detail, index) => (
                                                                     <TableRow key={`${detail.kode_barang}-${index}`}>
                                                                         {/* Checkbox per row */}
-                                                                        <TableCell>
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                className="h-4 w-4"
-                                                                                checked={selectedRows.includes(detail.kode_barang)}
-                                                                                onChange={() => handleSelectRow(detail.kode_barang)}
-                                                                            />
-                                                                        </TableCell>
+                                                                        {!isReadonlyStatus(selectedPermintaan.status) && (
+                                                                            <TableCell>
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    className="h-4 w-4"
+                                                                                    checked={selectedRows.includes(detail.kode_barang)}
+                                                                                    onChange={() => handleSelectRow(detail.kode_barang)}
+                                                                                />
+                                                                            </TableCell>
+                                                                        )}
                                                                         <TableCell>
                                                                             <div className="font-medium" title={detail.nama_barang}>
                                                                                 {detail.nama_barang.length > 30
@@ -592,251 +610,263 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                         </TableBody>
                                                     </Table>
                                                 </div>
-                                                <div className="mt-4 flex justify-end">
-                                                    <Button variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={moveToRequestForm}>
-                                                        Pindahkan ke Form Permintaan
-                                                    </Button>
-                                                </div>
+                                                {!isReadonlyStatus(selectedPermintaan.status) && (
+                                                    <div className="mt-4 flex justify-end">
+                                                        <Button
+                                                            variant="default"
+                                                            className="bg-blue-600 hover:bg-blue-700"
+                                                            onClick={moveToRequestForm}
+                                                        >
+                                                            Pindahkan ke Form Permintaan
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </CardContent>
                                         </Card>
                                     </div>
 
                                     {/* Kolom Kanan - Form Permintaan */}
-                                    <div className="space-y-6">
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle className="text-lg">Form Permintaan Obat</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="space-y-4">
-                                                    {/* Hidden inputs */}
-                                                    <input
-                                                        type="hidden"
-                                                        id="nama_klinik_additional"
-                                                        name="nama_klinik_additional"
-                                                        value={selectedPermintaan.nama_klinik}
-                                                    />
-                                                    <input
-                                                        type="hidden"
-                                                        id="kode_request_additional"
-                                                        name="kode_request_additional"
-                                                        value={selectedPermintaan.kode_request}
-                                                    />
-                                                    <input
-                                                        type="hidden"
-                                                        id="tanggal_request_additional"
-                                                        name="tanggal_request_additional"
-                                                        value={selectedPermintaan.tanggal_input}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label htmlFor="obat_manual" className="mb-1 block text-xs font-medium text-gray-700">
-                                                        Obat/Alkes:
-                                                    </label>
-                                                    <Select
-                                                        value={selectedObat?.kode || ''}
-                                                        onValueChange={(value) => {
-                                                            const selectedOption = dabar.find((obat) => obat.kode === value);
-                                                            if (selectedOption) {
-                                                                setSelectedObat({
-                                                                    kode: selectedOption.kode,
-                                                                    nama: selectedOption.nama,
-                                                                    jenis_barang:
-                                                                        selectedOption.jenis_barang === 'farmasi'
-                                                                            ? 'obat'
-                                                                            : selectedOption.jenis_barang || 'obat', // Map 'farmasi' to 'obat' and default to 'obat' if undefined
-                                                                });
-                                                                // Set the jenisBarang based on the selected item
-                                                                if (
-                                                                    selectedOption.jenis_barang === 'farmasi' ||
-                                                                    selectedOption.jenis_barang === 'obat'
-                                                                ) {
-                                                                    setJenisBarang('obat');
-                                                                } else if (selectedOption.jenis_barang === 'alkes') {
-                                                                    setJenisBarang('alkes');
-                                                                } else {
-                                                                    setJenisBarang('inventaris');
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Pilih Obat" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <div className="p-2">
-                                                                <div className="mb-2">
-                                                                    <label className="mb-1 block text-xs font-medium text-gray-700">
-                                                                        Jenis Barang
-                                                                    </label>
-                                                                    <Select
-                                                                        value={jenisBarang}
-                                                                        onValueChange={(value: 'obat' | 'alkes' | 'inventaris') =>
-                                                                            setJenisBarang(value)
-                                                                        }
-                                                                    >
-                                                                        <SelectTrigger>
-                                                                            <SelectValue />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="obat">Obat</SelectItem>
-                                                                            <SelectItem value="alkes">Alkes</SelectItem>
-                                                                            <SelectItem value="inventaris">Inventaris</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
-                                                                <div className="relative">
-                                                                    <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                                                                    <Input
-                                                                        placeholder="Cari obat/alkes berdasarkan kode atau nama..."
-                                                                        value={searchObat}
-                                                                        onChange={(e) => setSearchObat(e.target.value)}
-                                                                        className="mb-2 pl-8"
-                                                                    />
-                                                                </div>
-                                                                {searchObat && (
-                                                                    <div className="mb-2 flex items-center justify-between">
-                                                                        <p className="text-xs text-muted-foreground">
-                                                                            Ditemukan {filteredDabar.length} obat/alkes
-                                                                        </p>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            onClick={() => setSearchObat('')}
-                                                                            className="h-6 px-2 text-xs"
-                                                                        >
-                                                                            Reset
-                                                                        </Button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            {filteredDabar.length > 0 ? (
-                                                                filteredDabar.map((obat) => (
-                                                                    <SelectItem key={obat.kode} value={obat.kode}>
-                                                                        <div className="flex flex-col">
-                                                                            <div className="font-medium" title={obat.nama}>
-                                                                                {obat.nama.length > 100
-                                                                                    ? `${obat.nama.substring(0, 100)}...`
-                                                                                    : obat.nama}
-                                                                            </div>
-                                                                        </div>
-                                                                    </SelectItem>
-                                                                ))
-                                                            ) : (
-                                                                <div className="p-2 text-center text-muted-foreground">
-                                                                    {searchObat ? 'Tidak ada obat/alkes ditemukan' : 'Tidak ada data obat/alkes'}
-                                                                </div>
-                                                            )}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <div className="mt-1 text-xs text-muted-foreground">
-                                                        Total: {dabar.length} obat/alkes
-                                                        {searchObat && <span className="ml-1">(Ditemukan {filteredDabar.length} obat/alkes)</span>}
-                                                    </div>
-                                                </div>
-                                                <div className="mt-2">
-                                                    <label htmlFor="qty_manual" className="mb-1 block text-xs font-medium text-gray-700">
-                                                        Jumlah:
-                                                    </label>
-                                                    <div className="flex">
+                                    {!isReadonlyStatus(selectedPermintaan.status) && (
+                                        <div className="space-y-6">
+                                            <Card>
+                                                <CardHeader>
+                                                    <CardTitle className="text-lg">Form Permintaan Obat</CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <div className="space-y-4">
+                                                        {/* Hidden inputs */}
                                                         <input
-                                                            type="number"
-                                                            className="flex-1 rounded-l-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                                            id="qty_manual"
-                                                            name="qty_manual"
-                                                            placeholder="Jumlah"
-                                                            value={qtyManual}
-                                                            onChange={(e) => {
-                                                                const value = e.target.value;
-                                                                if (value === '' || value === '0') {
-                                                                    // Allow empty or zero values
-                                                                    setQtyManual(value as any);
-                                                                } else {
-                                                                    // Parse valid numbers
-                                                                    const numValue = parseInt(value);
-                                                                    setQtyManual(isNaN(numValue) ? 1 : numValue);
+                                                            type="hidden"
+                                                            id="nama_klinik_additional"
+                                                            name="nama_klinik_additional"
+                                                            value={selectedPermintaan.nama_klinik}
+                                                        />
+                                                        <input
+                                                            type="hidden"
+                                                            id="kode_request_additional"
+                                                            name="kode_request_additional"
+                                                            value={selectedPermintaan.kode_request}
+                                                        />
+                                                        <input
+                                                            type="hidden"
+                                                            id="tanggal_request_additional"
+                                                            name="tanggal_request_additional"
+                                                            value={selectedPermintaan.tanggal_input}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label htmlFor="obat_manual" className="mb-1 block text-xs font-medium text-gray-700">
+                                                            Obat/Alkes:
+                                                        </label>
+                                                        <Select
+                                                            value={selectedObat?.kode || ''}
+                                                            onValueChange={(value) => {
+                                                                const selectedOption = dabar.find((obat) => obat.kode === value);
+                                                                if (selectedOption) {
+                                                                    setSelectedObat({
+                                                                        kode: selectedOption.kode,
+                                                                        nama: selectedOption.nama,
+                                                                        jenis_barang:
+                                                                            selectedOption.jenis_barang === 'farmasi'
+                                                                                ? 'obat'
+                                                                                : selectedOption.jenis_barang || 'obat', // Map 'farmasi' to 'obat' and default to 'obat' if undefined
+                                                                    });
+                                                                    // Set the jenisBarang based on the selected item
+                                                                    if (
+                                                                        selectedOption.jenis_barang === 'farmasi' ||
+                                                                        selectedOption.jenis_barang === 'obat'
+                                                                    ) {
+                                                                        setJenisBarang('obat');
+                                                                    } else if (selectedOption.jenis_barang === 'alkes') {
+                                                                        setJenisBarang('alkes');
+                                                                    } else {
+                                                                        setJenisBarang('inventaris');
+                                                                    }
                                                                 }
                                                             }}
-                                                            min="1"
-                                                        />
-                                                        <Button
-                                                            className="flex items-center justify-center rounded-l-none px-3 py-2 text-sm"
-                                                            onClick={addObatManual}
-                                                            size="sm"
                                                         >
-                                                            <span className="sr-only">Tambah Obat</span>
-                                                            <span>+</span>
-                                                        </Button>
-                                                    </div>
-
-                                                    {/* Tabel Item */}
-                                                    <div>
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead className="text-center text-xs">Kode Obat</TableHead>
-                                                                    <TableHead className="text-center text-xs">Nama Obat</TableHead>
-                                                                    <TableHead className="text-center text-xs">Jenis Barang</TableHead>
-                                                                    <TableHead className="text-center text-xs">Jumlah</TableHead>
-                                                                    <TableHead className="text-center text-xs">Harga Dasar</TableHead>
-                                                                    <TableHead className="text-center text-xs">Aksi</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody className="text-sm">
-                                                                {manualItems.length > 0 ? (
-                                                                    manualItems.map((item, index) => (
-                                                                        <TableRow key={`${item.kode_barang}-${index}`}>
-                                                                            <TableCell className="text-center">{item.kode_barang}</TableCell>
-                                                                            <TableCell className="text-center">
-                                                                                <div
-                                                                                    className="inline-block max-w-[200px] truncate"
-                                                                                    title={item.nama_barang}
-                                                                                >
-                                                                                    {item.nama_barang.length > 20
-                                                                                        ? `${item.nama_barang.substring(0, 20)}...`
-                                                                                        : item.nama_barang}
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih Obat" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <div className="p-2">
+                                                                    <div className="mb-2">
+                                                                        <label className="mb-1 block text-xs font-medium text-gray-700">
+                                                                            Jenis Barang
+                                                                        </label>
+                                                                        <Select
+                                                                            value={jenisBarang}
+                                                                            onValueChange={(value: 'obat' | 'alkes' | 'inventaris') =>
+                                                                                setJenisBarang(value)
+                                                                            }
+                                                                        >
+                                                                            <SelectTrigger>
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="obat">Obat</SelectItem>
+                                                                                <SelectItem value="alkes">Alkes</SelectItem>
+                                                                                <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+                                                                    <div className="relative">
+                                                                        <Search className="absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                                                                        <Input
+                                                                            placeholder="Cari obat/alkes berdasarkan kode atau nama..."
+                                                                            value={searchObat}
+                                                                            onChange={(e) => setSearchObat(e.target.value)}
+                                                                            className="mb-2 pl-8"
+                                                                        />
+                                                                    </div>
+                                                                    {searchObat && (
+                                                                        <div className="mb-2 flex items-center justify-between">
+                                                                            <p className="text-xs text-muted-foreground">
+                                                                                Ditemukan {filteredDabar.length} obat/alkes
+                                                                            </p>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => setSearchObat('')}
+                                                                                className="h-6 px-2 text-xs"
+                                                                            >
+                                                                                Reset
+                                                                            </Button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {filteredDabar.length > 0 ? (
+                                                                    filteredDabar.map((obat) => (
+                                                                        <SelectItem key={obat.kode} value={obat.kode}>
+                                                                            <div className="flex flex-col">
+                                                                                <div className="font-medium" title={obat.nama}>
+                                                                                    {obat.nama.length > 100
+                                                                                        ? `${obat.nama.substring(0, 100)}...`
+                                                                                        : obat.nama}
                                                                                 </div>
-                                                                            </TableCell>
-                                                                            <TableCell className="text-center">
-                                                                                {item.jenis_barang && (
-                                                                                    <span
-                                                                                        className={`rounded-full px-2 py-1 text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
-                                                                                    >
-                                                                                        {item.jenis_barang.charAt(0).toUpperCase() +
-                                                                                            item.jenis_barang.slice(1)}
-                                                                                    </span>
-                                                                                )}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-center">{item.jumlah}</TableCell>
-                                                                            <TableCell className="text-center">
-                                                                                {item.harga_dasar ? `Rp ${item.harga_dasar.toLocaleString()}` : '0'}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-center">
-                                                                                <Button
-                                                                                    variant="outline"
-                                                                                    size="sm"
-                                                                                    onClick={() => removeManualItem(index)}
-                                                                                >
-                                                                                    Hapus
-                                                                                </Button>
-                                                                            </TableCell>
-                                                                        </TableRow>
+                                                                            </div>
+                                                                        </SelectItem>
                                                                     ))
                                                                 ) : (
-                                                                    <TableRow key="empty-manual-items">
-                                                                        <TableCell colSpan={5} className="text-center text-sm">
-                                                                            Belum ada item yang ditambahkan
-                                                                        </TableCell>
-                                                                    </TableRow>
+                                                                    <div className="p-2 text-center text-muted-foreground">
+                                                                        {searchObat ? 'Tidak ada obat/alkes ditemukan' : 'Tidak ada data obat/alkes'}
+                                                                    </div>
                                                                 )}
-                                                            </TableBody>
-                                                        </Table>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <div className="mt-1 text-xs text-muted-foreground">
+                                                            Total: {dabar.length} obat/alkes
+                                                            {searchObat && (
+                                                                <span className="ml-1">(Ditemukan {filteredDabar.length} obat/alkes)</span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
+                                                    <div className="mt-2">
+                                                        <label htmlFor="qty_manual" className="mb-1 block text-xs font-medium text-gray-700">
+                                                            Jumlah:
+                                                        </label>
+                                                        <div className="flex">
+                                                            <input
+                                                                type="number"
+                                                                className="flex-1 rounded-l-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                                                id="qty_manual"
+                                                                name="qty_manual"
+                                                                placeholder="Jumlah"
+                                                                value={qtyManual}
+                                                                onChange={(e) => {
+                                                                    const value = e.target.value;
+                                                                    if (value === '' || value === '0') {
+                                                                        // Allow empty or zero values
+                                                                        setQtyManual(value as any);
+                                                                    } else {
+                                                                        // Parse valid numbers
+                                                                        const numValue = parseInt(value);
+                                                                        setQtyManual(isNaN(numValue) ? 1 : numValue);
+                                                                    }
+                                                                }}
+                                                                min="1"
+                                                            />
+                                                            <Button
+                                                                className="flex items-center justify-center rounded-l-none px-3 py-2 text-sm"
+                                                                onClick={addObatManual}
+                                                                size="sm"
+                                                            >
+                                                                <span className="sr-only">Tambah Obat</span>
+                                                                <span>+</span>
+                                                            </Button>
+                                                        </div>
+
+                                                        {/* Tabel Item */}
+                                                        <div>
+                                                            <Table>
+                                                                <TableHeader>
+                                                                    <TableRow>
+                                                                        <TableHead className="text-center text-xs">Kode Obat</TableHead>
+                                                                        <TableHead className="text-center text-xs">Nama Obat</TableHead>
+                                                                        <TableHead className="text-center text-xs">Jenis Barang</TableHead>
+                                                                        <TableHead className="text-center text-xs">Jumlah</TableHead>
+                                                                        <TableHead className="text-center text-xs">Harga Dasar</TableHead>
+                                                                        <TableHead className="text-center text-xs">Aksi</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody className="text-sm">
+                                                                    {manualItems.length > 0 ? (
+                                                                        manualItems.map((item, index) => (
+                                                                            <TableRow key={`${item.kode_barang}-${index}`}>
+                                                                                <TableCell className="text-center">{item.kode_barang}</TableCell>
+                                                                                <TableCell className="text-center">
+                                                                                    <div
+                                                                                        className="inline-block max-w-[200px] truncate"
+                                                                                        title={item.nama_barang}
+                                                                                    >
+                                                                                        {item.nama_barang.length > 20
+                                                                                            ? `${item.nama_barang.substring(0, 20)}...`
+                                                                                            : item.nama_barang}
+                                                                                    </div>
+                                                                                </TableCell>
+                                                                                <TableCell className="text-center">
+                                                                                    {item.jenis_barang && (
+                                                                                        <span
+                                                                                            className={`rounded-full px-2 py-1 text-xs font-medium ${item.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : item.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
+                                                                                        >
+                                                                                            {item.jenis_barang.charAt(0).toUpperCase() +
+                                                                                                item.jenis_barang.slice(1)}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-center">{item.jumlah}</TableCell>
+                                                                                <TableCell className="text-center">
+                                                                                    {item.harga_dasar
+                                                                                        ? `Rp ${item.harga_dasar.toLocaleString()}`
+                                                                                        : '0'}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-center">
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        size="sm"
+                                                                                        onClick={() => removeManualItem(index)}
+                                                                                    >
+                                                                                        Hapus
+                                                                                    </Button>
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        ))
+                                                                    ) : (
+                                                                        <TableRow key="empty-manual-items">
+                                                                            <TableCell colSpan={5} className="text-center text-sm">
+                                                                                Belum ada item yang ditambahkan
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    )}
+                                                                </TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -847,26 +877,92 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                         {manualItems.length > 0 && <span>{manualItems.length} item akan ditambahkan</span>}
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button
-                                            className="bg-green-600 hover:bg-green-700"
-                                            onClick={kirimPermintaan}
-                                            disabled={loading || manualItems.length === 0}
-                                            size="sm"
-                                        >
-                                            {loading ? (
-                                                'Memproses...'
-                                            ) : (
-                                                <>
-                                                    <span className="mr-2">💾</span> Simpan Permintaan
-                                                </>
-                                            )}
-                                        </Button>
+                                        {!isReadonlyStatus(selectedPermintaan.status) && (
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700"
+                                                onClick={kirimPermintaan}
+                                                disabled={loading || manualItems.length === 0}
+                                                size="sm"
+                                            >
+                                                {loading ? (
+                                                    'Memproses...'
+                                                ) : (
+                                                    <>
+                                                        <span className="mr-2">💾</span> Simpan Permintaan
+                                                    </>
+                                                )}
+                                            </Button>
+                                        )}
                                         <Button variant="outline" onClick={() => setShowDetailModal(false)} size="sm">
                                             Tutup
                                         </Button>
                                         {/* Konfirmasi Permintaan button removed as its functionality is now merged with Pindahkan ke Form Permintaan */}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Readonly Detail Modal for status 3 (selesai) and 4 (ditolak) */}
+            <Dialog open={showReadonlyDetailModal} onOpenChange={setShowReadonlyDetailModal}>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Detail Barang</DialogTitle>
+                        <div className="flex gap-4">
+                            <DialogDescription>Kode Request: {selectedPermintaan?.kode_request}</DialogDescription>
+                            <DialogDescription>Status: {getStatusInfo(selectedPermintaan?.status ?? '').label}</DialogDescription>
+                        </div>
+                    </DialogHeader>
+
+                    {selectedPermintaan && (
+                        <div className="space-y-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>No</TableHead>
+                                        <TableHead>Nama Barang</TableHead>
+                                        <TableHead>Jenis Barang</TableHead>
+                                        <TableHead className="text-right">Jumlah</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {selectedPermintaan.details && selectedPermintaan.details.length > 0 ? (
+                                        selectedPermintaan.details.map((detail, index) => (
+                                            <TableRow key={`${detail.kode_barang}-${index}`}>
+                                                <TableCell className="text-center">{index + 1}</TableCell>
+                                                <TableCell>
+                                                    <div className="font-medium" title={detail.nama_barang}>
+                                                        {detail.nama_barang}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {detail.jenis_barang && (
+                                                        <span
+                                                            className={`rounded-full px-2 py-1 text-xs font-medium ${detail.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : detail.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
+                                                        >
+                                                            {detail.jenis_barang.charAt(0).toUpperCase() + detail.jenis_barang.slice(1)}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right">{detail.jumlah}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow key="empty-readonly-details">
+                                            <TableCell colSpan={4} className="text-center">
+                                                Tidak ada detail barang
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+
+                            <div className="flex justify-end">
+                                <Button variant="outline" onClick={() => setShowReadonlyDetailModal(false)} size="sm">
+                                    Tutup
+                                </Button>
                             </div>
                         </div>
                     )}

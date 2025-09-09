@@ -172,7 +172,6 @@ export default function Index() {
                   nama_industri: namaIndustri,
                   jenis_generik: jenisGenerik,
                   jenis_obat: tingkatPenggunaan,
-                  jenis_barang: jenisBarang,
                   merek,
                   satuan_kecil: satuanKecil,
                   nilai_satuan_kecil: nilaiSatuanKecil,
@@ -196,40 +195,6 @@ export default function Index() {
                 },
             });
         } else {
-            const baseData = {
-                nama,
-                jenis_barang: kfaType,
-                gudang_kategori: gudangKategori === '' ? null : Number(gudangKategori),
-                penyimpanan,
-            };
-
-            const data = isInventaris
-                ? {
-                      ...baseData,
-                      deskripsi,
-                      jenis_inventaris: jenisBarang,
-                      satuan: satuanKecil,
-                  }
-                : {
-                      ...baseData,
-                      kfa_kode: kfaKode,
-                      jenis_formularium: jenisFormularium,
-                      nama_dagang: namaDagang,
-                      nama_industri: namaIndustri,
-                      jenis_generik: jenisGenerik,
-                      jenis_obat: tingkatPenggunaan,
-                      jenis_barang: jenisBarang,
-                      merek,
-                      satuan_kecil: satuanKecil,
-                      nilai_satuan_kecil: nilaiSatuanKecil,
-                      satuan_sedang: satuanSedang,
-                      nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
-                      satuan_besar: satuanBesar,
-                      nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
-                      barcode,
-                      bentuk_obat: bentukobat,
-                  };
-
             router.post('/datamaster/gudang/daftar-barang', data, {
                 preserveScroll: true,
                 onSuccess: () => {

@@ -21,6 +21,7 @@ class Web_Setting_Controller extends Controller
                 'alamat' => 'required|string',
                 'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'kode_klinik' => 'required',
+                'kode_group_klinik' => 'nullable|string',
             ]);
 
             // Ambil pengaturan pertama, atau buat baru jika belum ada
@@ -48,6 +49,9 @@ class Web_Setting_Controller extends Controller
             $setting->nama = $validated['nama'];
             $setting->alamat = $validated['alamat'];
             $setting->kode_klinik = $validated['kode_klinik'];
+            if (array_key_exists('kode_group_klinik', $validated)) {
+                $setting->kode_group_klinik = $validated['kode_group_klinik'];
+            }
             $setting->save();
 
             return response()->json([
@@ -186,10 +190,6 @@ class Web_Setting_Controller extends Controller
             'PASSWORD' => 'required|string',
             'SECRET_KEY' => 'required|string',
             'USER_KEY' => 'required|string',
-            'APP_CODE' => 'required|string',
-            'BASE_URL' => 'required|string',
-            'SERVICE' => 'required|string',
-            'SERVICE_ANTREAN' => 'required|string',
             'KPFK' => 'required|string',
         ]);
 

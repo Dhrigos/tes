@@ -26,9 +26,14 @@ use App\Models\Module\Pelayanan\PelayananRujukan;
 use App\Models\Module\Pelayanan\PelayananPermintaan;
 use App\Models\Module\Pelayanan\PelayananSoPerawat;
 use App\Models\Module\Pelayanan\PelayananStatus;
+use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Query\Exception as QueryException;
+use Illuminate\Database\QueryException as DatabaseQueryException;
+use Exception;
 use Illuminate\Support\Facades\Log;
+use App\Models\Module\Pasien\Pasien_History;
 
 class PelayananController extends Controller
 {
@@ -47,10 +52,10 @@ class PelayananController extends Controller
                 Log::info("Tabel {$table} tidak ada, melewati penghapusan");
                 return true; // Dianggap berhasil karena tidak ada yang perlu dihapus
             }
-            
+
             // Jika tabel ada, lakukan penghapusan
             $query = DB::table($table);
-            
+
             foreach ($conditions as $column => $value) {
                 if (is_array($value)) {
                     $query->whereIn($column, $value);
@@ -58,15 +63,15 @@ class PelayananController extends Controller
                     $query->where($column, $value);
                 }
             }
-            
+
             $deleted = $query->delete();
             Log::info("Dihapus {$deleted} catatan dari tabel {$table}");
-            
+
             return true;
-        } catch (QueryException $e) {
+        } catch (DatabaseQueryException $e) {
             Log::warning("Gagal menghapus dari tabel {$table}: " . $e->getMessage());
             return false; // Gagal tetapi tidak melempar exception
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning("Error tidak terduga saat menghapus dari tabel {$table}: " . $e->getMessage());
             return false; // Gagal tetapi tidak melempar exception
         }
@@ -88,7 +93,7 @@ class PelayananController extends Controller
             return Inertia::render('module/pelayanan/index', [
                 'pelayanans' => $pelayanans,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return Inertia::render('module/pelayanan/index', [
                 'pelayanans' => [],
                 'errors' => ['error' => 'Gagal memuat data: ' . $e->getMessage()]
@@ -116,7 +121,7 @@ class PelayananController extends Controller
             $dokters = $query->get();
 
             return response()->json($dokters);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mengambil data dokter: ' . $e->getMessage()
@@ -153,7 +158,7 @@ class PelayananController extends Controller
                 'success' => true,
                 'message' => 'Dokter berhasil diperbarui'
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal memperbarui dokter: ' . $e->getMessage()
@@ -204,7 +209,7 @@ class PelayananController extends Controller
         try {
             // Decode base64 norawat
             $nomorRegister = base64_decode($norawat);
-            
+
             if (!$nomorRegister) {
                 return response()->json([
                     'success' => false,
@@ -216,22 +221,18 @@ class PelayananController extends Controller
 
             // 2. Hapus data terkait SOAP Dokter dengan cara yang lebih aman
             $soapDokterTable = 'pelayanan_soap_dokters'; // Default table name
-            if (class_exists('App\Models\Module\Pelayanan\SoapDokter\PelayananSoapDokter')) {
-                $soapDokterModel = new PelayananSoapDokter();
-                $soapDokterTable = $soapDokterModel->getTable();
-            }
-            
+
             $soapDokterIds = DB::table($soapDokterTable)
                 ->where('nomor_register', $nomorRegister)
                 ->pluck('id')->toArray();
-                
+
             if (!empty($soapDokterIds)) {
                 // Hapus data terkait dengan cara yang aman
                 $this->hapusDariTabel('pelayanan_soap_dokter_obats', ['soap_dokter_id' => $soapDokterIds]);
                 $this->hapusDariTabel('pelayanan_soap_dokter_tindakans', ['soap_dokter_id' => $soapDokterIds]);
                 $this->hapusDariTabel('pelayanan_soap_dokter_icds', ['soap_dokter_id' => $soapDokterIds]);
                 $this->hapusDariTabel('pelayanan_soap_dokter_diets', ['soap_dokter_id' => $soapDokterIds]);
-                
+
                 // Hapus data SOAP dokter utama
                 $this->hapusDariTabel($soapDokterTable, ['id' => $soapDokterIds]);
             }
@@ -240,7 +241,7 @@ class PelayananController extends Controller
             if (class_exists('App\Models\Module\Pelayanan\PelayananRujukan')) {
                 $this->hapusDariTabel('pelayanan_rujukans', ['nomor_register' => $nomorRegister]);
             }
-            
+
             if (class_exists('App\Models\Module\Pelayanan\PelayananPermintaan')) {
                 $this->hapusDariTabel('pelayanan_permintaans', ['nomor_register' => $nomorRegister]);
             }
@@ -251,7 +252,7 @@ class PelayananController extends Controller
             }
 
             // 5. Update status pelayanan
-            PelayananStatus::where('nomor_register', $nomorRegister)
+            Pelayanan_status::where('nomor_register', $nomorRegister)
                 ->update([
                     'status_pendaftaran' => '0', // Set status_pendaftaran to 0 for cancellation
                     'updated_at' => now()
@@ -265,16 +266,17 @@ class PelayananController extends Controller
                 ]);
 
             // 7. Jika ada relasi dengan pendaftaran, update juga statusnya dan simpan alasan batal
-            if (class_exists('App\Models\Module\Pendaftaran\Pendaftaran')) {
-                $pendaftaran = \App\Models\Module\Pendaftaran\Pendaftaran::where('nomor_register', $nomorRegister)->first();
-                if ($pendaftaran) {
-                    $pendaftaran->update([
-                        'status' => 'batal',
-                        'alasan_batal' => $request->input('alasan_batal'),
-                        'updated_at' => now()
-                    ]);
-                }
-            }
+            // Note: Uncomment and adjust if Pendaftaran model is available
+            // if (class_exists('App\Models\Module\Pendaftaran\Pendaftaran')) {
+            //     $pendaftaran = \App\Models\Module\Pendaftaran\Pendaftaran::where('nomor_register', $nomorRegister)->first();
+            //     if ($pendaftaran) {
+            //         $pendaftaran->update([
+            //             'status' => 'batal',
+            //             'alasan_batal' => $request->input('alasan_batal'),
+            //             'updated_at' => now()
+            //         ]);
+            //     }
+            // }
 
             DB::commit();
 
@@ -282,17 +284,220 @@ class PelayananController extends Controller
                 'success' => true,
                 'message' => 'Data pelayanan berhasil dibatalkan dan dihapus'
             ]);
-
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
-            \Log::error('Gagal membatalkan pelayanan: ' . $e->getMessage(), [
+            Log::error('Gagal membatalkan pelayanan: ' . $e->getMessage(), [
                 'nomor_register' => $nomorRegister ?? null,
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal membatalkan pelayanan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get CPPT timeline data for a specific patient
+     * 
+     * @param string $nomor_rm
+     * @return JsonResponse
+     */
+    public function getCpptTimeline(string $nomor_rm): JsonResponse
+    {
+        try {
+            // Ambil history pasien berdasarkan no_rm
+            $histories = Pasien_History::where('no_rm', $nomor_rm)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $entries = [];
+
+            foreach ($histories as $hist) {
+                $history = $hist->history ?? [];
+                $type = $history['type'] ?? '';
+                // Normalisasi type menjadi base_type dan action (tambah/edit)
+                $baseType = $type;
+                $actionType = null;
+                if (str_contains($type, '_tambah')) {
+                    $baseType = str_replace('_tambah', '', $type);
+                    $actionType = 'tambah';
+                } elseif (str_contains($type, '_edit')) {
+                    $baseType = str_replace('_edit', '', $type);
+                    $actionType = 'edit';
+                }
+                $data = $history['data'] ?? [];
+                $noRawat = $history['no_rawat'] ?? ($data['no_rawat'] ?? null);
+
+                // Ambil nama dokter & klinik jika tersimpan; fallback ke lookup Pelayanan
+                $dokterName = $history['dokter_name'] ?? ($data['dokter_name'] ?? null);
+                $perawatName = $history['perawat_name'] ?? ($data['perawat_name'] ?? null);
+                $klinikName = $history['klinik_name'] ?? ($data['klinik_name'] ?? null);
+                if ((!$dokterName || !$klinikName) && !empty($noRawat)) {
+                    try {
+                        $pelayananMeta = Pelayanan::with(['dokter.namauser'])
+                            ->where('nomor_register', $noRawat)
+                            ->first();
+                        if ($pelayananMeta) {
+                            if (!$dokterName) {
+                                $dokterName = optional(optional($pelayananMeta->dokter)->namauser)->name
+                                    ?? (optional($pelayananMeta->dokter)->nama ?? null);
+                            }
+                            // Ambil nama klinik dari web_settings
+                            $klinikName = $klinikName ?? optional(\App\Models\Settings\Web_Setting::first())->nama;
+                        }
+                    } catch (\Exception $metaEx) {
+                        // abaikan error lookup
+                    }
+                }
+
+                $soapDetails = [];
+
+                // Build Subjective and Objective depending on source type
+                $tableData = $data['tableData'] ?? [];
+                if (is_string($tableData)) {
+                    $decoded = json_decode($tableData, true);
+                    $tableData = is_array($decoded) ? $decoded : [];
+                }
+
+                // Subjective
+                if ($type === 'soap_dokter') {
+                    $subjectiveParts = [];
+                    if (!empty($data['anamnesa'])) {
+                        $subjectiveParts[] = trim((string) $data['anamnesa']);
+                    }
+                    if (!empty($tableData['keluhanList']) && is_array($tableData['keluhanList'])) {
+                        $keluhanText = "Daftar Keluhan:\n";
+                        foreach ($tableData['keluhanList'] as $keluhan) {
+                            $text = '- ' . ($keluhan['keluhan'] ?? '');
+                            if (!empty($keluhan['durasi'])) {
+                                $text .= ' (' . $keluhan['durasi'] . ')';
+                            }
+                            $keluhanText .= $text . "\n";
+                        }
+                        $subjectiveParts[] = trim($keluhanText);
+                    }
+                    $soapDetails[] = [
+                        'tipe_soap' => 'subjective',
+                        'content' => !empty($subjectiveParts) ? trim(implode("\n\n", $subjectiveParts)) : '-',
+                    ];
+                } else { // so_perawat
+                    $subjectiveText = '-';
+                    if (!empty($tableData['keluhanList']) && is_array($tableData['keluhanList'])) {
+                        $keluhanText = "Daftar Keluhan:\n";
+                        foreach ($tableData['keluhanList'] as $keluhan) {
+                            $text = '- ' . ($keluhan['keluhan'] ?? '');
+                            if (!empty($keluhan['durasi'])) {
+                                $text .= ' (' . $keluhan['durasi'] . ')';
+                            }
+                            $keluhanText .= $text . "\n";
+                        }
+                        $subjectiveText = trim($keluhanText);
+                    }
+                    $soapDetails[] = [
+                        'tipe_soap' => 'subjective',
+                        'content' => $subjectiveText,
+                    ];
+                }
+
+                // Objective - vitals + HTT items (if any)
+                $objectiveParts = [];
+                foreach (['tensi', 'suhu', 'nadi', 'rr', 'spo2', 'berat', 'tinggi', 'nilai_bmi', 'alergi'] as $key) {
+                    if (!empty($data[$key])) {
+                        switch ($key) {
+                            case 'suhu':
+                                $objectiveParts[] = 'Suhu: ' . $data[$key] . '°C';
+                                break;
+                            case 'nadi':
+                                $objectiveParts[] = 'Nadi: ' . $data[$key] . '/menit';
+                                break;
+                            case 'rr':
+                                $objectiveParts[] = 'RR: ' . $data[$key] . '/menit';
+                                break;
+                            case 'spo2':
+                                $objectiveParts[] = 'SpO2: ' . $data[$key] . '%';
+                                break;
+                            case 'berat':
+                                $objectiveParts[] = 'Berat: ' . $data[$key] . ' kg';
+                                break;
+                            case 'tinggi':
+                                $objectiveParts[] = 'Tinggi: ' . $data[$key] . ' cm';
+                                break;
+                            case 'nilai_bmi':
+                                $objectiveParts[] = 'BMI: ' . $data[$key];
+                                break;
+                            case 'alergi':
+                                $objectiveParts[] = 'Alergi: ' . $data[$key];
+                                break;
+                            default:
+                                $objectiveParts[] = 'Tensi: ' . $data[$key];
+                        }
+                    }
+                }
+
+                $objectiveExtra = '';
+                if (!empty($tableData['httItems']) && is_array($tableData['httItems'])) {
+                    $httText = ($type === 'soap_dokter' ? 'HTT / Temuan Objektif:' : 'Tindakan Perawat (HTT):') . "\n";
+                    foreach ($tableData['httItems'] as $htt) {
+                        $line = '- ' . ($htt['pemeriksaan'] ?? '');
+                        if (!empty($htt['subPemeriksaan'])) {
+                            $line .= ' - ' . $htt['subPemeriksaan'];
+                        }
+                        if (!empty($htt['detail'])) {
+                            $line .= ': ' . $htt['detail'];
+                        }
+                        $httText .= $line . "\n";
+                    }
+                    $objectiveExtra = trim($httText);
+                }
+
+                $objectiveContent = trim((!empty($objectiveParts) ? implode(', ', $objectiveParts) : '') . (strlen($objectiveExtra) ? "\n" . $objectiveExtra : ''));
+                $soapDetails[] = [
+                    'tipe_soap' => 'objective',
+                    'content' => $objectiveContent !== '' ? $objectiveContent : '-',
+                ];
+
+                // Assessment & Plan (only meaningful for SOAP Dokter)
+                $soapDetails[] = [
+                    'tipe_soap' => 'assessment',
+                    'content' => $type === 'soap_dokter' && !empty($data['assesmen']) ? $data['assesmen'] : '-',
+                ];
+                $soapDetails[] = [
+                    'tipe_soap' => 'plan',
+                    'content' => $type === 'soap_dokter' && !empty($data['plan']) ? $data['plan'] : '-',
+                ];
+
+                $entries[] = [
+                    'id' => ($baseType === 'soap_dokter' ? 'soap_' : 'so_') . ($hist->id),
+                    'nomor_register' => $noRawat,
+                    'tanggal_waktu' => optional($hist->created_at)->toISOString(),
+                    'profesi' => $baseType === 'soap_dokter' ? 'dokter' : 'perawat',
+                    'aksi' => $actionType, // null, 'tambah', atau 'edit'
+                    'nama_dokter' => $baseType === 'soap_dokter' ? $dokterName : null,
+                    'nama_perawat' => $baseType === 'so_perawat' ? $perawatName : null,
+                    'nama_klinik' => $klinikName,
+                    'catatan_tambahan' => null,
+                    'soap_details' => $soapDetails,
+                    // Sertakan payload history asli untuk rendering Assessment/Plan detail di frontend
+                    'history' => $hist->history,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'entries' => $entries,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Gagal memuat catatan pemeriksaan: ' . $e->getMessage(), [
+                'nomor_rm' => $nomor_rm,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memuat catatan pemeriksaan: ' . $e->getMessage(),
+                'entries' => [],
             ], 500);
         }
     }

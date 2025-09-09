@@ -18,7 +18,6 @@ class Pelayanan_Soap_Dokter_Obat extends Model
         'tanggal_lahir',
         'penanda',
         'nama_obat',
-        'jumlah',
         'instruksi',
         'signa',
         'satuan_gudang',

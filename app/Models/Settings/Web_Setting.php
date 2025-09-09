@@ -12,6 +12,7 @@ class Web_Setting extends Model
         'alamat',
         'profile_image',
         'kode_klinik',
+        'kode_group_klinik',
         'is_bpjs_active',
         'is_satusehat_active',
         'is_gudangutama_active',

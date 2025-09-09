@@ -20,7 +20,9 @@ use App\Models\Module\Master\Data\Medis\Icd10;
 use App\Models\Module\Master\Data\Medis\Icd9;
 use App\Models\Module\Master\Data\Medis\Jenis_Diet;
 use App\Models\Module\Master\Data\Medis\Makanan;
+use App\Models\Module\Master\Data\Medis\Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Diet;
+use App\Models\Module\Pasien\Pasien_History;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -36,6 +38,55 @@ use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 
 class Pelayanan_Soap_Dokter_Controller extends Controller
 {
+    /**
+     * Save patient history to pasien_histories table
+     */
+    private function savePatientHistory($data, $type = 'soap_dokter')
+    {
+        try {
+            $historyData = [
+                'no_rm' => $data['nomor_rm'] ?? '',
+                'nama' => $data['nama'] ?? '',
+                'history' => [
+                    'type' => $type,
+                    'no_rawat' => $data['no_rawat'] ?? '',
+                    'timestamp' => now()->toISOString(),
+                    'data' => $data
+                ]
+            ];
+
+            // Enrich with doctor and clinic names for CPPT
+            try {
+                $noRawatForLookup = $historyData['history']['no_rawat'] ?? '';
+                if (!empty($noRawatForLookup)) {
+                    $pelayananForMeta = \App\Models\Module\Pelayanan\Pelayanan::with(['dokter.namauser'])
+                        ->where('nomor_register', $noRawatForLookup)
+                        ->first();
+                    if ($pelayananForMeta) {
+                        $dokterName = optional(optional($pelayananForMeta->dokter)->namauser)->name
+                            ?? (optional($pelayananForMeta->dokter)->nama ?? null);
+                        $klinikName = optional(\App\Models\Settings\Web_Setting::first())->nama;
+                        if (!empty($dokterName)) {
+                            $historyData['history']['dokter_name'] = $dokterName;
+                            $historyData['history']['data']['dokter_name'] = $dokterName;
+                        }
+                        if (!empty($klinikName)) {
+                            $historyData['history']['klinik_name'] = $klinikName;
+                            $historyData['history']['data']['klinik_name'] = $klinikName;
+                        }
+                    }
+                }
+            } catch (\Exception $metaEx) {
+                // ignore enrichment failure
+            }
+
+            Pasien_History::create($historyData);
+        } catch (\Exception $e) {
+            // Log error but don't fail the main operation
+            Log::error('Failed to save patient history: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Display a listing of SOAP dokter data
      */
@@ -135,7 +186,6 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
     {
         try {
             $nomor_register = base64_decode($norawat);
-            Log::info('SOAP Dokter Show - Norawat: ' . $norawat . ', Decoded: ' . $nomor_register);
 
             // Get patient data
             $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
@@ -148,6 +198,38 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Get existing diet data
             $existingDietData = Pelayanan_Soap_Dokter_Diet::where('no_rawat', $nomor_register)->get();
 
+            // Prefill: saved ICDs, tindakan, and obat - combined ICD10 and ICD9 in single row
+            $savedIcd = Pelayanan_Soap_Dokter_Icd::where('no_rawat', $nomor_register)->first();
+            $savedIcd10 = [];
+            $savedIcd9 = [];
+
+            if ($savedIcd) {
+                // If ICD10 exists, add to savedIcd10 array
+                if ($savedIcd->kode_icd10) {
+                    $savedIcd10[] = [
+                        'kode' => $savedIcd->kode_icd10,
+                        'nama' => $savedIcd->nama_icd10,
+                        'priority' => $savedIcd->priority_icd10,
+                    ];
+                }
+
+                // If ICD9 exists, add to savedIcd9 array
+                if ($savedIcd->kode_icd9) {
+                    $savedIcd9[] = [
+                        'kode' => $savedIcd->kode_icd9,
+                        'nama' => $savedIcd->nama_icd9,
+                    ];
+                }
+            }
+
+            $savedTindakan = Pelayanan_Soap_Dokter_Tindakan::where('no_rawat', $nomor_register)
+                ->select('kode_tindakan as kode', 'jenis_tindakan as nama', 'kategori_tindakan as kategori', 'jenis_pelaksana as pelaksana', 'harga')
+                ->get();
+
+            $savedObat = Pelayanan_Soap_Dokter_Obat::where('no_rawat', $nomor_register)
+                ->select('penanda', 'nama_obat', 'instruksi', 'signa', 'satuan_gudang', 'penggunaan')
+                ->get();
+
             // Get SO Perawat data to display hasil perawat on doctor's page
             $soPerawat = Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->first();
 
@@ -157,7 +239,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $statusPerawat = $status['status_perawat'];
             if ($statusDaftar < 2 || $statusPerawat < 2) {
                 return redirect()
-                    ->route('pelayanan.so-dokter.index')
+                    ->route('pelayanan.soap-dokter.index')
                     ->with('error', 'Tahap sebelumnya belum selesai (pendaftaran/perawat)');
             }
 
@@ -170,20 +252,46 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Jika data pasien tidak ditemukan, kembalikan ke index dengan pesan
             if (!$pelayanan) {
                 return redirect()
-                    ->route('pelayanan.so-dokter.index')
+                    ->route('pelayanan.soap-dokter.index')
                     ->with('error', 'Data pasien tidak ditemukan');
             } else {
-                // Calculate age
-                $umur = ($pelayanan->pasien && $pelayanan->pasien->tanggal_lahir)
-                    ? Carbon::parse($pelayanan->pasien->tanggal_lahir)->diffInYears(Carbon::now()) . ' Tahun'
-                    : '0 Tahun';
+                // Calculate age in readable format (simplified)
+                $umur = '0 Tahun';
+                if ($pelayanan->pasien && $pelayanan->pasien->tanggal_lahir) {
+                    $birthDate = Carbon::parse($pelayanan->pasien->tanggal_lahir);
+                    $now = Carbon::now();
+
+                    $interval = $birthDate->diff($now);
+                    $years = $interval->y;
+                    $months = $interval->m;
+                    $days = $interval->d;
+
+                    $umur = $years . ' Tahun';
+                    if ($months > 0) {
+                        $umur .= ' ' . $months . ' Bulan';
+                    }
+                    if ($days > 0) {
+                        $umur .= ' ' . $days . ' Hari';
+                    }
+                }
+
+                // Format gender
+                $jenis_kelamin_raw = $pelayanan->pasien->seks ?? ($soapDokter->seks ?? '');
+                $jenis_kelamin = '';
+                if ($jenis_kelamin_raw == '1' || $jenis_kelamin_raw == 'L' || $jenis_kelamin_raw == 'Laki-laki') {
+                    $jenis_kelamin = 'Laki-laki';
+                } elseif ($jenis_kelamin_raw == '2' || $jenis_kelamin_raw == 'P' || $jenis_kelamin_raw == 'Perempuan') {
+                    $jenis_kelamin = 'Perempuan';
+                } else {
+                    $jenis_kelamin = $jenis_kelamin_raw; // fallback to original value
+                }
 
                 // Prepare patient data
                 $patientData = [
                     'nomor_rm' => $pelayanan->nomor_rm,
                     'nama' => $pelayanan->pasien->nama ?? ($soapDokter->nama ?? ''),
                     'nomor_register' => $pelayanan->nomor_register,
-                    'jenis_kelamin' => $pelayanan->pasien->seks ?? ($soapDokter->seks ?? ''),
+                    'jenis_kelamin' => $jenis_kelamin,
                     'penjamin' => optional($pelayanan->pendaftaran->penjamin)->nama ?? ($soapDokter->penjamin ?? ''),
                     'tanggal_lahir' => $pelayanan->pasien->tanggal_lahir ?? ($soapDokter->tanggal_lahir ?? ''),
                     'umur' => $umur
@@ -207,11 +315,9 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $jenisDiet = Jenis_Diet::all();
             $makanan = Makanan::all();
 
-            Log::info('SOAP Dokter Show - About to render view with data', [
-                'patient_data' => $patientData,
-                'soap_dokter_exists' => $soapDokter ? true : false,
-                'norawat' => $norawat
-            ]);
+            // Get Tindakan master data
+            $tindakan = Tindakan::all();
+
 
             return Inertia::render('module/pelayanan/soap-dokter/pemeriksaan', [
                 'pelayanan' => $patientData,
@@ -227,7 +333,13 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'icd9' => $icd9,
                 'jenis_diet' => $jenisDiet,
                 'makanan' => $makanan,
-                'norawat' => $norawat
+                'tindakan' => $tindakan,
+                'norawat' => $norawat,
+                // Prefill bundles for edit mode
+                'saved_icd10' => $savedIcd10,
+                'saved_icd9' => $savedIcd9,
+                'tindakan_list_saved' => $savedTindakan,
+                'obat_saved' => $savedObat,
             ]);
         } catch (\Exception $e) {
             return Inertia::render('module/pelayanan/soap-dokter/index', [
@@ -243,28 +355,119 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
     private function saveDietData($dietList, $validated)
     {
         if (!empty($dietList)) {
-            // Delete existing diet records for this patient
-            Pelayanan_Soap_Dokter_Diet::where('no_rawat', $validated['no_rawat'])->delete();
-            
-            // Save diet data
+            // Upsert diet data (prevent duplicate on edit)
             foreach ($dietList as $diet) {
-                Pelayanan_Soap_Dokter_Diet::create([
-                    'nomor_rm' => $validated['nomor_rm'],
-                    'nama' => $validated['nama'],
-                    'no_rawat' => $validated['no_rawat'],
-                    'seks' => $validated['seks'],
-                    'penjamin' => $validated['penjamin'],
-                    'tanggal_lahir' => $validated['tanggal_lahir'],
-                    'jenis_diet' => $diet['jenis_diet'] ?? '',
-                    'jenis_diet_makanan' => $diet['jenis_diet_makanan'] ?? '',
-                    'jenis_diet_makanan_tidak' => $diet['jenis_diet_makanan_tidak'] ?? '',
-                ]);
+                Pelayanan_Soap_Dokter_Diet::updateOrCreate(
+                    [
+                        'no_rawat' => $validated['no_rawat'],
+                        'jenis_diet' => $diet['jenis_diet'] ?? '',
+                        'jenis_diet_makanan' => $diet['jenis_diet_makanan'] ?? '',
+                        'jenis_diet_makanan_tidak' => $diet['jenis_diet_makanan_tidak'] ?? '',
+                    ],
+                    [
+                        'nomor_rm' => $validated['nomor_rm'],
+                        'nama' => $validated['nama'],
+                        'seks' => $validated['seks'],
+                        'penjamin' => $validated['penjamin'],
+                        'tanggal_lahir' => $validated['tanggal_lahir'],
+                    ]
+                );
             }
         }
     }
 
     /**
-            $obatData = $validated['obat'] ?? [];
+     * Store new SOAP dokter data
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        try {
+            $validated = $request->validate([
+                'nomor_rm' => 'required|string',
+                'nama' => 'required|string',
+                'no_rawat' => 'required|string',
+                'sex' => 'nullable|string',
+                'seks' => 'nullable|string',
+                'penjamin' => 'nullable|string',
+                'tanggal_lahir' => 'nullable|date',
+                'umur' => 'nullable|string',
+                'sistol' => 'nullable|string',
+                'distol' => 'nullable|string',
+                'tensi' => 'nullable|string',
+                'suhu' => 'nullable|string',
+                'nadi' => 'nullable|string',
+                'rr' => 'nullable|string',
+                'tinggi' => 'nullable|string',
+                'berat' => 'nullable|string',
+                'spo2' => 'nullable|string',
+                'lingkar_perut' => 'nullable|string',
+                'nilai_bmi' => 'nullable|string',
+                'status_bmi' => 'nullable|string',
+                'jenis_alergi' => 'nullable|string',
+                'alergi' => 'nullable|string',
+                'eye' => 'nullable|string',
+                'verbal' => 'nullable|string',
+                'motorik' => 'nullable|string',
+                'htt' => 'nullable|string',
+                'anamnesa' => 'nullable|string',
+                'assesmen' => 'nullable|string',
+                'expertise' => 'nullable|string',
+                'evaluasi' => 'nullable|string',
+                'plan' => 'nullable|string',
+                'status_apotek' => 'nullable|integer',
+                'odontogram' => 'nullable|string',
+                'Decayed' => 'nullable|string',
+                'Missing' => 'nullable|string',
+                'Filled' => 'nullable|string',
+                'Oclusi' => 'nullable|string',
+                'Palatinus' => 'nullable|string',
+                'Mandibularis' => 'nullable|string',
+                'Platum' => 'nullable|string',
+                'Diastema' => 'nullable|string',
+                'Anomali' => 'nullable|string',
+                'diet_jenis' => 'nullable|array',
+                'diet_anjuran' => 'nullable|array',
+                'diet_pantangan' => 'nullable|array',
+                'tindakan_kode' => 'nullable|array',
+                'tindakan_nama' => 'nullable|array',
+                'tindakan_pelaksana' => 'nullable|array',
+                'tindakan_harga' => 'nullable|array',
+                'tableData' => 'nullable|string',
+                'icd10_code' => 'nullable|array',
+                'icd10_name' => 'nullable|array',
+                'icd10_priority' => 'nullable|array',
+                'icd9_code' => 'nullable|array',
+                'icd9_name' => 'nullable|array',
+                'tindakan_kode' => 'nullable|array',
+                'tindakan_nama' => 'nullable|array',
+                'tindakan_kategori' => 'nullable|array',
+                'tindakan_pelaksana' => 'nullable|array',
+                'tindakan_harga' => 'nullable|array',
+                'resep_data' => 'nullable|string',
+            ]);
+
+            // Extract diet data
+            $dietList = [];
+            if (!empty($validated['diet_jenis']) && is_array($validated['diet_jenis'])) {
+                foreach ($validated['diet_jenis'] as $index => $jenis) {
+                    if (!empty($jenis)) {
+                        $dietList[] = [
+                            'jenis_diet' => $jenis,
+                            'jenis_diet_makanan' => $validated['diet_anjuran'][$index] ?? '',
+                            'jenis_diet_makanan_tidak' => $validated['diet_pantangan'][$index] ?? '',
+                        ];
+                    }
+                }
+            }
+
+            // Extract obat data
+            $obatData = [];
+            if (!empty($validated['resep_data'])) {
+                $obatData = json_decode($validated['resep_data'], true) ?? [];
+            }
+
+            // Set status_apotek based on resep_data presence
+            $validated['status_apotek'] = empty($obatData) ? 1 : 0;
 
             // Extract ICD data
             $icd10Data = [];
@@ -293,22 +496,36 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $tindakanData = [];
             if (!empty($validated['tindakan_nama']) && is_array($validated['tindakan_nama'])) {
                 // Frontend sends tindakan data as separate arrays that need to be grouped by index
-                // Each tindakan has a nama, pelaksana, and harga at the same index
+                // Each tindakan has kode, nama, kategori, pelaksana, and harga at the same index
                 $count = count($validated['tindakan_nama']);
                 for ($i = 0; $i < $count; $i++) {
                     $tindakanData[] = [
+                        'kode' => $validated['tindakan_kode'][$i] ?? '',
                         'nama' => $validated['tindakan_nama'][$i] ?? '',
+                        'kategori' => $validated['tindakan_kategori'][$i] ?? '',
                         'pelaksana' => $validated['tindakan_pelaksana'][$i] ?? '',
                         'harga' => $validated['tindakan_harga'][$i] ?? '0'
                     ];
                 }
             }
 
+
+            if (isset($validated['sex']) && !isset($validated['seks'])) {
+                $validated['seks'] = $validated['sex'];
+                unset($validated['sex']);
+            }
+
+            // Set default value for status_apotek if not set
+            if (!isset($validated['status_apotek'])) {
+                $validated['status_apotek'] = 0; // skip apotek for now
+            }
+
             // Remove diet, obat, ICD, and tindakan fields from main validated data
-            unset($validated['diet_list'], $validated['obat']);
+            unset($validated['diet_jenis'], $validated['diet_anjuran'], $validated['diet_pantangan']);
+            unset($validated['resep_data']);
             unset($validated['icd10_code'], $validated['icd10_name'], $validated['icd10_priority']);
-            unset($validated['icd9_code'], $validated['icd9_name'], $validated['icd9_priority']);
-            unset($validated['tindakan_nama'], $validated['tindakan_pelaksana'], $validated['tindakan_harga']);
+            unset($validated['icd9_code'], $validated['icd9_name']);
+            unset($validated['tindakan_kode'], $validated['tindakan_nama'], $validated['tindakan_kategori'], $validated['tindakan_pelaksana'], $validated['tindakan_harga']);
 
             // If tensi empty but sistol/distol present, compose it
             if ((empty($validated['tensi']) || $validated['tensi'] === null)
@@ -317,92 +534,64 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 $validated['tensi'] = $validated['sistol'] . '/' . $validated['distol'];
             }
 
-            // Lengkapi identitas pasien jika tidak dikirim dari frontend
-            if (empty($validated['nomor_rm']) || empty($validated['nama'])) {
-                $pel = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
-                    ->where('nomor_register', $validated['no_rawat'])
-                    ->first();
-                if ($pel) {
-                    $validated['nomor_rm'] = $validated['nomor_rm'] ?? ($pel->nomor_rm ?? '');
-                    $validated['nama'] = $validated['nama'] ?? (optional($pel->pasien)->nama ?? '');
-                    $validated['seks'] = $validated['seks'] ?? (optional($pel->pasien)->seks ?? '');
-                    $validated['penjamin'] = $validated['penjamin'] ?? (optional(optional($pel->pendaftaran)->penjamin)->nama ?? '');
-                    $validated['tanggal_lahir'] = $validated['tanggal_lahir'] ?? (optional($pel->pasien)->tanggal_lahir ?? '');
-                    $validated['umur'] = $validated['umur'] ?? '';
-                }
-            }
-
             // Normalisasi tableData jika datang sebagai string JSON (fallback)
             if (!empty($validated['tableData']) && is_string($validated['tableData'])) {
                 $decoded = json_decode($validated['tableData'], true);
                 $validated['tableData'] = is_array($decoded) ? $decoded : [];
             }
 
-            // Create new SOAP dokter record
-            if (!isset($validated['status_apotek'])) {
-                $validated['status_apotek'] = 0; // skip apotek for now
-            }
-            $soapDokter = Pelayanan_Soap_Dokter::create($validated);
+            // Create or update SOAP dokter record using updateOrCreate
+            $soapDokter = Pelayanan_Soap_Dokter::updateOrCreate(
+                ['no_rawat' => $validated['no_rawat']], // Prevent duplicate
+                $validated
+            );
 
             // Save diet records to Pelayanan_Soap_Dokter_Diet table
             if ($soapDokter) {
                 $this->saveDietData($dietList, $validated);
             }
 
-            // Save ICD data to pelayanan_soap_dokter_icds table
+            // Save ICD data to pelayanan_soap_dokter_icds table (upsert) - combined ICD10 and ICD9 in single row
             if ($soapDokter && (!empty($icd10Data) || !empty($icd9Data))) {
-                // Delete existing ICD records for this patient
-                Pelayanan_Soap_Dokter_Icd::where('no_rawat', $validated['no_rawat'])->delete();
-                
-                // Save ICD10 data
-                foreach ($icd10Data as $icd) {
-                    Pelayanan_Soap_Dokter_Icd::create([
-                        'nomor_rm' => $validated['nomor_rm'],
-                        'nama' => $validated['nama'],
-                        'no_rawat' => $validated['no_rawat'],
-                        'seks' => $validated['seks'],
-                        'penjamin' => $validated['penjamin'],
-                        'tanggal_lahir' => $validated['tanggal_lahir'],
-                        'nama_icd10' => $icd['name'],
-                        'kode_icd10' => $icd['code'],
-                        'priority_icd10' => $icd['priority'],
-                    ]);
-                }
-                
-                // Save ICD9 data
-                foreach ($icd9Data as $icd) {
-                    Pelayanan_Soap_Dokter_Icd::create([
-                        'nomor_rm' => $validated['nomor_rm'],
-                        'nama' => $validated['nama'],
-                        'no_rawat' => $validated['no_rawat'],
-                        'seks' => $validated['seks'],
-                        'penjamin' => $validated['penjamin'],
-                        'tanggal_lahir' => $validated['tanggal_lahir'],
-                        'nama_icd9' => $icd['name'],
-                        'kode_icd9' => $icd['code'],
-                        'priority_icd9' => $icd['priority'] ?? '',
-                    ]);
-                }
+                // Get the first ICD10 and ICD9 data to combine in one row
+                $icd10 = !empty($icd10Data) ? $icd10Data[0] : null;
+                $icd9 = !empty($icd9Data) ? $icd9Data[0] : null;
+
+                // Save combined ICD data in single row
+                Pelayanan_Soap_Dokter_Icd::updateOrCreate([
+                    'no_rawat' => $validated['no_rawat'],
+                ], [
+                    'nomor_rm' => $validated['nomor_rm'],
+                    'nama' => $validated['nama'],
+                    'seks' => $validated['seks'],
+                    'penjamin' => $validated['penjamin'],
+                    'tanggal_lahir' => $validated['tanggal_lahir'],
+                    'kode_icd10' => $icd10['code'] ?? null,
+                    'nama_icd10' => $icd10['name'] ?? null,
+                    'priority_icd10' => $icd10['priority'] ?? null,
+                    'kode_icd9' => $icd9['code'] ?? null,
+                    'nama_icd9' => $icd9['name'] ?? null,
+                ]);
             }
 
-            // Save tindakan data to pelayanan_soap_dokter_tindakans table
+            // Save tindakan data to pelayanan_soap_dokter_tindakans table (upsert)
             if ($soapDokter && !empty($tindakanData)) {
-                // Delete existing tindakan records for this patient
-                Pelayanan_Soap_Dokter_Tindakan::where('no_rawat', $validated['no_rawat'])->delete();
-                
                 // Save tindakan data
                 foreach ($tindakanData as $tindakan) {
                     // Handle multiple pelaksana if needed
                     $jenisPelaksana = is_array($tindakan['pelaksana']) ? implode(', ', $tindakan['pelaksana']) : $tindakan['pelaksana'];
-                    
-                    Pelayanan_Soap_Dokter_Tindakan::create([
+
+                    Pelayanan_Soap_Dokter_Tindakan::updateOrCreate([
+                        'no_rawat' => $validated['no_rawat'],
+                        'kode_tindakan' => $tindakan['kode'],
+                    ], [
                         'nomor_rm' => $validated['nomor_rm'],
                         'nama' => $validated['nama'],
-                        'no_rawat' => $validated['no_rawat'],
                         'seks' => $validated['seks'],
                         'penjamin' => $validated['penjamin'],
                         'tanggal_lahir' => $validated['tanggal_lahir'],
                         'jenis_tindakan' => $tindakan['nama'],
+                        'kategori_tindakan' => $tindakan['kategori'],
                         'jenis_pelaksana' => $jenisPelaksana,
                         'harga' => $tindakan['harga'],
                         'status_kasir' => '0', // Default status
@@ -410,36 +599,60 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 }
             }
 
-            // Save obat data to pelayanan_soap_dokter_obats table
-            if ($soapDokter && !empty($obatData)) {
-                foreach ($obatData as $obat) {
-                    if (!empty($obat['nama_obat']) && !empty($obat['jumlah'])) {
-                        Pelayanan_Soap_Dokter_Obat::create([
+            // Save obat data to pelayanan_soap_dokter_obats table (sync: delete then insert all)
+            if ($soapDokter) {
+                // Always sync obat to reflect latest state from client
+                Pelayanan_Soap_Dokter_Obat::where('no_rawat', $validated['no_rawat'])->delete();
+                if (!empty($obatData)) {
+                    $rows = [];
+                    foreach ($obatData as $obat) {
+                        if (empty($obat['nama_obat'])) continue;
+                        $rows[] = [
+                            'no_rawat' => $validated['no_rawat'],
                             'nomor_rm' => $validated['nomor_rm'],
                             'nama' => $validated['nama'],
-                            'no_rawat' => $validated['no_rawat'],
                             'seks' => $validated['seks'],
                             'penjamin' => $validated['penjamin'],
                             'tanggal_lahir' => $validated['tanggal_lahir'],
                             'penanda' => $obat['penanda'] ?? '',
-                            'nama_obat' => $obat['nama_obat'],
-                            'jumlah' => (int)$obat['jumlah'],
+                            'nama_obat' => $obat['nama_obat'] ?? '',
                             'instruksi' => $obat['instruksi'] ?? '',
                             'signa' => $obat['signa'] ?? '',
                             'satuan_gudang' => $obat['satuan_gudang'] ?? '',
                             'penggunaan' => $obat['penggunaan'] ?? '',
-                        ]);
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+                    if (!empty($rows)) {
+                        Pelayanan_Soap_Dokter_Obat::insert($rows);
                     }
                 }
             }
-
 
             // Set status dokter berjalan saat simpan pertama dan kunci perawat final (3)
             app(PelayananStatusService::class)->tandaiDokterBerjalan($validated['no_rawat']);
             app(PelayananStatusService::class)->tandaiPerawatFinal($validated['no_rawat']);
 
+            // Save to patient history with enriched assessment/plan context
+            $historyPayload = $validated;
+            // Pastikan no_rawat terisi untuk enrichment metadata
+            $historyPayload['no_rawat'] = $validated['no_rawat'] ?? null;
+            $historyPayload['assessment'] = [
+                'diagnosis_icd10' => $icd10Data,
+                'diagnosis_icd9' => $icd9Data,
+                'tindakan' => $tindakanData,
+                'resep_obat' => $obatData,
+            ];
+            $historyPayload['plan_detail'] = [
+                'expertise' => $validated['expertise'] ?? '',
+                'evaluasi' => $validated['evaluasi'] ?? '',
+                'rencana' => $validated['plan'] ?? '',
+            ];
+            $this->savePatientHistory($historyPayload, 'soap_dokter_tambah');
+
             return redirect()
-                ->route('pelayanan.so-dokter.index')
+                ->route('pelayanan.soap-dokter.index')
                 ->with('success', 'SOAP Dokter berhasil disimpan');
         } catch (\Exception $e) {
             return redirect()
@@ -457,6 +670,13 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $nomor_register = base64_decode($norawat);
 
             $validated = $request->validate([
+                'nomor_rm' => 'nullable|string',
+                'nama' => 'nullable|string',
+                'sex' => 'nullable|string',
+                'seks' => 'nullable|string',
+                'penjamin' => 'nullable|string',
+                'tanggal_lahir' => 'nullable|date',
+                'umur' => 'nullable|string',
                 'sistol' => 'nullable|string',
                 'distol' => 'nullable|string',
                 'tensi' => 'nullable|string',
@@ -471,9 +691,9 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'status_bmi' => 'nullable|string',
                 'jenis_alergi' => 'nullable|string',
                 'alergi' => 'nullable|string',
-                'eye' => 'nullable',
-                'verbal' => 'nullable',
-                'motorik' => 'nullable',
+                'eye' => 'nullable|string',
+                'verbal' => 'nullable|string',
+                'motorik' => 'nullable|string',
                 'htt' => 'nullable|string',
                 'anamnesa' => 'nullable|string',
                 'assesmen' => 'nullable|string',
@@ -484,15 +704,18 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'diet_list.*.jenis_diet' => 'nullable|string',
                 'diet_list.*.jenis_diet_makanan' => 'nullable|string',
                 'diet_list.*.jenis_diet_makanan_tidak' => 'nullable|string',
-                'tableData' => 'nullable|array',
+                'tableData' => 'nullable|string',
                 'status_apotek' => 'nullable|integer',
                 'obat' => 'nullable|array',
+                'resep_data' => 'nullable|string',
                 'icd10_code' => 'nullable|array',
                 'icd10_name' => 'nullable|array',
                 'icd10_priority' => 'nullable|array',
                 'icd9_code' => 'nullable|array',
                 'icd9_name' => 'nullable|array',
+                'tindakan_kode' => 'nullable|array',
                 'tindakan_nama' => 'nullable|array',
+                'tindakan_kategori' => 'nullable|array',
                 'tindakan_pelaksana' => 'nullable|array',
                 'tindakan_harga' => 'nullable|array',
             ]);
@@ -502,6 +725,15 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
 
             // Extract obat data
             $obatData = $validated['obat'] ?? [];
+            if (empty($obatData) && !empty($validated['resep_data'])) {
+                $decoded = json_decode($validated['resep_data'], true);
+                if (is_array($decoded)) {
+                    $obatData = $decoded;
+                }
+            }
+
+            // Set status_apotek based on resep presence on update
+            $validated['status_apotek'] = empty($obatData) ? 1 : 0;
 
             // Extract ICD data
             $icd10Data = [];
@@ -530,22 +762,30 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $tindakanData = [];
             if (!empty($validated['tindakan_nama']) && is_array($validated['tindakan_nama'])) {
                 // Frontend sends tindakan data as separate arrays that need to be grouped by index
-                // Each tindakan has a nama, pelaksana, and harga at the same index
+                // Each tindakan has kode, nama, kategori, pelaksana, and harga at the same index
                 $count = count($validated['tindakan_nama']);
                 for ($i = 0; $i < $count; $i++) {
                     $tindakanData[] = [
+                        'kode' => $validated['tindakan_kode'][$i] ?? '',
                         'nama' => $validated['tindakan_nama'][$i] ?? '',
+                        'kategori' => $validated['tindakan_kategori'][$i] ?? '',
                         'pelaksana' => $validated['tindakan_pelaksana'][$i] ?? '',
                         'harga' => $validated['tindakan_harga'][$i] ?? '0'
                     ];
                 }
             }
 
+            // Convert sex to seks if needed
+            if (isset($validated['sex']) && !isset($validated['seks'])) {
+                $validated['seks'] = $validated['sex'];
+                unset($validated['sex']);
+            }
+
             // Remove diet, obat, ICD, and tindakan fields from main validated data
-            unset($validated['diet_list'], $validated['obat']);
+            unset($validated['diet_list'], $validated['obat'], $validated['resep_data']);
             unset($validated['icd10_code'], $validated['icd10_name'], $validated['icd10_priority']);
             unset($validated['icd9_code'], $validated['icd9_name'], $validated['icd9_priority']);
-            unset($validated['tindakan_nama'], $validated['tindakan_pelaksana'], $validated['tindakan_harga']);
+            unset($validated['tindakan_kode'], $validated['tindakan_nama'], $validated['tindakan_kategori'], $validated['tindakan_pelaksana'], $validated['tindakan_harga']);
 
             // If tensi empty but sistol/distol present, compose it
             if ((empty($validated['tensi']) || $validated['tensi'] === null)
@@ -560,13 +800,11 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 $validated['tableData'] = is_array($decoded) ? $decoded : [];
             }
 
-            if (!isset($validated['status_apotek'])) {
-                $validated['status_apotek'] = 0; // skip apotek for now
-            }
+            // Ensure status_apotek set per resep presence
             $soapDokter = Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->first();
             if (!$soapDokter) {
                 return redirect()
-                    ->route('pelayanan.so-dokter.index')
+                    ->route('pelayanan.soap-dokter.index')
                     ->with('error', 'Data SOAP Dokter tidak ditemukan');
             }
 
@@ -575,60 +813,47 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Save diet records to Pelayanan_Soap_Dokter_Diet table
             $this->saveDietData($dietList, array_merge($validated, ['no_rawat' => $nomor_register]));
 
-            // Save ICD data to pelayanan_soap_dokter_icds table
+            // Save ICD data to pelayanan_soap_dokter_icds table (upsert) - combined ICD10 and ICD9 in single row
             if (!empty($icd10Data) || !empty($icd9Data)) {
-                // Delete existing ICD records for this patient
-                Pelayanan_Soap_Dokter_Icd::where('no_rawat', $nomor_register)->delete();
-                
-                // Save ICD10 data
-                foreach ($icd10Data as $icd) {
-                    Pelayanan_Soap_Dokter_Icd::create([
-                        'nomor_rm' => $validated['nomor_rm'],
-                        'nama' => $validated['nama'],
-                        'no_rawat' => $nomor_register,
-                        'seks' => $validated['seks'],
-                        'penjamin' => $validated['penjamin'],
-                        'tanggal_lahir' => $validated['tanggal_lahir'],
-                        'nama_icd10' => $icd['name'],
-                        'kode_icd10' => $icd['code'],
-                        'priority_icd10' => $icd['priority'],
-                    ]);
-                }
-                
-                // Save ICD9 data
-                foreach ($icd9Data as $icd) {
-                    Pelayanan_Soap_Dokter_Icd::create([
-                        'nomor_rm' => $validated['nomor_rm'],
-                        'nama' => $validated['nama'],
-                        'no_rawat' => $nomor_register,
-                        'seks' => $validated['seks'],
-                        'penjamin' => $validated['penjamin'],
-                        'tanggal_lahir' => $validated['tanggal_lahir'],
-                        'nama_icd9' => $icd['name'],
-                        'kode_icd9' => $icd['code'],
-                        'priority_icd9' => $icd['priority'] ?? '',
-                    ]);
-                }
+                // Get the first ICD10 and ICD9 data to combine in one row
+                $icd10 = !empty($icd10Data) ? $icd10Data[0] : null;
+                $icd9 = !empty($icd9Data) ? $icd9Data[0] : null;
+
+                // Save combined ICD data in single row
+                Pelayanan_Soap_Dokter_Icd::updateOrCreate([
+                    'no_rawat' => $nomor_register,
+                ], [
+                    'nomor_rm' => $validated['nomor_rm'] ?? $soapDokter->nomor_rm,
+                    'nama' => $validated['nama'] ?? $soapDokter->nama,
+                    'seks' => $validated['seks'] ?? $soapDokter->seks,
+                    'penjamin' => $validated['penjamin'] ?? $soapDokter->penjamin,
+                    'tanggal_lahir' => $validated['tanggal_lahir'] ?? $soapDokter->tanggal_lahir,
+                    'kode_icd10' => $icd10['code'] ?? null,
+                    'nama_icd10' => $icd10['name'] ?? null,
+                    'priority_icd10' => $icd10['priority'] ?? null,
+                    'kode_icd9' => $icd9['code'] ?? null,
+                    'nama_icd9' => $icd9['name'] ?? null,
+                ]);
             }
 
-            // Save tindakan data to pelayanan_soap_dokter_tindakans table
+            // Save tindakan data to pelayanan_soap_dokter_tindakans table (upsert)
             if (!empty($tindakanData)) {
-                // Delete existing tindakan records for this patient
-                Pelayanan_Soap_Dokter_Tindakan::where('no_rawat', $nomor_register)->delete();
-                
                 // Save tindakan data
                 foreach ($tindakanData as $tindakan) {
                     // Handle multiple pelaksana if needed
                     $jenisPelaksana = is_array($tindakan['pelaksana']) ? implode(', ', $tindakan['pelaksana']) : $tindakan['pelaksana'];
-                    
-                    Pelayanan_Soap_Dokter_Tindakan::create([
-                        'nomor_rm' => $validated['nomor_rm'],
-                        'nama' => $validated['nama'],
+
+                    Pelayanan_Soap_Dokter_Tindakan::updateOrCreate([
                         'no_rawat' => $nomor_register,
-                        'seks' => $validated['seks'],
-                        'penjamin' => $validated['penjamin'],
-                        'tanggal_lahir' => $validated['tanggal_lahir'],
+                        'kode_tindakan' => $tindakan['kode'],
+                    ], [
+                        'nomor_rm' => $validated['nomor_rm'] ?? $soapDokter->nomor_rm,
+                        'nama' => $validated['nama'] ?? $soapDokter->nama,
+                        'seks' => $validated['seks'] ?? $soapDokter->seks,
+                        'penjamin' => $validated['penjamin'] ?? $soapDokter->penjamin,
+                        'tanggal_lahir' => $validated['tanggal_lahir'] ?? $soapDokter->tanggal_lahir,
                         'jenis_tindakan' => $tindakan['nama'],
+                        'kategori_tindakan' => $tindakan['kategori'],
                         'jenis_pelaksana' => $jenisPelaksana,
                         'harga' => $tindakan['harga'],
                         'status_kasir' => '0', // Default status
@@ -636,43 +861,60 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 }
             }
 
-            // Update obat data - delete existing and create new ones
+            // Update obat data - sync (delete by no_rawat then insert all)
+            // Fetch patient snapshot for demographic fields
+            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
+                ->where('nomor_register', $nomor_register)
+                ->first();
+            Pelayanan_Soap_Dokter_Obat::where('no_rawat', $nomor_register)->delete();
             if (!empty($obatData)) {
-                // Delete existing obat records for this patient
-                Pelayanan_Soap_Dokter_Obat::where('no_rawat', $nomor_register)->delete();
-                
-                // Get patient data for obat records
-                $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
-                    ->where('nomor_register', $nomor_register)
-                    ->first();
-                
-                // Create new obat records
+                $rows = [];
                 foreach ($obatData as $obat) {
-                    if (!empty($obat['nama_obat']) && !empty($obat['jumlah'])) {
-                        Pelayanan_Soap_Dokter_Obat::create([
-                            'nomor_rm' => $pelayanan->nomor_rm ?? '',
-                            'nama' => optional($pelayanan->pasien)->nama ?? '',
-                            'no_rawat' => $nomor_register,
-                            'seks' => optional($pelayanan->pasien)->seks ?? '',
-                            'penjamin' => optional(optional($pelayanan->pendaftaran)->penjamin)->nama ?? '',
-                            'tanggal_lahir' => optional($pelayanan->pasien)->tanggal_lahir ?? '',
-                            'penanda' => $obat['penanda'] ?? '',
-                            'nama_obat' => $obat['nama_obat'],
-                            'jumlah' => (int)$obat['jumlah'],
-                            'instruksi' => $obat['instruksi'] ?? '',
-                            'signa' => $obat['signa'] ?? '',
-                            'satuan_gudang' => $obat['satuan_gudang'] ?? '',
-                            'penggunaan' => $obat['penggunaan'] ?? '',
-                        ]);
-                    }
+                    if (empty($obat['nama_obat'])) continue;
+                    $rows[] = [
+                        'no_rawat' => $nomor_register,
+                        'nomor_rm' => $pelayanan->nomor_rm ?? '',
+                        'nama' => optional($pelayanan->pasien)->nama ?? '',
+                        'seks' => optional($pelayanan->pasien)->seks ?? '',
+                        'penjamin' => optional(optional($pelayanan->pendaftaran)->penjamin)->nama ?? '',
+                        'tanggal_lahir' => optional($pelayanan->pasien)->tanggal_lahir ?? '',
+                        'penanda' => $obat['penanda'] ?? '',
+                        'nama_obat' => $obat['nama_obat'] ?? '',
+                        'instruksi' => $obat['instruksi'] ?? '',
+                        'signa' => $obat['signa'] ?? '',
+                        'satuan_gudang' => $obat['satuan_gudang'] ?? '',
+                        'penggunaan' => $obat['penggunaan'] ?? '',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+                if (!empty($rows)) {
+                    Pelayanan_Soap_Dokter_Obat::insert($rows);
                 }
             }
 
             // Saat update, pastikan status dokter minimal berjalan (1)
             app(PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register);
 
+            // Save to patient history with enriched assessment/plan context
+            $historyPayload = $validated;
+            // Pastikan no_rawat terisi untuk enrichment metadata
+            $historyPayload['no_rawat'] = $nomor_register;
+            $historyPayload['assessment'] = [
+                'diagnosis_icd10' => $icd10Data,
+                'diagnosis_icd9' => $icd9Data,
+                'tindakan' => $tindakanData,
+                'resep_obat' => $obatData,
+            ];
+            $historyPayload['plan_detail'] = [
+                'expertise' => $validated['expertise'] ?? '',
+                'evaluasi' => $validated['evaluasi'] ?? '',
+                'rencana' => $validated['plan'] ?? '',
+            ];
+            $this->savePatientHistory($historyPayload, 'soap_dokter_edit');
+
             return redirect()
-                ->route('pelayanan.so-dokter.index')
+                ->route('pelayanan.soap-dokter.index')
                 ->with('success', 'SOAP Dokter berhasil diperbarui');
         } catch (\Exception $e) {
             return redirect()

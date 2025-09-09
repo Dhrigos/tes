@@ -21,6 +21,7 @@ use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
 use App\Models\Module\SDM\PerawatPendidikan;
 use App\Models\Module\SDM\PerawatPelatihan;
+use Carbon\Carbon;
 
 
 class Perawat_Controller extends Controller
@@ -168,6 +169,14 @@ class Perawat_Controller extends Controller
         }
 
         $perawat = Perawat::create($perawatData);
+
+        User::create([
+            'name' => $validatedData['nama'],
+            'username' => $validatedData['nik'],
+            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
+            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('y-m-d')),
+        ]);
+        
 
         return back()->with('success', 'Data perawat berhasil ditambahkan!');
     }

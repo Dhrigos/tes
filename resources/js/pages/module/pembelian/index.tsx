@@ -103,8 +103,8 @@ export default function PembelianIndex() {
         harga_satuan_kecil: '0',
         diskon_persen: true,
     });
-    const [searchObat, setSearchObat] = useState("");
-    const [searchInventaris, setSearchInventaris] = useState("");
+    const [searchObat, setSearchObat] = useState('');
+    const [searchInventaris, setSearchInventaris] = useState('');
     const [pembelianData, setPembelianData] = useState<PembelianData>({
         jenis_pembelian: '',
         nomor_faktur: '',
@@ -182,7 +182,7 @@ export default function PembelianIndex() {
                         id: item.id,
                         kode_barang: item.kode,
                         nama_barang: item.nama_dagang || item.nama,
-                    }))
+                    })),
                 );
             }
         } catch (e) {
@@ -211,30 +211,28 @@ export default function PembelianIndex() {
     // Debounce not needed when using props only
 
     // Filter dabar based on search term
-    const filteredDabar = obatOptions?.filter((barang) => {
-        const q = searchObat.toLowerCase();
-        return (
-            barang.nama?.toLowerCase().includes(q) 
-        );
-    }).slice(0, 5) || [];
+    const filteredDabar =
+        obatOptions
+            ?.filter((barang) => {
+                const q = searchObat.toLowerCase();
+                return barang.nama?.toLowerCase().includes(q);
+            })
+            .slice(0, 5) || [];
 
     // Filter inventaris based on search term
-    const filteredInventaris = inventarisOptions?.filter((item) => {
-        const q = searchInventaris.toLowerCase();
-        return (
-            item.nama_barang?.toLowerCase().includes(q)
-        );
-    }).slice(0, 5) || [];
+    const filteredInventaris =
+        inventarisOptions
+            ?.filter((item) => {
+                const q = searchInventaris.toLowerCase();
+                return item.nama_barang?.toLowerCase().includes(q);
+            })
+            .slice(0, 5) || [];
 
     // Filter suppliers (client-side) for display; server already supports q param
     const filteredSuppliers = (supplierOptions || [])
         .filter((s) => {
             const q = searchSupplier.toLowerCase();
-            return (
-                s.nama?.toLowerCase().includes(q) ||
-                s.kode?.toLowerCase().includes(q) ||
-                (s.nama_pic || '')?.toLowerCase().includes(q)
-            );
+            return s.nama?.toLowerCase().includes(q) || s.kode?.toLowerCase().includes(q) || (s.nama_pic || '')?.toLowerCase().includes(q);
         })
         .slice(0, 50);
 
@@ -305,10 +303,7 @@ export default function PembelianIndex() {
             harga_satuan: '0',
             diskon: '0',
             // exp dipakai untuk inventaris sebagai masa akhir penggunaan
-            exp:
-                isInventarisType
-                    ? new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0]
-                    : '',
+            exp: isInventarisType ? new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0] : '',
             batch: '',
             sub_total: '0',
             nilai_konversi: 1,
@@ -367,15 +362,15 @@ export default function PembelianIndex() {
             nilaiSedang = nilaiBesar * Math.max(1, konversiBs);
         }
         if (!nilaiKecil && nilaiBesar) {
-            nilaiSedang = nilaiSedang || (nilaiBesar * Math.max(1, konversiBs));
-            nilaiKecil = (nilaiSedang) * Math.max(1, konversiSk);
+            nilaiSedang = nilaiSedang || nilaiBesar * Math.max(1, konversiBs);
+            nilaiKecil = nilaiSedang * Math.max(1, konversiSk);
         }
 
         const hargaAktif = kemasanBesar ? hargaBesar : hargaKecil;
 
         // Gunakan qty pembelian apa adanya (tidak diturunkan dari nilai_satuan_*)
         const qtyPembelian = parseFloat(item.qty || '0') || 0;
-        const qtyAktual = kemasanBesar ? (qtyPembelian * totalKonversi) : qtyPembelian;
+        const qtyAktual = kemasanBesar ? qtyPembelian * totalKonversi : qtyPembelian;
 
         const diskonPersen = item.diskon_persen ?? true;
         const diskonValue = parseFloat(item.diskon || '0') || 0;
@@ -522,9 +517,10 @@ export default function PembelianIndex() {
             // Recompute qty_aktual (satuan kecil) dari qty & kemasan
             {
                 const konvBs = (updatedItem.nilai_konversi_bs || prev.nilai_konversi_bs || 1) as number;
-                const derivedSk = (updatedItem.nilai_konversi || prev.nilai_konversi)
-                    ? ((updatedItem.nilai_konversi as number) || (prev.nilai_konversi as number) || 1) / Math.max(1, konvBs)
-                    : 1;
+                const derivedSk =
+                    updatedItem.nilai_konversi || prev.nilai_konversi
+                        ? ((updatedItem.nilai_konversi as number) || (prev.nilai_konversi as number) || 1) / Math.max(1, konvBs)
+                        : 1;
                 const konvSk = (updatedItem.nilai_konversi_sk || prev.nilai_konversi_sk || derivedSk) as number;
                 const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
                 const qtyNum = parseFloat(updatedItem.qty || '0') || 0;
@@ -665,15 +661,6 @@ export default function PembelianIndex() {
 
             // Validasi setiap detail item
             for (const detail of pembelianDetails) {
-                console.log('Validating item:', {
-                    nama: detail.nama_obat_alkes,
-                    kode: detail.kode_obat_alkes,
-                    qty: detail.qty,
-                    qty_number: Number(detail.qty),
-                    harga: detail.harga_satuan,
-                    harga_number: Number(detail.harga_satuan),
-                });
-
                 if (
                     !detail.nama_obat_alkes?.trim() ||
                     !detail.kode_obat_alkes?.trim() ||
@@ -684,12 +671,6 @@ export default function PembelianIndex() {
                     isNaN(Number(detail.harga_satuan)) ||
                     Number(detail.harga_satuan) <= 0
                 ) {
-                    console.log('Validation failed:', {
-                        nama_empty: !detail.nama_obat_alkes?.trim(),
-                        kode_empty: !detail.kode_obat_alkes?.trim(),
-                        qty_invalid: !detail.qty || isNaN(Number(detail.qty)) || Number(detail.qty) <= 0,
-                        harga_invalid: !detail.harga_satuan || isNaN(Number(detail.harga_satuan)) || Number(detail.harga_satuan) <= 0,
-                    });
                     toast.error('Semua field item wajib diisi dengan benar (nama dan kode tidak boleh kosong, qty dan harga harus lebih dari 0)');
                     return;
                 }
@@ -703,7 +684,7 @@ export default function PembelianIndex() {
 
                     if (isObatType) {
                         // kirim qty dalam satuan kecil menggunakan qty_aktual yang sudah disimpan
-                        qtyToSend = (detail.qty_aktual || '0');
+                        qtyToSend = detail.qty_aktual || '0';
                     }
 
                     return {
@@ -781,19 +762,21 @@ export default function PembelianIndex() {
                                 return (
                                     <div key={step.number} className="flex items-center">
                                         <div
-                                            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${isCompleted
-                                                ? 'border-green-500 bg-green-500 text-white'
-                                                : isActive
-                                                    ? 'border-blue-500 bg-blue-500 text-white'
-                                                    : 'border-gray-300 bg-gray-100 text-gray-400'
-                                                }`}
+                                            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${
+                                                isCompleted
+                                                    ? 'border-green-500 bg-green-500 text-white'
+                                                    : isActive
+                                                      ? 'border-blue-500 bg-blue-500 text-white'
+                                                      : 'border-gray-300 bg-gray-100 text-gray-400'
+                                            }`}
                                         >
                                             <Icon className="h-5 w-5" />
                                         </div>
                                         <div className="ml-3">
                                             <p
-                                                className={`text-sm font-medium ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
-                                                    }`}
+                                                className={`text-sm font-medium ${
+                                                    isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                                                }`}
                                             >
                                                 Step {step.number}
                                             </p>
@@ -861,15 +844,14 @@ export default function PembelianIndex() {
                                     </div>
                                     {pembelianData.jenis_pembelian && (
                                         <Badge variant="secondary" className="mt-4">
-                                            Terpilih: {
-                                                pembelianData.jenis_pembelian === 'obat'
-                                                    ? 'Obat'
-                                                    : pembelianData.jenis_pembelian === 'inventaris'
-                                                        ? 'Inventaris'
-                                                        : pembelianData.jenis_pembelian === 'obat_klinik'
-                                                            ? 'Obat Klinik'
-                                                            : 'Inventaris Klinik'
-                                            }
+                                            Terpilih:{' '}
+                                            {pembelianData.jenis_pembelian === 'obat'
+                                                ? 'Obat'
+                                                : pembelianData.jenis_pembelian === 'inventaris'
+                                                  ? 'Inventaris'
+                                                  : pembelianData.jenis_pembelian === 'obat_klinik'
+                                                    ? 'Obat Klinik'
+                                                    : 'Inventaris Klinik'}
                                         </Badge>
                                     )}
                                 </div>
@@ -947,7 +929,7 @@ export default function PembelianIndex() {
                                                             <div className="flex flex-col">
                                                                 <div className="font-medium" title={s.nama}>
                                                                     {s.kode ? `${s.kode} - ${s.nama}` : s.nama}
-                                                                </div>                                                                
+                                                                </div>
                                                             </div>
                                                         </SelectItem>
                                                     ))
@@ -957,7 +939,7 @@ export default function PembelianIndex() {
                                                     </div>
                                                 )}
                                             </SelectContent>
-                                        </Select>                                        
+                                        </Select>
                                     </div>
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
@@ -1136,8 +1118,7 @@ export default function PembelianIndex() {
                                     <DialogContent className="max-h-[85vh] w-[98vw] max-w-7xl overflow-y-auto sm:max-w-5xl">
                                         <DialogHeader>
                                             <DialogTitle>
-                                                {editingItem ? 'Edit Item' : 'Tambah Item'}{' '}
-                                                {isObatType ? 'Obat' : 'Inventaris'}
+                                                {editingItem ? 'Edit Item' : 'Tambah Item'} {isObatType ? 'Obat' : 'Inventaris'}
                                             </DialogTitle>
                                         </DialogHeader>
 
@@ -1164,15 +1145,18 @@ export default function PembelianIndex() {
                                                                     const nilaiKecil = Number(item?.nilai_satuan_kecil || 0);
 
                                                                     // Hitung konversi besar->sedang dan sedang->kecil
-                                                                    const konvBs = nilaiBesar && nilaiSedang
-                                                                        ? Math.max(1, Math.round(nilaiSedang / Math.max(1, nilaiBesar)))
-                                                                        : 1;
-                                                                    const totalKonvApprox = nilaiBesar && nilaiKecil
-                                                                        ? Math.max(1, Math.round(nilaiKecil / Math.max(1, nilaiBesar)))
-                                                                        : (modalData.nilai_konversi || 1);
-                                                                    const konvSk = nilaiSedang && nilaiKecil
-                                                                        ? Math.max(1, Math.round(nilaiKecil / Math.max(1, nilaiSedang)))
-                                                                        : Math.max(1, Math.round(totalKonvApprox / Math.max(1, konvBs)));
+                                                                    const konvBs =
+                                                                        nilaiBesar && nilaiSedang
+                                                                            ? Math.max(1, Math.round(nilaiSedang / Math.max(1, nilaiBesar)))
+                                                                            : 1;
+                                                                    const totalKonvApprox =
+                                                                        nilaiBesar && nilaiKecil
+                                                                            ? Math.max(1, Math.round(nilaiKecil / Math.max(1, nilaiBesar)))
+                                                                            : modalData.nilai_konversi || 1;
+                                                                    const konvSk =
+                                                                        nilaiSedang && nilaiKecil
+                                                                            ? Math.max(1, Math.round(nilaiKecil / Math.max(1, nilaiSedang)))
+                                                                            : Math.max(1, Math.round(totalKonvApprox / Math.max(1, konvBs)));
                                                                     const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
 
                                                                     // Simpan faktor konversi (set nilai_konversi_bs dahulu agar dipakai saat set nilai_konversi)
@@ -1180,10 +1164,15 @@ export default function PembelianIndex() {
                                                                     updateModalData('nilai_konversi', totalKonv);
 
                                                                     // Set nilai satuan di semua level bila tersedia / dapat diturunkan
-                                                                    const nilaiSedangFinal = nilaiSedang || (nilaiBesar ? nilaiBesar * Math.max(1, konvBs) : 0);
-                                                                    const nilaiKecilFinal = nilaiKecil
-                                                                        || (nilaiSedang ? nilaiSedang * Math.max(1, konvSk)
-                                                                        : (nilaiBesar ? nilaiBesar * totalKonv : 0));
+                                                                    const nilaiSedangFinal =
+                                                                        nilaiSedang || (nilaiBesar ? nilaiBesar * Math.max(1, konvBs) : 0);
+                                                                    const nilaiKecilFinal =
+                                                                        nilaiKecil ||
+                                                                        (nilaiSedang
+                                                                            ? nilaiSedang * Math.max(1, konvSk)
+                                                                            : nilaiBesar
+                                                                              ? nilaiBesar * totalKonv
+                                                                              : 0);
 
                                                                     updateModalData('nilai_satuan_besar', String(nilaiBesar || 0));
                                                                     updateModalData('nilai_satuan_sedang', String(nilaiSedangFinal || 0));
@@ -1197,7 +1186,10 @@ export default function PembelianIndex() {
                                                             >
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder="Pilih dari Daftar Obat">
-                                                                        {obatOptions.find(opt => opt.kode === modalData.kode_obat_alkes)?.nama_dagang || obatOptions.find(opt => opt.kode === modalData.kode_obat_alkes)?.nama || ''}
+                                                                        {obatOptions.find((opt) => opt.kode === modalData.kode_obat_alkes)
+                                                                            ?.nama_dagang ||
+                                                                            obatOptions.find((opt) => opt.kode === modalData.kode_obat_alkes)?.nama ||
+                                                                            ''}
                                                                     </SelectValue>
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -1232,7 +1224,11 @@ export default function PembelianIndex() {
                                                                         filteredDabar.map((barang) => (
                                                                             <SelectItem key={barang.id} value={barang.kode}>
                                                                                 <div className="flex flex-col">
-                                                                                    <div className="font-medium" title={barang.nama}>{barang.nama.length > 40 ? `${barang.nama.substring(0, 40)}...` : barang.nama}</div>
+                                                                                    <div className="font-medium" title={barang.nama}>
+                                                                                        {barang.nama.length > 40
+                                                                                            ? `${barang.nama.substring(0, 40)}...`
+                                                                                            : barang.nama}
+                                                                                    </div>
                                                                                 </div>
                                                                             </SelectItem>
                                                                         ))
@@ -1248,9 +1244,7 @@ export default function PembelianIndex() {
                                                             <div className="mt-1 text-xs text-muted-foreground">
                                                                 Total: {obatOptions.length} obat/alkes
                                                                 {searchObat && (
-                                                                    <span className="ml-1">
-                                                                        (Ditemukan {filteredDabar.length} obat/alkes)
-                                                                    </span>
+                                                                    <span className="ml-1">(Ditemukan {filteredDabar.length} obat/alkes)</span>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -1277,17 +1271,23 @@ export default function PembelianIndex() {
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                                                         <div className="space-y-2">
                                                             <Label>Jenis Kemasan</Label>
-                                                            <div className="flex items-center space-x-4 justify-center">
-                                                                <span className={modalData.kemasan_besar ? 'text-gray-500' : 'font-medium'}>Kemasan Kecil</span>
+                                                            <div className="flex items-center justify-center space-x-4">
+                                                                <span className={modalData.kemasan_besar ? 'text-gray-500' : 'font-medium'}>
+                                                                    Kemasan Kecil
+                                                                </span>
                                                                 <Switch
                                                                     checked={modalData.kemasan_besar}
                                                                     onCheckedChange={(checked) => updateModalData('kemasan_besar', checked)}
                                                                 />
-                                                                <span className={modalData.kemasan_besar ? 'font-medium' : 'text-gray-500'}>Kemasan Besar</span>
+                                                                <span className={modalData.kemasan_besar ? 'font-medium' : 'text-gray-500'}>
+                                                                    Kemasan Besar
+                                                                </span>
                                                             </div>
                                                         </div>
                                                         <div className="space-y-2">
-                                                            <Label>Qty Pembelian ({modalData.kemasan_besar ? 'Kemasan Besar' : 'Kemasan Kecil'})</Label>
+                                                            <Label>
+                                                                Qty Pembelian ({modalData.kemasan_besar ? 'Kemasan Besar' : 'Kemasan Kecil'})
+                                                            </Label>
                                                             <Input
                                                                 type="number"
                                                                 value={modalData.qty}
@@ -1308,15 +1308,19 @@ export default function PembelianIndex() {
 
                                                     {/* Baris 3: Diskon dan Batch */}
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                                                        <div className="space-y-2 ">
+                                                        <div className="space-y-2">
                                                             <Label>Jenis Diskon</Label>
-                                                            <div className="flex items-center space-x-4 justify-center">
-                                                                <span className={modalData.diskon_persen ? 'text-gray-500' : 'font-medium'}>Rupiah (Rp)</span>
+                                                            <div className="flex items-center justify-center space-x-4">
+                                                                <span className={modalData.diskon_persen ? 'text-gray-500' : 'font-medium'}>
+                                                                    Rupiah (Rp)
+                                                                </span>
                                                                 <Switch
                                                                     checked={modalData.diskon_persen}
                                                                     onCheckedChange={(checked) => updateModalData('diskon_persen', checked)}
                                                                 />
-                                                                <span className={modalData.diskon_persen ? 'font-medium' : 'text-gray-500'}>Persen (%)</span>
+                                                                <span className={modalData.diskon_persen ? 'font-medium' : 'text-gray-500'}>
+                                                                    Persen (%)
+                                                                </span>
                                                             </div>
                                                         </div>
                                                         <div className="space-y-2">
@@ -1342,11 +1346,7 @@ export default function PembelianIndex() {
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                                         <div className="space-y-2">
                                                             <Label>Qty Aktual (Satuan Kecil)</Label>
-                                                            <Input
-                                                                type="number"
-                                                                value={modalData.qty_aktual || '0'}
-                                                                readOnly
-                                                            />
+                                                            <Input type="number" value={modalData.qty_aktual || '0'} readOnly />
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Sub Total</Label>
@@ -1378,12 +1378,12 @@ export default function PembelianIndex() {
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 <div className="relative">
-                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                                                         <Search className="h-4 w-4 text-gray-400" />
                                                                     </div>
                                                                     <Input
                                                                         placeholder="Cari barang..."
-                                                                        className="pl-10 pr-10 py-2 border-b rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 border-x-0 border-t-0"
+                                                                        className="rounded-none border-x-0 border-t-0 border-b py-2 pr-10 pl-10 focus-visible:ring-0 focus-visible:ring-offset-0"
                                                                         value={searchInventaris}
                                                                         onChange={(e) => setSearchInventaris(e.target.value)}
                                                                     />
@@ -1402,17 +1402,21 @@ export default function PembelianIndex() {
                                                                         </Button>
                                                                     )}
                                                                 </div>
-                                                                <div className="px-2 py-1 text-xs text-muted-foreground border-b">
-                                                                    Menampilkan {filteredInventaris.length} dari {inventarisOptions?.length || 0} barang
+                                                                <div className="border-b px-2 py-1 text-xs text-muted-foreground">
+                                                                    Menampilkan {filteredInventaris.length} dari {inventarisOptions?.length || 0}{' '}
+                                                                    barang
                                                                 </div>
                                                                 {filteredInventaris.length > 0 ? (
                                                                     filteredInventaris.map((opt) => {
-                                                                        const displayText = (opt.kode_barang ? opt.kode_barang + ' - ' : '') + opt.nama_barang;
+                                                                        const displayText =
+                                                                            (opt.kode_barang ? opt.kode_barang + ' - ' : '') + opt.nama_barang;
                                                                         const isTruncated = displayText.length > 50;
-                                                                        const truncatedText = isTruncated ? displayText.substring(0, 50) + '...' : displayText;
+                                                                        const truncatedText = isTruncated
+                                                                            ? displayText.substring(0, 50) + '...'
+                                                                            : displayText;
                                                                         return (
-                                                                            <SelectItem 
-                                                                                key={opt.id} 
+                                                                            <SelectItem
+                                                                                key={opt.id}
                                                                                 value={opt.kode_barang || String(opt.id)}
                                                                                 title={isTruncated ? displayText : undefined}
                                                                             >

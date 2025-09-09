@@ -11,13 +11,10 @@ class Set_Sehat extends Model
     protected $fillable = [
         'org_id',
         'client_id',
-        'client_secret',
-        'SECRET_KEY',
-        'SATUSEHAT_BASE_URL',
+        'client_secret',      
     ];
 
     protected $hidden = [
-        'client_secret',
-        'SECRET_KEY',
+        'client_secret',        
     ];
 }

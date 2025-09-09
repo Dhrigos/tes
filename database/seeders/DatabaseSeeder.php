@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         // panggil seeder GCS
         $this->call([
+            RoleSeeder::class,
             GcsSeeder::class,
         ]);
     }

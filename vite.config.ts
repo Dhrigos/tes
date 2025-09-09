@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
 import { resolve } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
+import fs from 'fs'
+
 
 export default defineConfig(({ mode }) => {
     // Load env variables
@@ -30,13 +32,36 @@ export default defineConfig(({ mode }) => {
                 'ziggy-js': resolve(__dirname, 'vendor/tightenco/ziggy'),
             },
         },
+        optimizeDeps: {
+            include: [
+                // Pre-bundle TinyMCE community submodules used via dynamic import to avoid re-optimizing
+                'tinymce/tinymce',
+                'tinymce/icons/default/icons',
+                'tinymce/themes/silver',
+                'tinymce/models/dom',
+                'tinymce/plugins/lists',
+                'tinymce/plugins/link',
+                'tinymce/plugins/code',
+                'tinymce/plugins/help',
+            ],
+            // Force re-optimization on dev server start to prevent "Outdated Optimize Dep" cache mismatches
+            force: isDevServer,
+        },
         server: isDevServer
             ? {
-                  host: '100.106.3.92', // bisa diakses dari LAN/WAN
+                  host: '0.0.0.0', // bisa diakses dari LAN/WAN
                   port: 5173,
-                  cors: {
-                      origin: '*', // bisa juga spesifik: "http://100.106.3.92:82"
+                  https: {
+                    key: fs.readFileSync('/etc/nginx/ssl/selfsigned.key'),
+                    cert: fs.readFileSync('/etc/nginx/ssl/selfsigned.crt'),
+                  },              
+                  cors: true, // <--- tambahkan
+                  hmr: {
+                    host: '100.106.3.92',  // <– IP/VPN server kamu
+                    protocol: 'wss',       // pakai wss karena https
+                    port: 5173,
                   },
+              
               }
             : undefined, // kalau VITE_DEV_SERVER != true, pakai default
     };

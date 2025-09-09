@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use LZCompressor\LZString;
 use Illuminate\Support\Facades\Log;
+use App\Models\Settings\Set_Bpjs;
 
 class Pcare_Controller extends Controller
 {
@@ -14,14 +15,21 @@ class Pcare_Controller extends Controller
      * Ambil token BPJS
      */
     private function token(): array
-    {
-        $cons_id = "10791";
-        $secret_key = "4iJAEE30E7";
-        $username = "ecodumy";
-        $password = "Asdf123#";
-        $app_code = "095";
-        $user_key = "cf03a8d46531a8ee3d1575196d31a443";
-
+    {         
+        $bpjsConfig = Set_Bpjs::first();
+        
+        if (!$bpjsConfig) {
+            throw new \Exception('Konfigurasi BPJS tidak ditemukan di database');
+        }
+ 
+        $cons_id = $bpjsConfig->CONSID;
+        $secret_key = $bpjsConfig->SECRET_KEY;
+        $username = $bpjsConfig->USERNAME;
+        $password = $bpjsConfig->PASSWORD;
+        $user_key = $bpjsConfig->USER_KEY;
+        // APP_CODE sekarang diambil dari .env (kolom di DB sudah dihapus)
+        $app_code = env('BPJS_App_code', '095');
+        
         date_default_timezone_set('UTC');
         $timestamp = strval(time());
 
@@ -151,8 +159,8 @@ class Pcare_Controller extends Controller
      */
     public function get_poli()
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'poli/fktp';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -212,8 +220,8 @@ class Pcare_Controller extends Controller
 
     public function get_alergi($kode)
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'alergi/jenis';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -280,8 +288,8 @@ class Pcare_Controller extends Controller
 
     public function get_diagnosa($nama)
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'diagnosa';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -341,8 +349,8 @@ class Pcare_Controller extends Controller
 
     public function get_sarana()
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'spesialis/sarana';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -401,8 +409,8 @@ class Pcare_Controller extends Controller
 
     public function get_spesialis()
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'spesialis';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -461,8 +469,8 @@ class Pcare_Controller extends Controller
 
     public function get_sub_spesialis($kode)
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'spesialis';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -522,8 +530,8 @@ class Pcare_Controller extends Controller
 
     public function get_peserta($no)
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'peserta';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -587,8 +595,8 @@ class Pcare_Controller extends Controller
 
     public function get_dokter()
     {
-        $BASE_URL = "https://apijkn-dev.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "pcare-rest-dev";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
         $feature = 'dokter';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -645,5 +653,59 @@ class Pcare_Controller extends Controller
         }
     }
 
+    public function add_pendaftaran($data)
+    {
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_Pcare_Service');
+        $feature = 'pendaftaran';
+        $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
+
+        try {
+            $startTime = microtime(true);
+
+            // Request ke BPJS
+            $response = Http::withHeaders(array_merge(
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                $token['headers']
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+
+            $body = json_decode($response->body(), true);
+            $responseTime = microtime(true) - $startTime;
+
+            $successCodes = [200, 201];
+
+            if (!in_array($body['metaData']['code'] ?? 0, $successCodes) || empty($body['response'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
+                    'response_time' => number_format($responseTime, 2),
+                    'raw' => $body // opsional
+                ], 400);
+            }            
+
+            // Dekripsi
+            $data = $this->decryptBpjsResponse($body['response'], $token);
+
+            if (!$data || empty($data)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Data tidak ditemukan',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $data,
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
 
 }

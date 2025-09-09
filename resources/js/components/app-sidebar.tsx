@@ -62,7 +62,7 @@ const mainNavItems = [
         title: 'Kasir',
         icon: LayoutGrid,
         href: '/kasir',
-    },    
+    },
     {
         title: 'Gudang',
         icon: LayoutGrid,
@@ -119,7 +119,7 @@ const mainNavItems = [
     {
         title: 'Data Master',
         icon: LayoutGrid,
-        children: [            
+        children: [
             {
                 title: 'Gudang',
                 children: [
@@ -144,11 +144,12 @@ const mainNavItems = [
                     { title: 'ICD-9', href: '/datamaster/medis/icd9' },
                     { title: 'Instruksi Obat', href: '/datamaster/medis/instruksi-obat' },
                     { title: 'Jenis Diet', href: '/datamaster/medis/jenis-diet' },
+                    { title: 'Kategori Pemeriksaan & Tindakan', href: '/datamaster/medis/kategori-tindakan' },
+                    { title: 'Perawatan dan Tindakan', href: '/datamaster/medis/tindakan' },
                     { title: 'Laboratorium Bidang', href: '/datamaster/medis/laboratorium-bidang' },
                     { title: 'Nama Makanan', href: '/datamaster/medis/makanan' },
                     { title: 'Penggunaan Obat', href: '/datamaster/medis/penggunaan-obat' },
                     { title: 'Poli', href: '/datamaster/medis/poli' },
-                    { title: 'Perawatan dan Tindakan', href: '/datamaster/medis/tindakan' },
                     { title: 'Radiologi Jenis dan Pemeriksaan', href: '/datamaster/medis/radiologi' },
                     { title: 'Sarana', href: '/datamaster/medis/sarana' },
                     { title: 'Spesialis', href: '/datamaster/medis/spesialis' },
@@ -172,7 +173,6 @@ const mainNavItems = [
                     { title: 'Suku', href: '/datamaster/umum/suku' },
                 ],
             },
-           
         ],
     },
 ];

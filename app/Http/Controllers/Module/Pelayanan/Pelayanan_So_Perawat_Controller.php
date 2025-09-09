@@ -12,11 +12,13 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Rujukan;
 use App\Models\Module\Pelayanan\Pelayanan_Permintaan;
+use App\Models\Module\Pasien\Pasien_History;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
-use Inertia\Inertia;    
+use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Verbal;
@@ -24,9 +26,62 @@ use App\Models\Module\Pelayanan\Gcs\Gcs_Motorik;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Kesadaran;
 use App\Services\PelayananStatusService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 
 class Pelayanan_So_Perawat_Controller extends Controller
 {
+    /**
+     * Save patient history to pasien_histories table
+     */
+    private function savePatientHistory($data, $type = 'so_perawat')
+    {
+        try {
+            $historyData = [
+                'no_rm' => $data['nomor_rm'] ?? '',
+                'nama' => $data['nama'] ?? '',
+                'history' => [
+                    'type' => $type,
+                    'no_rawat' => $data['no_rawat'] ?? '',
+                    'timestamp' => now()->toISOString(),
+                    'data' => $data
+                ]
+            ];
+
+            // Enrich with perawat and clinic names for CPPT
+            try {
+                $noRawatForLookup = $historyData['history']['no_rawat'] ?? '';
+                if (!empty($noRawatForLookup)) {
+                    $pelayananForMeta = \App\Models\Module\Pelayanan\Pelayanan::with(['dokter.namauser'])
+                        ->where('nomor_register', $noRawatForLookup)
+                        ->first();
+                    if ($pelayananForMeta) {
+                        // For perawat entries, use current logged-in user's name as perawat_name
+                        $perawatName = optional(Auth::user())->name;
+                        $klinikName = optional(\App\Models\Settings\Web_Setting::first())->nama;
+                        // Ensure we don't keep dokter_name for perawat history
+                        unset($historyData['history']['dokter_name']);
+                        unset($historyData['history']['data']['dokter_name']);
+                        if (!empty($perawatName)) {
+                            $historyData['history']['perawat_name'] = $perawatName;
+                            $historyData['history']['data']['perawat_name'] = $perawatName;
+                        }
+                        if (!empty($klinikName)) {
+                            $historyData['history']['klinik_name'] = $klinikName;
+                            $historyData['history']['data']['klinik_name'] = $klinikName;
+                        }
+                    }
+                }
+            } catch (\Exception $metaEx) {
+                // ignore enrichment failure
+            }
+
+            Pasien_History::create($historyData);
+        } catch (\Exception $e) {
+            // Log error but don't fail the main operation
+            Log::error('Failed to save patient history: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Display a listing of pelayanan data for perawat
      */
@@ -35,7 +90,7 @@ class Pelayanan_So_Perawat_Controller extends Controller
         try {
             // Ambil daftar pelayanan HARI INI, join dengan SO Perawat untuk tentukan state tindakan
             $today = Carbon::today();
-            
+
             // Ambil data hanya untuk hari ini
             $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
                 ->whereDate('tanggal_kujungan', '=', $today)
@@ -225,7 +280,7 @@ class Pelayanan_So_Perawat_Controller extends Controller
             $ps = Pelayanan_status::where('nomor_register', $nomor_register)->first();
             $statusDaftar = (int)($ps->status_daftar ?? 0);
             $statusPerawat = (int)($ps->status_perawat ?? 0);
-            
+
             // Untuk testing, kita skip guard dulu
             // if ($statusDaftar < 2) {
             //     // Redirect kembali ke index dengan pesan untuk konfirmasi hadir daftar dahulu
@@ -275,7 +330,7 @@ class Pelayanan_So_Perawat_Controller extends Controller
 
             // Get Alergi data
             $alergiData = \App\Models\Module\Master\Data\Medis\Alergi::all();
-            
+
             // Fallback: try direct database query if model fails
             if ($alergiData->isEmpty()) {
                 try {
@@ -284,7 +339,7 @@ class Pelayanan_So_Perawat_Controller extends Controller
                     // silent
                 }
             }
-            
+
             // Logging debug alergi dihapus
 
             // Logging kirim data dihapus
@@ -348,7 +403,8 @@ class Pelayanan_So_Perawat_Controller extends Controller
 
             // If tensi empty but sistol/distol present, compose it
             if ((empty($validated['tensi']) || $validated['tensi'] === null)
-                && !empty($validated['sistol']) && !empty($validated['distol'])) {
+                && !empty($validated['sistol']) && !empty($validated['distol'])
+            ) {
                 $validated['tensi'] = $validated['sistol'] . '/' . $validated['distol'];
             }
 
@@ -376,7 +432,9 @@ class Pelayanan_So_Perawat_Controller extends Controller
                     $updates = [];
                     foreach ($existing->getFillable() as $field) {
                         // Lewati primary key dan no_rawat (kecuali jika no_rawat kosong)
-                        if ($field === 'id') { continue; }
+                        if ($field === 'id') {
+                            continue;
+                        }
                         $current = $existing->{$field} ?? null;
                         $incoming = $validated[$field] ?? null;
                         $currentEmpty = ($current === null || $current === '' || (is_array($current) && empty($current)));
@@ -399,6 +457,9 @@ class Pelayanan_So_Perawat_Controller extends Controller
             if (!empty($validated['no_rawat'])) {
                 app(PelayananStatusService::class)->tandaiPerawatSelesai($validated['no_rawat']);
             }
+
+            // Save to patient history
+            $this->savePatientHistory($validated, 'so_perawat_tambah');
 
             return redirect()
                 ->route('pelayanan.so-perawat.index')
@@ -459,7 +520,8 @@ class Pelayanan_So_Perawat_Controller extends Controller
 
             // If tensi empty but sistol/distol present, compose it
             if ((empty($validated['tensi']) || $validated['tensi'] === null)
-                && !empty($validated['sistol']) && !empty($validated['distol'])) {
+                && !empty($validated['sistol']) && !empty($validated['distol'])
+            ) {
                 $validated['tensi'] = $validated['sistol'] . '/' . $validated['distol'];
             }
 
@@ -483,6 +545,11 @@ class Pelayanan_So_Perawat_Controller extends Controller
 
             // Setelah pemeriksaan perawat disimpan, set perawat=2; dokter tetap 0 menunggu hadir dokter
             app(PelayananStatusService::class)->tandaiPerawatSelesai($nomor_register);
+
+            // Save to patient history
+            // Pastikan no_rawat ada pada payload history agar enrichment bisa berjalan
+            $validated['no_rawat'] = $nomor_register;
+            $this->savePatientHistory($validated, 'so_perawat_edit');
 
             return redirect()
                 ->route('pelayanan.so-perawat.index')

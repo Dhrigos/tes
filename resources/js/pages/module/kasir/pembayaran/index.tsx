@@ -751,22 +751,39 @@ export default function KasirIndex({
                                         <SelectContent>
                                             {(() => {
                                                 const kategoriList: Array<{ id: string; nama: string }> = [];
-                                                const pk = (tindakanTambahan?.perawatan_kategori || []) as AnyRecord[];
+
+                                                // Try different possible data structures
+                                                const pk = (tindakanTambahan?.perawatan_kategori ||
+                                                    tindakanTambahan?.kategori_tindakan ||
+                                                    []) as AnyRecord[];
                                                 if (Array.isArray(pk) && pk.length) {
-                                                    for (const k of pk)
-                                                        kategoriList.push({ id: String(k.id), nama: String(k.nama || `Kategori ${k.id}`) });
+                                                    for (const k of pk) {
+                                                        kategoriList.push({
+                                                            id: String(k.id),
+                                                            nama: String(k.nama || k.nama_kategori || `Kategori ${k.id}`),
+                                                        });
+                                                    }
                                                 } else {
-                                                    const pt = (tindakanTambahan?.perawatan_tindakan || []) as AnyRecord[];
+                                                    // Fallback: try to extract from tindakan data
+                                                    const pt = (tindakanTambahan?.perawatan_tindakan ||
+                                                        tindakanTambahan?.tindakan ||
+                                                        []) as AnyRecord[];
                                                     const seen: Record<string, boolean> = {};
                                                     for (const t of pt || []) {
-                                                        const id = String(t.perawatan_kategori_id || '');
-                                                        if (id && !seen[id]) {
-                                                            seen[id] = true;
-                                                            kategoriList.push({ id, nama: `Kategori ${id}` });
+                                                        const kategoriId = String(
+                                                            t.kategori_id || t.perawatan_kategori_id || t.kategori_tindakan_id || '',
+                                                        );
+                                                        const kategoriNama = String(t.kategori_nama || t.kategori || t.nama_kategori || '');
+                                                        if (kategoriId && !seen[kategoriId]) {
+                                                            seen[kategoriId] = true;
+                                                            kategoriList.push({
+                                                                id: kategoriId,
+                                                                nama: kategoriNama || `Kategori ${kategoriId}`,
+                                                            });
                                                         }
                                                     }
-                                                    console.log(kategoriList);
                                                 }
+
                                                 return kategoriList.map((k) => (
                                                     <SelectItem key={k.id} value={k.id}>
                                                         {k.nama}
@@ -784,7 +801,7 @@ export default function KasirIndex({
                                         value={tindakanNama}
                                         onValueChange={(v) => {
                                             setTindakanNama(v);
-                                            const pt = (tindakanTambahan?.perawatan_tindakan || []) as AnyRecord[];
+                                            const pt = (tindakanTambahan?.perawatan_tindakan || tindakanTambahan?.tindakan || []) as AnyRecord[];
                                             const found = (pt || []).find((t: AnyRecord) => String(t.nama) === v);
                                             if (found) {
                                                 setTarifPerawat(String(found.tarif_perawat || ''));
@@ -798,10 +815,15 @@ export default function KasirIndex({
                                         </SelectTrigger>
                                         <SelectContent>
                                             {(() => {
-                                                const pt = (tindakanTambahan?.perawatan_tindakan || []) as AnyRecord[];
-                                                const filtered = (pt || []).filter(
-                                                    (t: AnyRecord) => String(t.perawatan_kategori_id || '') === String(selectedKategoriId),
-                                                );
+                                                const pt = (tindakanTambahan?.perawatan_tindakan || tindakanTambahan?.tindakan || []) as AnyRecord[];
+
+                                                const filtered = (pt || []).filter((t: AnyRecord) => {
+                                                    const tindakanKategoriId = String(
+                                                        t.kategori_id || t.perawatan_kategori_id || t.kategori_tindakan_id || '',
+                                                    );
+                                                    return tindakanKategoriId === String(selectedKategoriId);
+                                                });
+
                                                 return filtered.map((t: AnyRecord, idx: number) => (
                                                     <SelectItem key={`${t.id || idx}-${t.nama}`} value={String(t.nama)}>
                                                         {t.nama}

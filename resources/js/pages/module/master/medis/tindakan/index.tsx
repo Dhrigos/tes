@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
@@ -18,17 +18,24 @@ interface Tindakan {
     id: number;
     kode: string;
     nama: string;
-    kategori: string;
+    kategori: string; // ID kategori dalam bentuk string dari database
     tarif_dokter: number;
     tarif_perawat: number;
     tarif_total: number;
 }
 
+interface KategoriTindakan {
+    id: number;
+    nama: string;
+}
+
 interface PageProps {
     tindakans: Tindakan[];
+    kategori_tindakan: KategoriTindakan[];
     flash?: {
         success?: string;
         error?: string;
+        message?: string;
     };
 }
 
@@ -39,9 +46,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Index() {
-    const { tindakans, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
+    const { tindakans, kategori_tindakan, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
 
     useEffect(() => {
+        if (flash?.message) {
+            toast.success(flash.message);
+        }
         if (flash?.success) {
             toast.success(flash.success);
         }
@@ -50,6 +60,12 @@ export default function Index() {
         }
         if (errors?.nama) {
             toast.error(errors.nama);
+        }
+        if (errors?.kode) {
+            toast.error(errors.kode);
+        }
+        if (errors?.kategori) {
+            toast.error(errors.kategori);
         }
     }, [flash, errors]);
 
@@ -73,10 +89,16 @@ export default function Index() {
     // Pencarian
     const [search, setSearch] = useState('');
 
-    const filteredTindakans = tindakans.filter((t) =>
-        t.nama.toLowerCase().includes(search.toLowerCase()) ||
-        t.kode.toLowerCase().includes(search.toLowerCase())
+    const filteredTindakans = tindakans.filter(
+        (t) => t.nama.toLowerCase().includes(search.toLowerCase()) || t.kode.toLowerCase().includes(search.toLowerCase()),
     );
+
+    // Fungsi untuk mendapatkan nama kategori berdasarkan ID (string)
+    const getKategoriNama = (kategoriId: string) => {
+        const id = parseInt(kategoriId);
+        const kategoriData = kategori_tindakan.find((k) => k.id === id);
+        return kategoriData ? kategoriData.nama : `Kategori ${kategoriId}`;
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -91,34 +113,23 @@ export default function Index() {
         };
 
         if (editId) {
-            router.put(
-                `/datamaster/medis/tindakan/${editId}`,
-                payload,
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-                        resetForm();
-                        setEditId(null);
-                    },
+            router.put(`/datamaster/medis/tindakan/${editId}`, payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpen(false);
+                    resetForm();
+                    setEditId(null);
                 },
-            );
+            });
         } else {
-            router.post(
-                '/datamaster/medis/tindakan',
-                payload,
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-                        resetForm();
-                        setEditId(null);
-                    },
-                    onError: () => {
-                        // modal tetap terbuka
-                    },
+            router.post('/datamaster/medis/tindakan', payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setOpen(false);
+                    resetForm();
+                    setEditId(null);
                 },
-            );
+            });
         }
     };
 
@@ -135,7 +146,7 @@ export default function Index() {
         setEditId(tindakan.id);
         setKode(tindakan.kode);
         setNama(tindakan.nama);
-        setKategori(tindakan.kategori);
+        setKategori(getKategoriNama(tindakan.kategori)); // Gunakan nama kategori untuk display di form
         setTarifDokter(tindakan.tarif_dokter ? tindakan.tarif_dokter.toString() : '');
         setTarifPerawat(tindakan.tarif_perawat ? tindakan.tarif_perawat.toString() : '');
         setTarifTotal(tindakan.tarif_total ? tindakan.tarif_total.toString() : '');
@@ -167,7 +178,7 @@ export default function Index() {
         if (tindakans.length === 0) {
             return 'TDK-0001';
         }
-        
+
         const lastTindakan = tindakans[tindakans.length - 1];
         if (lastTindakan && lastTindakan.kode) {
             const parts = lastTindakan.kode.split('-');
@@ -188,16 +199,16 @@ export default function Index() {
             <div className="p-6">
                 <Card>
                     <CardHeader>
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <CardTitle className="text-xl">Data Tindakan</CardTitle>
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
                                 <div className="relative">
-                                    <Search className="absolute top-1/2 left-3 h-4 w-4 text-muted-foreground transform -translate-y-1/2" />
+                                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                                     <Input
                                         placeholder="Cari tindakan..."
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
-                                        className="w-full sm:w-64 pl-10 pr-4"
+                                        className="w-full pr-4 pl-10 sm:w-64"
                                     />
                                 </div>
                                 <Button
@@ -220,84 +231,66 @@ export default function Index() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="px-6 py-4">
-                                            Kode
-                                        </TableHead>
-                                        <TableHead className="px-6 py-4">
-                                            Nama
-                                        </TableHead>
-                                        <TableHead className="px-6 py-4">
-                                            Kategori
-                                        </TableHead>
-                                        <TableHead className="px-6 py-4 text-center">
-                                            Tarif Dokter
-                                        </TableHead>
-                                        <TableHead className="px-6 py-4 text-center">
-                                            Tarif Perawat
-                                        </TableHead>
-                                        <TableHead className="px-6 py-4 text-center">
-                                            Total Tarif
-                                        </TableHead>
-                                        <TableHead className="px-6 py-4 text-center">
-                                            Action
-                                        </TableHead>
+                                        <TableHead className="px-6 py-4">Kode</TableHead>
+                                        <TableHead className="px-6 py-4">Nama</TableHead>
+                                        <TableHead className="px-6 py-4">Kategori</TableHead>
+                                        <TableHead className="px-6 py-4 text-center">Tarif Dokter</TableHead>
+                                        <TableHead className="px-6 py-4 text-center">Tarif Perawat</TableHead>
+                                        <TableHead className="px-6 py-4 text-center">Total Tarif</TableHead>
+                                        <TableHead className="px-6 py-4 text-center">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
-                            <TableBody>
-                                {filteredTindakans.length > 0 ? (
-                                    filteredTindakans.map((item, index) => (
-                                        <TableRow key={item.id} className="hover:bg-muted/50">
-                                            <TableCell className="font-medium px-6 py-4">{item.kode}</TableCell>
-                                            <TableCell className="px-6 py-4">{item.nama}</TableCell>
-                                            <TableCell className="px-6 py-4">{item.kategori}</TableCell>
-                                            <TableCell className="px-6 py-4 text-center">
-                                                <span className="inline-block min-w-[70px]">
-                                                    <span className="align-middle">Rp</span>
-                                                    <span className="align-middle">{item.tarif_dokter.toLocaleString('id-ID')}</span>
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="px-6 py-4 text-center">
-                                                <span className="inline-block min-w-[70px]">
-                                                    <span className="align-middle">Rp</span>
-                                                    <span className="align-middle">{item.tarif_perawat.toLocaleString('id-ID')}</span>
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="px-6 py-4 text-center">
-                                                <span className="inline-block min-w-[70px]">
-                                                    <span className="align-middle">Rp</span>
-                                                    <span className="align-middle">{item.tarif_total.toLocaleString('id-ID')}</span>
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="px-6 py-4">
-                                                <div className="flex justify-center space-x-2">
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="outline" 
-                                                        onClick={() => handleOpenEdit(item)}
-                                                        className="bg-yellow-500 text-white border-yellow-500 hover:bg-yellow-600"
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="destructive" 
-                                                        onClick={() => handleOpenDelete(item)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
+                                <TableBody>
+                                    {filteredTindakans.length > 0 ? (
+                                        filteredTindakans.map((item, index) => (
+                                            <TableRow key={item.id} className="hover:bg-muted/50">
+                                                <TableCell className="px-6 py-4 font-medium">{item.kode}</TableCell>
+                                                <TableCell className="px-6 py-4">{item.nama}</TableCell>
+                                                <TableCell className="px-6 py-4">{getKategoriNama(item.kategori)}</TableCell>
+                                                <TableCell className="px-6 py-4 text-center">
+                                                    <span className="inline-block min-w-[70px]">
+                                                        <span className="align-middle">Rp</span>
+                                                        <span className="align-middle">{item.tarif_dokter.toLocaleString('id-ID')}</span>
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-6 py-4 text-center">
+                                                    <span className="inline-block min-w-[70px]">
+                                                        <span className="align-middle">Rp</span>
+                                                        <span className="align-middle">{item.tarif_perawat.toLocaleString('id-ID')}</span>
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-6 py-4 text-center">
+                                                    <span className="inline-block min-w-[70px]">
+                                                        <span className="align-middle">Rp</span>
+                                                        <span className="align-middle">{item.tarif_total.toLocaleString('id-ID')}</span>
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-6 py-4">
+                                                    <div className="flex justify-center space-x-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleOpenEdit(item)}
+                                                            className="border-yellow-500 bg-yellow-500 text-white hover:bg-yellow-600"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button size="sm" variant="destructive" onClick={() => handleOpenDelete(item)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                                                Tidak ada data.
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                                            Tidak ada data.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    )}
+                                </TableBody>
+                            </Table>
                         </div>
                     </CardContent>
                 </Card>
@@ -307,14 +300,12 @@ export default function Index() {
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="sm:max-w-3xl">
                     <DialogHeader className="pb-4">
-                        <DialogTitle className="text-xl">
-                            {editId ? 'Edit Tindakan' : 'Tambah Tindakan Baru'}
-                        </DialogTitle>
+                        <DialogTitle className="text-xl">{editId ? 'Edit Tindakan' : 'Tambah Tindakan Baru'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <input type="hidden" value={kode} />
-                        
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                             <div className="space-y-3">
                                 <label className="text-sm font-medium">Nama Tindakan</label>
                                 <Input
@@ -327,21 +318,26 @@ export default function Index() {
                             </div>
                             <div className="space-y-3">
                                 <label className="text-sm font-medium">Kategori</label>
-                                <Input
-                                    placeholder="Pilih kategori"
-                                    value={kategori}
-                                    onChange={(e) => setKategori(e.target.value)}
-                                    className="w-full"
-                                    required
-                                />
+                                <Select value={kategori} onValueChange={setKategori} required>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Pilih kategori tindakan" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {kategori_tindakan.map((kat) => (
+                                            <SelectItem key={kat.id} value={kat.nama}>
+                                                {kat.nama}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                             <div className="space-y-3">
                                 <label className="text-sm font-medium">Tarif Dokter</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">Rp</span>
+                                    <span className="absolute top-1/2 left-3 -translate-y-1/2 transform text-muted-foreground">Rp</span>
                                     <Input
                                         type="number"
                                         placeholder="0"
@@ -356,7 +352,7 @@ export default function Index() {
                             <div className="space-y-3">
                                 <label className="text-sm font-medium">Tarif Perawat</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">Rp</span>
+                                    <span className="absolute top-1/2 left-3 -translate-y-1/2 transform text-muted-foreground">Rp</span>
                                     <Input
                                         type="number"
                                         placeholder="0"
@@ -371,18 +367,18 @@ export default function Index() {
                             <div className="space-y-3">
                                 <label className="text-sm font-medium">Total Tarif</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">Rp</span>
+                                    <span className="absolute top-1/2 left-3 -translate-y-1/2 transform text-muted-foreground">Rp</span>
                                     <Input
                                         type="number"
                                         placeholder="0"
                                         value={tarifTotal}
                                         disabled
-                                        className="pl-10 bg-muted text-muted-foreground"
+                                        className="bg-muted pl-10 text-muted-foreground"
                                     />
                                 </div>
                             </div>
                         </div>
-                        
+
                         <DialogFooter className="flex justify-end space-x-3 pt-4">
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Batal
@@ -403,12 +399,9 @@ export default function Index() {
                     </DialogHeader>
                     <div className="py-4">
                         <p className="text-muted-foreground">
-                            Apakah Anda yakin ingin menghapus tindakan{' '}
-                            <span className="font-medium">{deleteNama}</span>?
+                            Apakah Anda yakin ingin menghapus tindakan <span className="font-medium">{deleteNama}</span>?
                         </p>
-                        <p className="text-sm text-muted-foreground mt-2">
-                            Tindakan ini tidak dapat dibatalkan setelah dihapus.
-                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">Tindakan ini tidak dapat dibatalkan setelah dihapus.</p>
                     </div>
                     <DialogFooter className="flex justify-end space-x-3 pt-4">
                         <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>

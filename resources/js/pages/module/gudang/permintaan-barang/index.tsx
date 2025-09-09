@@ -80,6 +80,9 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
             case '3':
             case 'selesai':
                 return { label: 'Selesai', className: `${baseClass} bg-green-100 text-green-800` };
+            case '4':
+            case 'ditolak':
+                return { label: 'Ditolak', className: `${baseClass} bg-red-100 text-red-800` };
             default:
                 return { label: 'Unknown', className: `${baseClass} bg-gray-100 text-gray-800` };
         }
@@ -730,7 +733,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                             >
                                                 2
                                             </span>
-                                            <span className="bs-stepper-label ml-2">Permintaan Obat / Alkes</span>
+                                            <span className="bs-stepper-label ml-2">Permintaan Barang</span>
                                         </button>
                                     </div>
                                 </div>
@@ -741,7 +744,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                         <div id="koneksiExternal" className="content" role="tabpanel" aria-labelledby="koneksiExternal-trigger">
                                             <div className="form-group row mb-4">
                                                 <div className="col-sm-12">
-                                                    <label htmlFor="external_database" className="mb-1 block text-xs font-medium text-gray-700">
+                                                    <label htmlFor="external_database" className="mb-1 block text-xs font-medium">
                                                         Pilih Tujuan
                                                     </label>
                                                     <select
@@ -801,12 +804,30 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
 
                                                 <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
                                                     <div className="md:col-span-1">
+                                                        <label htmlFor="jenis_barang" className="mb-2 block text-xs font-medium text-gray-700">
+                                                            Jenis Barang
+                                                        </label>
+                                                        <Select
+                                                            value={jenisBarang}
+                                                            onValueChange={(value: 'obat' | 'alkes' | 'inventaris') => setJenisBarang(value)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Pilih Jenis Barang" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="obat">Obat</SelectItem>
+                                                                <SelectItem value="alkes">Alkes</SelectItem>
+                                                                <SelectItem value="inventaris">Inventaris</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="md:col-span-1">
                                                         <label htmlFor="nama_obat_alkes" className="mb-2 block text-xs font-medium text-gray-700">
                                                             Data Barang
                                                         </label>
                                                         <Select value={selectedObat} onValueChange={setSelectedObat}>
                                                             <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Obat/Alkes" />
+                                                                <SelectValue placeholder="Pilih Barang" />
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 <div className="p-2">
@@ -856,7 +877,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                             </SelectContent>
                                                         </Select>
                                                         <div className="mt-1 text-xs text-muted-foreground">
-                                                            Total: {dabar.length} obat/alkes
+                                                            Total: {dabar.length} barang
                                                             {searchObat && (
                                                                 <span className="ml-1">(Ditemukan {filteredDabar.length} obat/alkes)</span>
                                                             )}
@@ -876,25 +897,6 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                             placeholder="Masukan jumlahnya"
                                                             className="w-full"
                                                         />
-                                                    </div>
-
-                                                    <div className="md:col-span-1">
-                                                        <label htmlFor="jenis_barang" className="mb-2 block text-xs font-medium text-gray-700">
-                                                            Jenis Barang
-                                                        </label>
-                                                        <Select
-                                                            value={jenisBarang}
-                                                            onValueChange={(value: 'obat' | 'alkes' | 'inventaris') => setJenisBarang(value)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Pilih Jenis Barang" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="obat">Obat</SelectItem>
-                                                                <SelectItem value="alkes">Alkes</SelectItem>
-                                                                <SelectItem value="inventaris">Inventaris</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
                                                     </div>
 
                                                     <div className="flex items-center md:col-span-1">
@@ -976,8 +978,8 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                             <TableHeader>
                                                                 <TableRow>
                                                                     <TableHead style={{ width: '5%' }}>No</TableHead>
-                                                                    <TableHead>Kode Obat</TableHead>
-                                                                    <TableHead>Nama Obat</TableHead>
+                                                                    <TableHead>Kode Barang</TableHead>
+                                                                    <TableHead>Nama Barang</TableHead>
                                                                     <TableHead>Jenis Barang</TableHead>
                                                                     <TableHead>Jumlah</TableHead>
                                                                     <TableHead className="text-right">Aksi</TableHead>

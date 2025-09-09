@@ -21,6 +21,7 @@ use Laravolt\Indonesia\Models\Province;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
+use Carbon\Carbon;
 
 class Staff_Controller extends Controller
 {
@@ -157,7 +158,12 @@ class Staff_Controller extends Controller
 
         $staff = Staff::create($staffData);
 
-
+        User::create([
+            'name' => $validatedData['nama'],
+            'username' => $validatedData['nik'],
+            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
+            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('y-m-d')),
+        ]);
 
         return back()->with('success', 'Data staff berhasil ditambahkan!');
     }

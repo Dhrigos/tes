@@ -1,14 +1,3 @@
-import React, { useState, useEffect } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Bell, FileText, Edit, CheckCircle, UserCheck, Search } from 'lucide-react';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,13 +8,18 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Head, router, usePage } from '@inertiajs/react';
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { Bell, CheckCircle, Edit, FileText, Search, UserCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Pasien {
     nama: string;
@@ -191,13 +185,29 @@ export default function PelayananSoPerawat() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'panggil':
-                return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Belum Hadir</Badge>;
+                return (
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                        Belum Hadir
+                    </Badge>
+                );
             case 'soap':
-                return <Badge variant="default" className="bg-blue-100 text-blue-800">Pemeriksaan</Badge>;
+                return (
+                    <Badge variant="default" className="bg-blue-100 text-blue-800">
+                        Pemeriksaan
+                    </Badge>
+                );
             case 'edit':
-                return <Badge variant="outline" className="bg-cyan-100 text-cyan-800">Menunggu Dokter</Badge>;
+                return (
+                    <Badge variant="outline" className="bg-cyan-100 text-cyan-800">
+                        Menunggu Dokter
+                    </Badge>
+                );
             case 'Complete':
-                return <Badge variant="default" className="bg-green-100 text-green-800">Sudah Dicek Dokter</Badge>;
+                return (
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                        Sudah Dicek Dokter
+                    </Badge>
+                );
             default:
                 return <Badge variant="outline">Unknown</Badge>;
         }
@@ -205,17 +215,17 @@ export default function PelayananSoPerawat() {
 
     const getActionButtons = (row: PelayananData) => {
         const norawat = btoa(row.nomor_register);
-        
+
         switch (row.tindakan_button) {
             case 'panggil':
                 return (
                     <Button
                         variant="outline"
                         size="sm"
-                        className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
+                        className="border-yellow-600 text-yellow-600 hover:bg-yellow-50"
                         onClick={() => handlePanggilPasien(row.nomor_register)}
                     >
-                        <Bell className="w-4 h-4 mr-1" />
+                        <Bell className="mr-1 h-4 w-4" />
                         Panggil
                     </Button>
                 );
@@ -224,10 +234,10 @@ export default function PelayananSoPerawat() {
                     <Button
                         variant="outline"
                         size="sm"
-                        className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
                         onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}`)}
                     >
-                        <FileText className="w-4 h-4 mr-1" />
+                        <FileText className="mr-1 h-4 w-4" />
                         Pemeriksaan
                     </Button>
                 );
@@ -237,32 +247,27 @@ export default function PelayananSoPerawat() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="text-cyan-600 border-cyan-600 hover:bg-cyan-50"
+                            className="border-cyan-600 text-cyan-600 hover:bg-cyan-50"
                             onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}`)}
                         >
-                            <Edit className="w-4 h-4 mr-1" />
+                            <Edit className="mr-1 h-4 w-4" />
                             Edit
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
-                            className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
+                            className="border-yellow-600 text-yellow-600 hover:bg-yellow-50"
                             onClick={() => handleUbahDokter(row)}
                         >
-                            <UserCheck className="w-4 h-4 mr-1" />
+                            <UserCheck className="mr-1 h-4 w-4" />
                             Ubah Dokter
                         </Button>
                     </div>
                 );
             case 'Complete':
                 return (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-green-600 border-green-600 hover:bg-green-50"
-                        disabled
-                    >
-                        <CheckCircle className="w-4 h-4 mr-1" />
+                    <Button variant="outline" size="sm" className="border-green-600 text-green-600 hover:bg-green-50" disabled>
+                        <CheckCircle className="mr-1 h-4 w-4" />
                         Dicek
                     </Button>
                 );
@@ -275,13 +280,11 @@ export default function PelayananSoPerawat() {
 
     return (
         <>
-            <Head title="Pelayanan Perawat" />.-
-            
+            <Head title="Pelayanan Perawat" />
+            .-
             <div className="space-y-6">
                 <div className="text-center">
-                    <h5 className="text-lg text-muted-foreground">
-                        Selamat datang di modul Pelayanan Perawat
-                    </h5>
+                    <h5 className="text-lg text-muted-foreground">Selamat datang di modul Pelayanan Perawat</h5>
                 </div>
 
                 <Card>
@@ -324,9 +327,7 @@ export default function PelayananSoPerawat() {
                                             <TableCell className="text-center font-mono">{row.pendaftaran?.antrian}</TableCell>
                                             <TableCell className="text-center font-mono">{row.nomor_register}</TableCell>
                                             <TableCell className="text-center">
-                                                {row.tanggal_kujungan
-                                                    ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id })
-                                                    : '-'}
+                                                {row.tanggal_kujungan ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id }) : '-'}
                                             </TableCell>
                                             <TableCell className="text-center">{row.poli?.nama}</TableCell>
                                             <TableCell className="text-center">{row.dokter?.namauser?.name}</TableCell>
@@ -345,7 +346,6 @@ export default function PelayananSoPerawat() {
                     </CardContent>
                 </Card>
             </div>
-
             {/* Dialog Ubah Dokter */}
             <AlertDialog open={showDokterDialog} onOpenChange={setShowDokterDialog}>
                 <AlertDialogContent>
@@ -353,11 +353,13 @@ export default function PelayananSoPerawat() {
                         <AlertDialogTitle>Ubah Dokter</AlertDialogTitle>
                         <AlertDialogDescription>
                             <div className="space-y-4">
-                                <p><strong>Pasien:</strong> {selectedPasien?.pasien?.nama}</p>
+                                <p>
+                                    <strong>Pasien:</strong> {selectedPasien?.pasien?.nama}
+                                </p>
                                 <div>
                                     <label className="text-sm font-medium">Pilih Dokter Baru:</label>
                                     <Select value={selectedDokter} onValueChange={setSelectedDokter}>
-                                        <SelectTrigger className="w-full mt-1">
+                                        <SelectTrigger className="mt-1 w-full">
                                             <SelectValue placeholder="Pilih Dokter" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -373,16 +375,16 @@ export default function PelayananSoPerawat() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => {
-                            setShowDokterDialog(false);
-                            setSelectedPasien(null);
-                            setSelectedDokter('');
-                        }}>
+                        <AlertDialogCancel
+                            onClick={() => {
+                                setShowDokterDialog(false);
+                                setSelectedPasien(null);
+                                setSelectedDokter('');
+                            }}
+                        >
                             Batal
                         </AlertDialogCancel>
-                        <AlertDialogAction onClick={handleUpdateDokter}>
-                            Update
-                        </AlertDialogAction>
+                        <AlertDialogAction onClick={handleUpdateDokter}>Update</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

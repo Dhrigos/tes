@@ -11,14 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('set_bpjs', function (Blueprint $table) {
+        Schema::create('pasien_histories', function (Blueprint $table) {
             $table->id();
-            $table->string('KPFK');
-            $table->string('CONSID');
-            $table->string('USERNAME');
-            $table->string('PASSWORD');
-            $table->string('SECRET_KEY');
-            $table->string('USER_KEY');        
+            $table->string('no_rm');
+            $table->string('nama');
+            $table->json('history');
             $table->timestamps();
         });
     }
@@ -28,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('set_bpjs');
+        Schema::dropIfExists('pasien_histories');
     }
 };

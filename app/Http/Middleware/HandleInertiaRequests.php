@@ -6,6 +6,8 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
+use App\Models\Settings\Set_Bpjs;
+use App\Models\Settings\Web_Setting;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -50,6 +52,38 @@ class HandleInertiaRequests extends Middleware
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
+            // Share Web Setting so frontend can prefill Advanced section without API call
+            'web_setting' => function () {
+                $setting = Web_Setting::first();
+                if (!$setting) {
+                    return null;
+                }
+                return [
+                    'nama' => $setting->nama,
+                    'kode_klinik' => $setting->kode_klinik,
+                    'kode_group_klinik' => $setting->kode_group_klinik,
+                    'alamat' => $setting->alamat,
+                    'profile_image' => $setting->profile_image,
+                    'is_bpjs_active' => (bool) $setting->is_bpjs_active,
+                    'is_satusehat_active' => (bool) $setting->is_satusehat_active,
+                    'is_gudangutama_active' => (bool) $setting->is_gudangutama_active,
+                ];
+            },
+            // Share BPJS config to Inertia so frontend can read without calling API
+            'set_bpjs' => function () {
+                $bpjs = Set_Bpjs::first();
+                if (!$bpjs) {
+                    return null;
+                }
+                return [
+                    'CONSID' => $bpjs->CONSID,
+                    'KPFK' => $bpjs->KPFK,
+                    'SECRET_KEY' => $bpjs->SECRET_KEY,
+                    'USER_KEY' => $bpjs->USER_KEY,
+                    'USERNAME' => $bpjs->USERNAME,
+                    'PASSWORD' => $bpjs->PASSWORD,
+                ];
+            },
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

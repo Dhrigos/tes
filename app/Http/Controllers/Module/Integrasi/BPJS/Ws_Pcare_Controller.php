@@ -14,14 +14,21 @@ class Ws_Pcare_Controller extends Controller
      * Ambil token BPJS
      */
     private function token(): array
-    {
-        $cons_id = "18578";
-        $secret_key = "9hRE658C601";
-        $username = "0221U119_Piraini";
-        $password = "Omega*0725";
-        $app_code = "095";
-        $user_key = "fa32cefbe6c478f7c84c644f50366c1d";
-
+    {         
+        $bpjsConfig = Set_Bpjs::first();
+        
+        if (!$bpjsConfig) {
+            throw new \Exception('Konfigurasi BPJS tidak ditemukan di database');
+        }
+ 
+        $cons_id = $bpjsConfig->CONSID;
+        $secret_key = $bpjsConfig->SECRET_KEY;
+        $username = $bpjsConfig->USERNAME;
+        $password = $bpjsConfig->PASSWORD;
+        $user_key = $bpjsConfig->USER_KEY;
+        // APP_CODE sekarang diambil dari .env (kolom di DB sudah dihapus)
+        $app_code = env('BPJS_App_code', '095');
+        
         date_default_timezone_set('UTC');
         $timestamp = strval(time());
 
@@ -88,8 +95,8 @@ class Ws_Pcare_Controller extends Controller
 
     public function get_poli($tanggal)
     {
-        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "antreanfktp";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_WS_Service');
         $feature = 'ref/poli/tanggal';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -151,8 +158,8 @@ class Ws_Pcare_Controller extends Controller
     
     public function get_dokter($kode_poli, $tanggal)
     {
-        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "antreanfktp";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_WS_Service');
         $feature = 'ref/dokter/kodepoli';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
@@ -214,8 +221,8 @@ class Ws_Pcare_Controller extends Controller
 
     public function post_antrian($data)
     {
-        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "antreanfktp";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_WS_Service');
         $feature = 'antrean/add';
         $token = $this->token();
 
@@ -257,8 +264,8 @@ class Ws_Pcare_Controller extends Controller
 
     public function update_antrian($data)
     {
-        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "antreanfktp";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_WS_Service');
         $feature = 'antrean/panggil';
         $token = $this->token();
 
@@ -300,8 +307,8 @@ class Ws_Pcare_Controller extends Controller
 
     public function delete_antrian($data)
     {
-        $BASE_URL = "https://apijkn.bpjs-kesehatan.go.id";
-        $SERVICE_NAME = "antreanfktp";
+        $BASE_URL = env('BPJS_BaseUrl');
+        $SERVICE_NAME = env('BPJS_WS_Service');
         $feature = 'antrean/batal';
         $token = $this->token();
 

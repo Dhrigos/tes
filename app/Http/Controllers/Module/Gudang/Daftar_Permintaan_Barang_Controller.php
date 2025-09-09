@@ -31,7 +31,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
     /**
      * KONSEP BARU: Hanya Master yang dapat mengakses daftar permintaan
      */
-    public function index(Request $request) 
+    public function index(Request $request)
     {
         // Cek apakah user adalah Master
         $webSetting = Web_Setting::first();
@@ -43,19 +43,19 @@ class Daftar_Permintaan_Barang_Controller extends Controller
         }
 
         $title = "Master Gudang - Daftar Permintaan Barang";
-        
+
         // Master dapat melihat semua permintaan dari semua client
         $permintaan = Permintaan_Barang::select('kode_request', 'tanggal_input', 'nama_klinik', 'kode_klinik', 'status')
             ->orderBy('tanggal_input', 'desc')
             ->get();
-            
+
         $dabar = Daftar_Barang::all();
-        
+
         // Ambil data pengiriman barang (tanpa kode_klinik karena tidak ada di tabel)
         $data_kirim = Permintaan_Barang_Konfirmasi::select('kode_request', 'tanggal_request', 'nama_klinik')
             ->orderBy('tanggal_request', 'desc')
             ->get();
-        
+
         return Inertia::render('module/gudang/daftar-permintaan-barang/index', [
             'title' => $title,
             'permintaan' => $permintaan,
@@ -210,7 +210,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
             $kodeRequest = $request->input('kode_request');
             $tanggalRequest = $request->input('tanggal_request');
             $namaKlinik = $request->input('nama_klinik');
-            
+
             if (empty($items) || !is_array($items)) {
                 return response()->json([
                     'success' => false,
@@ -244,13 +244,13 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                     // Use appropriate table based on jenis_barang
                     if ($jenisBarang === 'inventaris') {
                         $query = Stok_Inventaris::where('kode_barang', $kodeObat)
-                                    ->where('qty_barang', '>', 0);
+                            ->where('qty_barang', '>', 0);
                         $stokList = $query->get();
                         $totalTersedia = $stokList->sum('qty_barang');
                     } else {
                         $query = Stok_Barang::where('kode_obat_alkes', $kodeObat)
-                                    ->where('qty', '>', 0)
-                                    ->orderBy('tanggal_terima_obat', 'asc');
+                            ->where('qty', '>', 0)
+                            ->orderBy('tanggal_terima_obat', 'asc');
                         $stokList = $query->get();
                         $totalTersedia = $stokList->sum('qty');
                     }
@@ -295,7 +295,7 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                     // Use appropriate table based on jenis_barang
                     if ($jenisBarang === 'inventaris') {
                         $query = Stok_Inventaris::where('kode_barang', $kodeObat)
-                                    ->where('qty_barang', '>', 0);
+                            ->where('qty_barang', '>', 0);
                         $stokList = $query->get();
 
                         foreach ($stokList as $stok) {
@@ -335,8 +335,8 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                         }
                     } else {
                         $query = Stok_Barang::where('kode_obat_alkes', $kodeObat)
-                                    ->where('qty', '>', 0)
-                                    ->orderBy('tanggal_terima_obat', 'asc');
+                            ->where('qty', '>', 0)
+                            ->orderBy('tanggal_terima_obat', 'asc');
                         $stokList = $query->get();
 
                         foreach ($stokList as $stok) {
@@ -398,73 +398,6 @@ class Daftar_Permintaan_Barang_Controller extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat memproses permintaan!',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * KONSEP BARU: Method untuk Master mengirim barang ke client
-     */
-    public function kirimBarang(Request $request)
-    {
-        // Cek apakah user adalah Master
-        $webSetting = Web_Setting::first();
-        if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hanya Master Gudang yang dapat mengirim barang!'
-            ], 403);
-        }
-
-        try {
-            $kodeRequest = $request->input('kode_request');
-            $tanggalRequest = $request->input('tanggal_request');
-            $namaKlinik = $request->input('nama_klinik');
-            
-            if (empty($kodeRequest) || empty($tanggalRequest) || empty($namaKlinik)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data tidak lengkap!',
-                ], 400);
-            }
-
-            $found = Permintaan_Barang::where('kode_request', $kodeRequest)
-                ->where('tanggal_input', $tanggalRequest)
-                ->first();
-
-            if (!$found) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data permintaan tidak ditemukan!',
-                ], 404);
-            }
-
-            // Update status menjadi barang dikirim
-            $found->update([
-                'status' => 3,
-            ]);
-
-            // Broadcast WebSocket event untuk memberitahu client bahwa barang sudah dikirim
-            $this->webSocketService->broadcastPengiriman([
-                'kode_request' => $kodeRequest,
-                'kode_klinik' => $found->kode_klinik,
-                'nama_klinik' => $namaKlinik,
-                'status' => 3,
-                'tanggal_request' => $tanggalRequest,
-                'source' => 'master_shipped'
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Barang berhasil dikirim dan client telah diberitahu!',
-                'data' => $kodeRequest,
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat mengirim barang!',
                 'error' => $e->getMessage(),
             ], 500);
         }

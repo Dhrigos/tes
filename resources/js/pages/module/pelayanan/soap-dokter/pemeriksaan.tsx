@@ -1,4 +1,15 @@
 import CpptTimeline from '@/components/CpptTimeline';
+import RichTextEditor from '@/components/RichTextEditor';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,12 +17,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { FileText } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface PatientData {
@@ -25,6 +35,7 @@ interface PatientData {
     pasien?: {
         nama: string;
         tanggal_lahir: string;
+        umur: string;
         kelamin?: {
             nama: string;
         };
@@ -38,6 +49,7 @@ interface PatientData {
 
 interface SoapDokterData {
     no_rawat?: string;
+    kode_tindakan?: string;
     umur?: string;
     sistol?: string;
     distol?: string;
@@ -150,6 +162,24 @@ interface Makanan {
     nama: string;
 }
 
+interface TindakanData {
+    id: number;
+    kode: string;
+    nama: string;
+    kategori: string;
+    tarif_dokter: string;
+    tarif_perawat: string;
+    tarif_total: string;
+}
+
+interface TindakanItem {
+    kode: string;
+    nama: string;
+    kategori?: string;
+    pelaksana: string;
+    harga: number;
+}
+
 interface ExistingDietData {
     id: number;
     jenis_diet: string;
@@ -171,7 +201,12 @@ interface PageProps {
     icd9: Icd9[];
     jenis_diet: JenisDiet[];
     makanan: Makanan[];
+    tindakan: TindakanData[];
     norawat: string;
+    saved_icd10?: Array<{ kode: string; nama: string; priority?: string }>;
+    saved_icd9?: Array<{ kode: string; nama: string; priority?: string }>;
+    tindakan_list_saved?: Array<{ kode: string; nama: string; kategori?: string; pelaksana?: string; harga?: string | number }>;
+    obat_saved?: Array<{ penanda?: string; nama_obat?: string; instruksi?: string; signa?: string; satuan_gudang?: string; penggunaan?: string }>;
     errors?: Record<string, string>;
     flash?: {
         success?: string;
@@ -200,13 +235,14 @@ export default function PemeriksaanSoapDokter() {
         icd9,
         jenis_diet,
         makanan,
+        tindakan,
         norawat,
+        saved_icd10,
+        saved_icd9,
+        tindakan_list_saved,
+        obat_saved,
         errors,
     } = usePage().props as unknown as PageProps;
-
-    // Debug logging
-    console.log('PemeriksaanSoapDokter component loaded');
-    console.log('Props received:', { pelayanan, soap_dokter, so_perawat, norawat, errors });
 
     const [activeTab, setActiveTab] = useState('subyektif');
     const [cpptEntries, setCpptEntries] = useState<any[]>([]);
@@ -214,11 +250,11 @@ export default function PemeriksaanSoapDokter() {
 
     // Load CPPT data when CPPT tab is accessed
     const loadCpptData = async () => {
-        if (!pelayanan?.nomor_register) return;
+        if (!pelayanan?.nomor_rm) return;
 
         setCpptLoading(true);
         try {
-            const response = await fetch(`/api/pelayanan/cppt/timeline/${pelayanan.nomor_register}`, {
+            const response = await fetch(`/api/pelayanan/cppt/timeline/${pelayanan.nomor_rm}`, {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
@@ -245,7 +281,7 @@ export default function PemeriksaanSoapDokter() {
         if (activeTab === 'cppt') {
             loadCpptData();
         }
-    }, [activeTab, pelayanan?.nomor_register]);
+    }, [activeTab, pelayanan?.nomor_rm]);
 
     const [formData, setFormData] = useState<SoapDokterData>(() => {
         const p = so_perawat as any;
@@ -293,6 +329,39 @@ export default function PemeriksaanSoapDokter() {
             tableData: (soap_dokter?.tableData && Array.isArray(soap_dokter.tableData) ? soap_dokter.tableData : p?.tableData || []) as any[],
         };
     });
+
+    // Confirm dialog state & helpers (mirror perawat)
+    type ConfirmOptions = { title?: string; description?: string; confirmText?: string; cancelText?: string };
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions>({});
+    const confirmResolverRef = useRef<((value: boolean) => void) | undefined>(undefined);
+    const confirmButtonRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (confirmOpen) {
+            setTimeout(() => confirmButtonRef.current?.focus(), 100);
+        }
+    }, [confirmOpen]);
+    const confirm = (options: ConfirmOptions) => {
+        setConfirmOpts({ cancelText: 'Ubah', confirmText: 'Lanjut', ...options });
+        setConfirmOpen(true);
+        return new Promise<boolean>((resolve) => {
+            confirmResolverRef.current = resolve;
+        });
+    };
+    const handleConfirmCancel = () => {
+        if (confirmResolverRef.current) {
+            confirmResolverRef.current(false);
+            confirmResolverRef.current = undefined;
+        }
+        setConfirmOpen(false);
+    };
+    const handleConfirmOk = () => {
+        if (confirmResolverRef.current) {
+            confirmResolverRef.current(true);
+            confirmResolverRef.current = undefined;
+        }
+        setConfirmOpen(false);
+    };
 
     // ICD state
     const [icdData, setIcdData] = useState<IcdData>({
@@ -500,12 +569,75 @@ export default function PemeriksaanSoapDokter() {
         loadHtt();
     }, []);
 
+    // Prefill from saved bundles on edit
+    useEffect(() => {
+        const editMode = !!(soap_dokter && Object.keys(soap_dokter).length > 0);
+        if (!editMode) return;
+
+        // 1) Prefill ICD10/ICD9 from saved props if provided
+        try {
+            const icd10Prefill = Array.isArray(saved_icd10 as any)
+                ? (saved_icd10 as any).map((x: any) => ({
+                      kode_icd10: x.kode,
+                      nama_icd10: x.nama,
+                      priority_icd10: x.priority,
+                  }))
+                : [];
+            if (icd10Prefill.length) setIcd10List(icd10Prefill);
+        } catch {}
+        try {
+            const icd9Prefill = Array.isArray(saved_icd9 as any)
+                ? (saved_icd9 as any).map((x: any) => ({
+                      kode_icd9: x.kode,
+                      nama_icd9: x.nama,
+                  }))
+                : [];
+            if (icd9Prefill.length) setIcd9List(icd9Prefill);
+        } catch {}
+
+        // 2) Prefill tindakan list or single form values
+        try {
+            const list = Array.isArray(tindakan_list_saved as any) ? (tindakan_list_saved as any) : [];
+            if (list.length) {
+                setTindakanList(
+                    list.map((it: any) => ({
+                        kode: it.kode || '',
+                        nama: it.nama || '',
+                        kategori: it.kategori || '',
+                        pelaksana: it.pelaksana || '',
+                        harga: Number(it.harga || 0),
+                    })),
+                );
+            }
+        } catch {}
+
+        // 3) Prefill obat list
+        try {
+            const resep = Array.isArray(obat_saved as any) ? (obat_saved as any) : [];
+            if (resep.length) setObatList(resep as any);
+        } catch {}
+
+        // 4) Prefill keluhan/HTT from tableData
+        try {
+            const td = (soap_dokter as any)?.tableData;
+            const parsed = typeof td === 'string' ? JSON.parse(td) : td;
+            if (parsed && typeof parsed === 'object') {
+                if (Array.isArray(parsed.keluhanList)) setKeluhanList(parsed.keluhanList);
+                if (Array.isArray(parsed.httItems)) setHttpItems(parsed.httItems);
+            }
+        } catch {}
+    }, [soap_dokter]);
+
     // Tindakan state
     const [tindakanData, setTindakanData] = useState({
+        kode_tindakan: soap_dokter?.kode_tindakan || '',
         jenis_tindakan: soap_dokter?.jenis_tindakan || '',
         jenis_pelaksana: soap_dokter?.jenis_pelaksana || '',
         harga: soap_dokter?.harga || '',
+        manualPricing: false,
     });
+
+    const [tindakanList, setTindakanList] = useState<TindakanItem[]>([]);
 
     // Diet state
     const [dietData, setDietData] = useState({
@@ -588,6 +720,23 @@ export default function PemeriksaanSoapDokter() {
         }
     }, [formData.eye, formData.verbal, formData.motorik]);
 
+    // Auto-calc BMI/status like perawat when tinggi/berat change
+    useEffect(() => {
+        const tinggi = parseFloat(formData.tinggi || '');
+        const berat = parseFloat(formData.berat || '');
+        if (!isNaN(tinggi) && !isNaN(berat) && tinggi > 0) {
+            const heightInMeters = tinggi / 100;
+            const bmiValue = berat / (heightInMeters * heightInMeters);
+            const nilai = bmiValue.toFixed(2);
+            let status = '';
+            if (bmiValue < 18.5) status = 'Kurus';
+            else if (bmiValue >= 18.5 && bmiValue <= 24.9) status = 'Normal';
+            else if (bmiValue >= 25 && bmiValue <= 29.9) status = 'Gemuk';
+            else status = 'Obesitas';
+            setFormData((prev) => ({ ...prev, nilai_bmi: nilai, status_bmi: status }));
+        }
+    }, [formData.tinggi, formData.berat]);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -601,6 +750,297 @@ export default function PemeriksaanSoapDokter() {
             ...prev,
             [name]: value,
         }));
+    };
+
+    // Refs for keyboard navigation (mirror perawat)
+    const sistolRef = useRef<HTMLInputElement>(null);
+    const distolRef = useRef<HTMLInputElement>(null);
+    const suhuRef = useRef<HTMLInputElement>(null);
+    const nadiRef = useRef<HTMLInputElement>(null);
+    const rrRef = useRef<HTMLInputElement>(null);
+    const tinggiRef = useRef<HTMLInputElement>(null);
+    const beratRef = useRef<HTMLInputElement>(null);
+    const spo2Ref = useRef<HTMLInputElement>(null);
+    const lingkarPerutRef = useRef<HTMLInputElement>(null);
+    const jenisAlergiTriggerRef = useRef<HTMLButtonElement>(null);
+
+    // Helpers
+    const calculateAge = (tanggalLahir: string): { years: number; months: number } => {
+        const today = new Date();
+        const birthDate = new Date(tanggalLahir);
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+        if (today.getDate() < birthDate.getDate()) months--;
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        if (years > 0) {
+            years = Math.round(years + months / 12);
+            months = 0;
+        }
+        return { years, months };
+    };
+
+    // Format umur tampilan: X Tahun Y Bulan Z Hari
+    const formatUmurDisplay = (tanggalLahir?: string, umurRaw?: string): string => {
+        const raw = umurRaw || '';
+        if (raw && raw.includes('Tahun') && raw.includes('Bulan') && raw.includes('Hari')) {
+            return raw;
+        }
+        if (!tanggalLahir) {
+            return raw;
+        }
+        const today = new Date();
+        const birth = new Date(tanggalLahir);
+        let years = today.getFullYear() - birth.getFullYear();
+        let months = today.getMonth() - birth.getMonth();
+        let days = today.getDate() - birth.getDate();
+
+        if (days < 0) {
+            const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+            days += prevMonth.getDate();
+            months -= 1;
+        }
+        if (months < 0) {
+            months += 12;
+            years -= 1;
+        }
+        if (years < 0) return raw || '';
+        return `${years} Tahun ${months} Bulan ${days} Hari`;
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, currentField: string, nextField?: string) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (currentField === 'suhu') handleSuhuBlur();
+            else if (currentField === 'nadi') handleNadiBlur();
+            else if (currentField === 'rr') handleRrBlur();
+            else if (currentField === 'spo2') handleSpo2Blur();
+            else if (currentField === 'tinggi' || currentField === 'berat') handleBmiBlur();
+        }
+    };
+
+    // Validation/blur handlers ported from perawat
+    const handleTensiBlur = async (source?: 'sistol' | 'distol') => {
+        const sistol = (formData.sistol || '').trim();
+        const distol = (formData.distol || '').trim();
+        if (!sistol || !distol) return;
+        const tanggalLahir = (pelayanan?.tanggal_lahir ?? '').trim();
+        if (!tanggalLahir) {
+            toast.warning('Tanggal lahir kosong. Mohon isi tanggal lahir terlebih dahulu.');
+            return;
+        }
+        const sVal = parseInt(sistol, 10);
+        const dVal = parseInt(distol, 10);
+        if (isNaN(sVal) || isNaN(dVal)) {
+            toast.warning('Sistol dan Diastol harus diisi dengan angka yang valid.');
+            setFormData((prev) => ({ ...prev, sistol: '', distol: '', tensi: '' }));
+            return;
+        }
+        const tensiValue = `${sVal}/${dVal}`;
+        setFormData((prev) => ({ ...prev, tensi: tensiValue }));
+        const { years: tahun } = calculateAge(tanggalLahir);
+        let message = '';
+        if (tahun <= 5) {
+            if (sVal <= 74 || dVal <= 49) message = 'Data Tensi Terdeteksi HIPOTENSI. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 75 && sVal <= 100 && dVal >= 50 && dVal <= 65) message = 'Data Tensi Normal. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 101 || dVal >= 66) message = 'Data Tensi Terdeteksi HIPERTENSI. Apakah Anda ingin melanjutkan?';
+        } else if (tahun <= 12) {
+            if (sVal <= 89 || dVal <= 59) message = 'Data Tensi Terdeteksi HIPOTENSI. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 90 && sVal <= 110 && dVal >= 60 && dVal <= 75) message = 'Data Tensi Normal. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 111 || dVal >= 76) message = 'Data Tensi Terdeteksi HIPERTENSI. Apakah Anda ingin melanjutkan?';
+        } else if (tahun <= 17) {
+            if (sVal <= 89 || dVal <= 59) message = 'Data Tensi Terdeteksi HIPOTENSI. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 90 && sVal <= 120 && dVal >= 60 && dVal <= 80) message = 'Data Tensi Normal. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 121 || dVal >= 81) message = 'Data Tensi Terdeteksi HIPERTENSI. Apakah Anda ingin melanjutkan?';
+        } else if (tahun <= 64) {
+            if (sVal <= 89 || dVal <= 59) message = 'Data Tensi Terdeteksi HIPOTENSI. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 90 && sVal <= 120 && dVal >= 60 && dVal <= 80) message = 'Data Tensi Normal. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 121 || dVal >= 81) message = 'Data Tensi Terdeteksi HIPERTENSI. Apakah Anda ingin melanjutkan?';
+        } else if (tahun >= 65) {
+            if (sVal <= 89 || dVal <= 59) message = 'Data Tensi Terdeteksi HIPOTENSI. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 90 && sVal <= 140 && dVal >= 60 && dVal <= 90) message = 'Data Tensi Normal. Apakah Anda ingin melanjutkan?';
+            else if (sVal >= 141 || dVal >= 91) message = 'Data Tensi Terdeteksi HIPERTENSI. Apakah Anda ingin melanjutkan?';
+        }
+        if (message) {
+            const ok = await confirm({ title: 'Validasi Tensi', description: message, confirmText: 'Lanjut', cancelText: 'Ubah' });
+            if (!ok) {
+                setFormData((prev) => ({ ...prev, sistol: '', distol: '', tensi: '' }));
+            }
+        }
+    };
+
+    const handleRrBlur = async () => {
+        const rr = (formData.rr || '').trim();
+        if (!rr) return;
+        const tanggalLahir = (pelayanan?.tanggal_lahir ?? '').trim();
+        if (!tanggalLahir) {
+            toast.warning('Tanggal lahir kosong. Mohon isi tanggal lahir terlebih dahulu.');
+            return;
+        }
+        const rrValue = parseInt(rr, 10);
+        if (isNaN(rrValue)) {
+            toast.warning('Mohon masukkan angka Respiratory Rate (RR) yang benar!');
+            setFormData((prev) => ({ ...prev, rr: '' }));
+            return;
+        }
+        const { years: tahun, months: bulan } = calculateAge(tanggalLahir);
+        let status = '';
+        let pesan = '';
+        const checkRange = (min: number, max: number) => {
+            if (rrValue < min) {
+                status = 'RR Terlalu Rendah';
+                pesan = `RR pasien (${rrValue}) di bawah batas normal (${min} - ${max})`;
+            } else if (rrValue > max) {
+                status = 'RR Terlalu Cepat';
+                pesan = `RR pasien (${rrValue}) di atas batas normal (${min} - ${max})`;
+            } else {
+                status = 'RR Normal';
+                pesan = `RR pasien (${rrValue}) berada dalam rentang normal (${min} - ${max})`;
+            }
+        };
+        if (tahun === 0 && bulan <= 12) checkRange(30, 60);
+        else if (tahun >= 1 && tahun <= 2) checkRange(24, 40);
+        else if (tahun >= 3 && tahun <= 5) checkRange(22, 34);
+        else if (tahun >= 6 && tahun <= 12) checkRange(18, 30);
+        else if (tahun >= 13 && tahun <= 17) checkRange(12, 20);
+        else if (tahun >= 18 && tahun <= 64) checkRange(18, 24);
+        else if (tahun >= 65) checkRange(12, 28);
+        const ok = await confirm({ title: status || 'Validasi RR', description: `${pesan}.`, confirmText: 'Lanjut', cancelText: 'Ubah' });
+        if (!ok) setFormData((prev) => ({ ...prev, rr: '' }));
+        else {
+        }
+    };
+
+    const handleSuhuBlur = async () => {
+        const raw = (formData.suhu || '').trim();
+        if (!raw) return;
+        if (raw.includes(',')) {
+            toast.warning('Gunakan titik (.) sebagai pemisah desimal, bukan koma!');
+            setFormData((prev) => ({ ...prev, suhu: '' }));
+            return;
+        }
+        const suhuNumber = parseFloat(raw);
+        if (isNaN(suhuNumber)) {
+            toast.warning('Mohon masukkan suhu dalam angka yang benar!');
+            setFormData((prev) => ({ ...prev, suhu: '' }));
+            return;
+        }
+        let status = '';
+        let pesan = '';
+        if (suhuNumber < 34.4) {
+            status = 'Hipotermia';
+            pesan = 'Suhu tubuh terlalu rendah. Segera konsultasi medis jika perlu.';
+        } else if (suhuNumber >= 34.4 && suhuNumber <= 37.4) {
+            status = 'Suhu Normal';
+            pesan = 'Suhu tubuh pasien berada dalam rentang normal.';
+        } else if (suhuNumber >= 37.5 && suhuNumber <= 37.9) {
+            status = 'Demam Ringan';
+            pesan = 'Kemungkinan terdapat infeksi ringan atau peradangan.';
+        } else if (suhuNumber >= 38 && suhuNumber <= 38.9) {
+            status = 'Demam';
+            pesan = 'Tubuh sedang melawan infeksi atau peradangan.';
+        } else if (suhuNumber >= 39) {
+            status = 'Demam Tinggi';
+            pesan = 'Segera konsultasi medis bila gejala berlanjut.';
+        }
+        const ok = await confirm({
+            title: status || 'Validasi Suhu',
+            description: `${pesan} (Suhu: ${suhuNumber}°C).`,
+            confirmText: 'Lanjut',
+            cancelText: 'Ubah',
+        });
+        if (!ok) setFormData((prev) => ({ ...prev, suhu: '' }));
+        else {
+        }
+    };
+
+    const handleSpo2Blur = async () => {
+        const raw = (formData.spo2 || '').trim();
+        if (!raw) return;
+        const value = parseFloat(raw);
+        if (isNaN(value)) {
+            toast.warning('SpO2 tidak valid. Mohon masukkan angka yang benar!');
+            setFormData((prev) => ({ ...prev, spo2: '' }));
+            return;
+        }
+        let title = '';
+        let text = '';
+        if (value < 95 || value > 100) {
+            title = 'SpO2 Tidak Normal';
+            text =
+                value < 95
+                    ? `SpO2 pasien (${value}%) terlalu rendah. Normal: 95% - 100%.`
+                    : `SpO2 pasien (${value}%) terlalu tinggi. Normal: 95% - 100%.`;
+        } else {
+            title = 'SpO2 Normal';
+            text = `SpO2 pasien (${value}%) berada dalam rentang normal.`;
+        }
+        const ok = await confirm({ title: title || 'Validasi SpO2', description: text, confirmText: 'Lanjut', cancelText: 'Ubah' });
+        if (!ok) setFormData((prev) => ({ ...prev, spo2: '' }));
+        else {
+        }
+    };
+
+    const handleNadiBlur = async () => {
+        const raw = (formData.nadi || '').trim();
+        if (!raw) return;
+        const tanggalLahir = (pelayanan?.tanggal_lahir ?? '').trim();
+        if (!tanggalLahir) {
+            toast.warning('Tanggal lahir kosong. Data tanggal lahir tidak tersedia.');
+            return;
+        }
+        const nadiVal = parseInt(raw, 10);
+        if (isNaN(nadiVal)) {
+            toast.warning('Masukkan angka nadi yang benar!');
+            setFormData((prev) => ({ ...prev, nadi: '' }));
+            return;
+        }
+        const { years, months } = calculateAge(tanggalLahir);
+        let range = { min: 0, max: 0 };
+        if (years === 0 && months <= 12) range = { min: 100, max: 160 };
+        else if (years <= 2) range = { min: 90, max: 150 };
+        else if (years <= 5) range = { min: 80, max: 140 };
+        else if (years <= 10) range = { min: 70, max: 130 };
+        else range = { min: 60, max: 100 };
+        const dalamRentang = nadiVal >= range.min && nadiVal <= range.max;
+        const status = dalamRentang ? 'Data Nadi Sesuai' : 'Data Nadi Tidak Sesuai';
+        const pesan = dalamRentang
+            ? `Nadi pasien (${nadiVal} bpm) sesuai untuk umur ${years} Tahun ${months} Bulan.`
+            : `Nadi pasien (${nadiVal} bpm) di luar rentang normal (${range.min}-${range.max} bpm) untuk umur ${years} Tahun ${months} Bulan.`;
+        const ok = await confirm({ title: status || 'Validasi Nadi', description: pesan, confirmText: 'Lanjut', cancelText: 'Ubah' });
+        if (!ok) setFormData((prev) => ({ ...prev, nadi: '' }));
+        else {
+        }
+    };
+
+    const handleBmiBlur = async () => {
+        const tinggi = (formData.tinggi || '').trim();
+        const berat = (formData.berat || '').trim();
+        if (!tinggi || !berat) return;
+        const tinggiVal = parseFloat(tinggi);
+        const beratVal = parseFloat(berat);
+        const inputInvalid = isNaN(tinggiVal) || isNaN(beratVal) || tinggiVal <= 0 || beratVal <= 0;
+        let message = '';
+        if (inputInvalid) {
+            message = 'Data Tinggi / Berat Badan Ada Yang Tidak Sesuai.\nMohon isi yang benar!';
+        } else {
+            const tinggiMeter = tinggiVal / 100;
+            const bmi = beratVal / (tinggiMeter * tinggiMeter);
+            const bmiFixed = bmi.toFixed(2);
+            let bmiCategory = '';
+            if (bmi < 18.5) bmiCategory = 'Berat badan kurang (Underweight)';
+            else if (bmi < 25) bmiCategory = 'Berat badan normal';
+            else if (bmi < 30) bmiCategory = 'Kelebihan berat badan (Overweight)';
+            else bmiCategory = 'Obesitas';
+            setFormData((prev) => ({ ...prev, nilai_bmi: bmiFixed }));
+            message = `Data BMI pasien adalah: ${bmiFixed},\nDengan kategori: ${bmiCategory}\nApakah Anda ingin melanjutkan?`;
+        }
+        const ok = await confirm({ title: 'Validasi BMI', description: message, confirmText: 'Lanjut', cancelText: 'Ubah' });
+        if (!ok) setFormData((prev) => ({ ...prev, tinggi: '', berat: '', nilai_bmi: '', status_bmi: '' }));
+        else {
+        }
     };
 
     // Diet handlers
@@ -708,6 +1148,49 @@ export default function PemeriksaanSoapDokter() {
         toast.success('HTT berhasil dihapus');
     };
 
+    // Helper function to convert readable gender to database code
+    const convertGenderToCode = (genderName: string): string => {
+        if (!genderName) return '';
+
+        // Handle different formats
+        switch (genderName.toLowerCase().trim()) {
+            case 'laki-laki':
+            case 'laki laki':
+            case 'pria':
+            case 'male':
+                return 'L'; // Laki-laki = L
+            case 'perempuan':
+            case 'wanita':
+            case 'female':
+                return 'P'; // Perempuan = P
+            default:
+                // If it's already a code, convert to new format (L/P)
+                if (genderName === 'L' || genderName === '1') {
+                    return 'L';
+                }
+                if (genderName === 'P' || genderName === '2') {
+                    return 'P';
+                }
+                return genderName; // fallback
+        }
+    };
+
+    // Helper function to convert database code to readable gender name
+    const convertCodeToGender = (genderCode: string): string => {
+        if (!genderCode) return '';
+
+        switch (genderCode.trim()) {
+            case 'L':
+            case '1':
+                return 'Laki-laki';
+            case 'P':
+            case '2':
+                return 'Perempuan';
+            default:
+                return genderCode; // fallback
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -724,38 +1207,64 @@ export default function PemeriksaanSoapDokter() {
         const diet_anjuran = dietList.map((item) => item.jenis_diet_makanan);
         const diet_pantangan = dietList.map((item) => item.jenis_diet_makanan_tidak);
 
-        // Prepare tindakan arrays
-        const tindakan_nama = tindakanData.jenis_tindakan ? [tindakanData.jenis_tindakan] : [];
-        const tindakan_pelaksana = tindakanData.jenis_pelaksana ? [tindakanData.jenis_pelaksana] : [];
-        const tindakan_harga = tindakanData.harga ? [tindakanData.harga] : [];
+        // Prepare tindakan arrays (send full list)
+        const tindakan_kode = tindakanList.length ? tindakanList.map((t) => t.kode) : tindakanData.kode_tindakan ? [tindakanData.kode_tindakan] : [];
+        const tindakan_nama = tindakanList.length
+            ? tindakanList.map((t) => t.nama)
+            : tindakanData.jenis_tindakan
+              ? [tindakanData.jenis_tindakan]
+              : [];
+        const tindakan_pelaksana = tindakanList.length
+            ? tindakanList.map((t) => t.pelaksana)
+            : tindakanData.jenis_pelaksana
+              ? [tindakanData.jenis_pelaksana]
+              : [];
+        const tindakan_harga = tindakanList.length ? tindakanList.map((t) => t.harga) : tindakanData.harga ? [Number(tindakanData.harga)] : [];
+
+        // Compose tableData to include current keluhanList and HTT items for CPPT
+        const composedTableData = (() => {
+            let existing: any = {};
+            const td = (formData as any).tableData;
+            if (td) {
+                if (typeof td === 'string') {
+                    try {
+                        const parsed = JSON.parse(td);
+                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) existing = parsed;
+                    } catch {}
+                } else if (typeof td === 'object' && !Array.isArray(td)) {
+                    existing = td;
+                }
+            }
+            return { ...existing, keluhanList, httItems };
+        })();
 
         const payload = {
             nomor_rm: pelayanan.nomor_rm,
-            nama: pelayanan.pasien?.nama || '',
+            nama: pelayanan.pasien?.nama || pelayanan.nama || '',
             no_rawat: pelayanan.nomor_register,
-            sex: pelayanan.pasien?.kelamin?.nama || '',
-            penjamin: pelayanan.pendaftaran?.penjamin?.nama || '',
-            tanggal_lahir: pelayanan.pasien?.tanggal_lahir || '',
-            umur: formData.umur || '',
-            tableData: JSON.stringify(formData.tableData || {}),
+            sex: convertGenderToCode(pelayanan.pasien?.kelamin?.nama || pelayanan.jenis_kelamin || ''),
+            penjamin: pelayanan.pendaftaran?.penjamin?.nama || pelayanan.penjamin || '',
+            tanggal_lahir: pelayanan.pasien?.tanggal_lahir || pelayanan.tanggal_lahir || '',
+            umur: pelayanan.pasien?.umur || pelayanan.umur || '',
+            tableData: JSON.stringify(composedTableData),
             anamnesa: formData.anamnesa || '',
-            sistol: formData.sistol ? parseFloat(formData.sistol) : null,
-            distol: formData.distol ? parseFloat(formData.distol) : null,
+            sistol: formData.sistol ? String(formData.sistol) : '',
+            distol: formData.distol ? String(formData.distol) : '',
             tensi: formData.tensi || '',
-            suhu: formData.suhu ? parseFloat(formData.suhu) : null,
-            nadi: formData.nadi ? parseFloat(formData.nadi) : null,
-            rr: formData.rr ? parseFloat(formData.rr) : null,
-            tinggi: formData.tinggi ? parseFloat(formData.tinggi) : null,
-            berat: formData.berat ? parseFloat(formData.berat) : null,
-            spo2: formData.spo2 ? parseFloat(formData.spo2) : null,
+            suhu: formData.suhu ? String(formData.suhu) : '',
+            nadi: formData.nadi ? String(formData.nadi) : '',
+            rr: formData.rr ? String(formData.rr) : '',
+            tinggi: formData.tinggi ? String(formData.tinggi) : '',
+            berat: formData.berat ? String(formData.berat) : '',
+            spo2: formData.spo2 ? String(formData.spo2) : '',
             jenis_alergi: formData.jenis_alergi || '',
             alergi: formData.alergi || '',
-            lingkar_perut: formData.lingkar_perut ? parseFloat(formData.lingkar_perut) : null,
-            nilai_bmi: formData.nilai_bmi ? parseFloat(formData.nilai_bmi) : null,
+            lingkar_perut: formData.lingkar_perut ? String(formData.lingkar_perut) : '',
+            nilai_bmi: formData.nilai_bmi ? String(formData.nilai_bmi) : '',
             status_bmi: formData.status_bmi || '',
-            eye: formData.eye ? parseInt(formData.eye) : null,
-            verbal: formData.verbal ? parseInt(formData.verbal) : null,
-            motorik: formData.motorik ? parseInt(formData.motorik) : null,
+            eye: formData.eye ? String(formData.eye) : '',
+            verbal: formData.verbal ? String(formData.verbal) : '',
+            motorik: formData.motorik ? String(formData.motorik) : '',
             htt: formData.htt || '',
             assesmen: formData.assesmen || '',
             evaluasi: formData.evaluasi || '',
@@ -769,6 +1278,7 @@ export default function PemeriksaanSoapDokter() {
             diet_jenis,
             diet_anjuran,
             diet_pantangan,
+            tindakan_kode,
             tindakan_nama,
             tindakan_pelaksana,
             tindakan_harga,
@@ -902,6 +1412,84 @@ export default function PemeriksaanSoapDokter() {
     const pageTitle = isEditMode ? 'Edit SOAP Dokter' : 'Pemeriksaan SOAP Dokter';
     const submitButtonText = isEditMode ? 'Update Pemeriksaan' : 'Simpan Pemeriksaan';
 
+    useEffect(() => {
+        if (!isEditMode || !soap_dokter) return;
+
+        // 1) Keluhan & HTT dari tableData
+        try {
+            const td =
+                typeof (soap_dokter as any).tableData === 'string'
+                    ? JSON.parse((soap_dokter as any).tableData)
+                    : (soap_dokter as any).tableData || {};
+            if (td && typeof td === 'object') {
+                if (Array.isArray(td.keluhanList)) setKeluhanList(td.keluhanList);
+                if (Array.isArray(td.httItems)) setHttpItems(td.httItems);
+            }
+        } catch {}
+
+        // 2) Resep (array of item)
+        try {
+            const resep = (soap_dokter as any).resep_data || (soap_dokter as any).resep_obat;
+            if (resep) {
+                const parsed = typeof resep === 'string' ? JSON.parse(resep) : resep;
+                if (Array.isArray(parsed)) setObatList(parsed);
+            }
+        } catch {}
+
+        // 3) ICD10
+        const icd10Codes: string[] = (soap_dokter as any).icd10_code || [];
+        const icd10Names: string[] = (soap_dokter as any).icd10_name || [];
+        const icd10Prio: string[] = (soap_dokter as any).icd10_priority || [];
+        if (icd10Codes.length) {
+            const list = icd10Codes.map((kode: string, i: number) => ({
+                kode_icd10: kode,
+                nama_icd10: icd10Names[i] || '',
+                priority_icd10: icd10Prio[i] || '',
+            }));
+            setIcd10List(list);
+        }
+
+        // 4) ICD9
+        const icd9Codes: string[] = (soap_dokter as any).icd9_code || [];
+        const icd9Names: string[] = (soap_dokter as any).icd9_name || [];
+        if (icd9Codes.length) {
+            const list = icd9Codes.map((kode: string, i: number) => ({
+                kode_icd9: kode,
+                nama_icd9: icd9Names[i] || '',
+            }));
+            setIcd9List(list);
+        }
+
+        // 5) Diet (kalau backend kirim array selain existing_diet_data)
+        const diets: any[] = (soap_dokter as any).diet_list || [];
+        if (Array.isArray(diets) && diets.length) {
+            setDietList(
+                diets.map((d) => ({
+                    jenis_diet: d.jenis_diet || '',
+                    jenis_diet_makanan: d.jenis_diet_makanan || '',
+                    jenis_diet_makanan_tidak: d.jenis_diet_makanan_tidak || '',
+                })),
+            );
+        }
+
+        // 6) Tindakan (kalau disimpan banyak item)
+        const tk: string[] = (soap_dokter as any).tindakan_kode || [];
+        const tn: string[] = (soap_dokter as any).tindakan_nama || [];
+        const tp: string[] = (soap_dokter as any).tindakan_pelaksana || [];
+        const th: (number | string)[] = (soap_dokter as any).tindakan_harga || [];
+        if (tk.length) {
+            // TODO: jika ingin render tabel tindakan, simpan ke state tindakanList dan tampilkan
+            // setTindakanList(tk.map((kode, i) => ({ kode, nama: tn[i]||'', kategori: '', pelaksana: tp[i]||'', harga: Number(th[i]||0) })));
+            setTindakanData((prev) => ({
+                ...prev,
+                kode_tindakan: tk[0] || '',
+                jenis_tindakan: tn[0] || '',
+                jenis_pelaksana: tp[0] || '',
+                harga: String(th[0] ?? ''),
+            }));
+        }
+    }, [isEditMode, soap_dokter]);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="SOAP Dokter - Pemeriksaan" />
@@ -929,7 +1517,10 @@ export default function PemeriksaanSoapDokter() {
                                 </div>
                                 <div>
                                     <Label>Jenis Kelamin</Label>
-                                    <Input value={pelayanan?.jenis_kelamin || ''} readOnly />
+                                    <Input
+                                        value={pelayanan?.pasien?.kelamin?.nama || convertCodeToGender(pelayanan?.jenis_kelamin || '') || ''}
+                                        readOnly
+                                    />
                                 </div>
                                 <div>
                                     <Label>Penjamin</Label>
@@ -941,22 +1532,7 @@ export default function PemeriksaanSoapDokter() {
                                 </div>
                                 <div>
                                     <Label>Umur</Label>
-                                    <Input
-                                        value={
-                                            pelayanan?.umur
-                                                ? (() => {
-                                                      // Ambil angka di depan (sebelum spasi/tahun), bulatkan ke bawah, lalu tambahkan " Tahun"
-                                                      const match = String(pelayanan.umur).match(/^([\d.]+)/);
-                                                      if (match) {
-                                                          const tahun = Math.floor(Number(match[1]));
-                                                          return `${tahun} Tahun`;
-                                                      }
-                                                      return pelayanan.umur;
-                                                  })()
-                                                : ''
-                                        }
-                                        readOnly
-                                    />
+                                    <Input value={formatUmurDisplay(pelayanan?.tanggal_lahir, pelayanan?.umur || '')} readOnly />
                                 </div>
                             </div>
                         ) : (
@@ -1002,7 +1578,7 @@ export default function PemeriksaanSoapDokter() {
                                     <TabsTrigger value="objektif">Objektif</TabsTrigger>
                                     <TabsTrigger value="assesmen">Assesmen</TabsTrigger>
                                     <TabsTrigger value="plan">Plan</TabsTrigger>
-                                    <TabsTrigger value="cppt">CPPT</TabsTrigger>
+                                    <TabsTrigger value="cppt">Histori Pasien</TabsTrigger>
                                 </TabsList>
 
                                 {/* Subyektif Tab */}
@@ -1042,13 +1618,10 @@ export default function PemeriksaanSoapDokter() {
                                                 <CardTitle>Anamnesa</CardTitle>
                                             </CardHeader>
                                             <CardContent>
-                                                <Textarea
+                                                <RichTextEditor
                                                     id="anamnesa"
-                                                    name="anamnesa"
                                                     value={formData.anamnesa}
-                                                    onChange={handleInputChange}
-                                                    rows={6}
-                                                    className="border-input bg-background"
+                                                    onChange={(value) => handleInputChange({ target: { name: 'anamnesa', value } } as any)}
                                                     placeholder="Masukkan anamnesa pasien..."
                                                 />
                                             </CardContent>
@@ -1089,19 +1662,25 @@ export default function PemeriksaanSoapDokter() {
                                                                 <Label htmlFor="tensi">Tekanan Darah (mmHg)</Label>
                                                                 <div className="flex items-center gap-2">
                                                                     <Input
+                                                                        ref={sistolRef as any}
                                                                         id="sistol"
                                                                         name="sistol"
                                                                         value={formData.sistol}
                                                                         onChange={handleInputChange}
+                                                                        onBlur={() => handleTensiBlur('sistol')}
+                                                                        onKeyDown={(e) => handleKeyDown(e as any, 'sistol', 'distol')}
                                                                         placeholder="120"
                                                                         className="w-20 text-center"
                                                                     />
                                                                     <span>/</span>
                                                                     <Input
+                                                                        ref={distolRef as any}
                                                                         id="distol"
                                                                         name="distol"
                                                                         value={formData.distol}
                                                                         onChange={handleInputChange}
+                                                                        onBlur={() => handleTensiBlur('distol')}
+                                                                        onKeyDown={(e) => handleKeyDown(e as any, 'distol', 'suhu')}
                                                                         placeholder="80"
                                                                         className="w-20 text-center"
                                                                     />
@@ -1110,30 +1689,39 @@ export default function PemeriksaanSoapDokter() {
                                                             <div>
                                                                 <Label htmlFor="suhu">Suhu (°C)</Label>
                                                                 <Input
+                                                                    ref={suhuRef as any}
                                                                     id="suhu"
                                                                     name="suhu"
                                                                     value={formData.suhu}
                                                                     onChange={handleInputChange}
+                                                                    onBlur={handleSuhuBlur}
+                                                                    onKeyDown={(e) => handleKeyDown(e as any, 'suhu', 'nadi')}
                                                                     placeholder="36.5"
                                                                 />
                                                             </div>
                                                             <div>
                                                                 <Label htmlFor="nadi">Nadi (/menit)</Label>
                                                                 <Input
+                                                                    ref={nadiRef as any}
                                                                     id="nadi"
                                                                     name="nadi"
                                                                     value={formData.nadi}
                                                                     onChange={handleInputChange}
+                                                                    onBlur={handleNadiBlur}
+                                                                    onKeyDown={(e) => handleKeyDown(e as any, 'nadi', 'rr')}
                                                                     placeholder="80"
                                                                 />
                                                             </div>
                                                             <div>
                                                                 <Label htmlFor="rr">RR (/menit)</Label>
                                                                 <Input
+                                                                    ref={rrRef as any}
                                                                     id="rr"
                                                                     name="rr"
                                                                     value={formData.rr}
                                                                     onChange={handleInputChange}
+                                                                    onBlur={handleRrBlur}
+                                                                    onKeyDown={(e) => handleKeyDown(e as any, 'rr', 'spo2')}
                                                                     placeholder="20"
                                                                 />
                                                             </div>
@@ -1143,16 +1731,20 @@ export default function PemeriksaanSoapDokter() {
                                                             <div>
                                                                 <Label htmlFor="spo2">SpO2 (%)</Label>
                                                                 <Input
+                                                                    ref={spo2Ref as any}
                                                                     id="spo2"
                                                                     name="spo2"
                                                                     value={formData.spo2}
                                                                     onChange={handleInputChange}
+                                                                    onBlur={handleSpo2Blur}
+                                                                    onKeyDown={(e) => handleKeyDown(e as any, 'spo2', 'lingkarPerut')}
                                                                     placeholder="98"
                                                                 />
                                                             </div>
                                                             <div>
                                                                 <Label htmlFor="lingkar_perut">Lingkar Perut (cm)</Label>
                                                                 <Input
+                                                                    ref={lingkarPerutRef as any}
                                                                     id="lingkar_perut"
                                                                     name="lingkar_perut"
                                                                     value={formData.lingkar_perut}
@@ -1169,20 +1761,26 @@ export default function PemeriksaanSoapDokter() {
                                                             <div>
                                                                 <Label htmlFor="tinggi">Tinggi Badan (cm)</Label>
                                                                 <Input
+                                                                    ref={tinggiRef as any}
                                                                     id="tinggi"
                                                                     name="tinggi"
                                                                     value={formData.tinggi}
                                                                     onChange={handleInputChange}
+                                                                    onBlur={handleBmiBlur}
+                                                                    onKeyDown={(e) => handleKeyDown(e as any, 'tinggi', 'berat')}
                                                                     placeholder="170"
                                                                 />
                                                             </div>
                                                             <div>
                                                                 <Label htmlFor="berat">Berat Badan (kg)</Label>
                                                                 <Input
+                                                                    ref={beratRef as any}
                                                                     id="berat"
                                                                     name="berat"
                                                                     value={formData.berat}
                                                                     onChange={handleInputChange}
+                                                                    onBlur={handleBmiBlur}
+                                                                    onKeyDown={(e) => handleKeyDown(e as any, 'berat', 'jenisAlergi')}
                                                                     placeholder="70"
                                                                 />
                                                             </div>
@@ -1207,7 +1805,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     value={formData.jenis_alergi}
                                                                     onValueChange={(value) => handleSelectChange('jenis_alergi', value)}
                                                                 >
-                                                                    <SelectTrigger>
+                                                                    <SelectTrigger ref={jenisAlergiTriggerRef as any}>
                                                                         <SelectValue placeholder="Pilih jenis alergi" />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
@@ -1361,63 +1959,66 @@ export default function PemeriksaanSoapDokter() {
                                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                                                         <div>
                                                             <Label htmlFor="jenis_diet">Jenis Diet</Label>
-                                                            <select
-                                                                id="jenis_diet"
-                                                                name="jenis_diet"
+                                                            <Select
                                                                 value={dietData.jenis_diet}
-                                                                onChange={(e) => setDietData((prev) => ({ ...prev, jenis_diet: e.target.value }))}
-                                                                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 focus:ring-2 focus:ring-ring focus:outline-none"
+                                                                onValueChange={(value) => setDietData((prev) => ({ ...prev, jenis_diet: value }))}
                                                             >
-                                                                <option value="">Pilih Jenis Diet</option>
-                                                                {jenis_diet.map((diet) => (
-                                                                    <option key={diet.id} value={diet.nama}>
-                                                                        {diet.nama}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                                <SelectTrigger className="mt-1">
+                                                                    <SelectValue placeholder="Pilih Jenis Diet" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {jenis_diet.map((diet) => (
+                                                                        <SelectItem key={diet.id} value={diet.nama}>
+                                                                            {diet.nama}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="jenis_diet_makanan">Makanan Dianjurkan</Label>
-                                                            <select
-                                                                id="jenis_diet_makanan"
-                                                                name="jenis_diet_makanan"
+                                                            <Select
                                                                 value={dietData.jenis_diet_makanan}
-                                                                onChange={(e) =>
-                                                                    setDietData((prev) => ({ ...prev, jenis_diet_makanan: e.target.value }))
+                                                                onValueChange={(value) =>
+                                                                    setDietData((prev) => ({ ...prev, jenis_diet_makanan: value }))
                                                                 }
-                                                                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 focus:ring-2 focus:ring-ring focus:outline-none"
                                                             >
-                                                                <option value="">Pilih Makanan Dianjurkan</option>
-                                                                {makanan.map((food) => (
-                                                                    <option key={food.id} value={food.nama}>
-                                                                        {food.nama}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                                <SelectTrigger className="mt-1">
+                                                                    <SelectValue placeholder="Pilih Makanan Dianjurkan" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {makanan.map((food) => (
+                                                                        <SelectItem key={food.id} value={food.nama}>
+                                                                            {food.nama}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="jenis_diet_makanan_tidak">Makanan Tidak Boleh</Label>
-                                                            <select
-                                                                id="jenis_diet_makanan_tidak"
-                                                                name="jenis_diet_makanan_tidak"
+                                                            <Select
                                                                 value={dietData.jenis_diet_makanan_tidak}
-                                                                onChange={(e) =>
-                                                                    setDietData((prev) => ({ ...prev, jenis_diet_makanan_tidak: e.target.value }))
+                                                                onValueChange={(value) =>
+                                                                    setDietData((prev) => ({ ...prev, jenis_diet_makanan_tidak: value }))
                                                                 }
-                                                                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 focus:ring-2 focus:ring-ring focus:outline-none"
                                                             >
-                                                                <option value="">Pilih Makanan Tidak Boleh</option>
-                                                                {makanan.map((food) => (
-                                                                    <option key={food.id} value={food.nama}>
-                                                                        {food.nama}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                                <SelectTrigger className="mt-1">
+                                                                    <SelectValue placeholder="Pilih Makanan Tidak Boleh" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {makanan.map((food) => (
+                                                                        <SelectItem key={food.id} value={food.nama}>
+                                                                            {food.nama}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                     </div>
 
                                                     <div className="flex justify-end">
-                                                        <Button type="button" onClick={handleAddDiet} className="bg-blue-600 hover:bg-blue-700">
+                                                        <Button type="button" onClick={handleAddDiet}>
                                                             Tambah Diet
                                                         </Button>
                                                     </div>
@@ -1830,41 +2431,16 @@ export default function PemeriksaanSoapDokter() {
                                                 <CardContent className="space-y-4">
                                                     <div>
                                                         <Label htmlFor="assesmen">Diagnosis / Assessment</Label>
-                                                        <Textarea
-                                                            id="assesmen"
-                                                            name="assesmen"
-                                                            value={formData.assesmen}
-                                                            onChange={handleInputChange}
-                                                            rows={6}
-                                                            className="mt-1 border-input bg-background"
-                                                            placeholder="Masukkan diagnosis atau assessment pasien..."
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <Label htmlFor="expertise">Expertise / Konsultasi</Label>
-                                                        <Textarea
-                                                            id="expertise"
-                                                            name="expertise"
-                                                            value={formData.expertise}
-                                                            onChange={handleInputChange}
-                                                            rows={4}
-                                                            className="mt-1 border-input bg-background"
-                                                            placeholder="Masukkan expertise atau konsultasi yang diperlukan..."
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <Label htmlFor="evaluasi">Evaluasi</Label>
-                                                        <Textarea
-                                                            id="evaluasi"
-                                                            name="evaluasi"
-                                                            value={formData.evaluasi}
-                                                            onChange={handleInputChange}
-                                                            rows={4}
-                                                            className="mt-1 border-input bg-background"
-                                                            placeholder="Masukkan evaluasi kondisi pasien..."
-                                                        />
+                                                        <div className="mt-1">
+                                                            <RichTextEditor
+                                                                id="assesmen"
+                                                                value={formData.assesmen}
+                                                                onChange={(value) =>
+                                                                    handleInputChange({ target: { name: 'assesmen', value } } as any)
+                                                                }
+                                                                placeholder="Masukkan diagnosis atau assessment pasien..."
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </CardContent>
                                             </div>
@@ -1890,55 +2466,71 @@ export default function PemeriksaanSoapDokter() {
 
                                                             {/* ICD 10 Input Form */}
                                                             <div className="space-y-3">
-                                                                <div>
-                                                                    <Label htmlFor="icd10">KODE ICD 10</Label>
-                                                                    <Select
-                                                                        value={icdData.kode_icd10 || ''}
-                                                                        onValueChange={(value) => {
-                                                                            const selectedIcd = icd10.find((icd) => icd.kode === value);
-                                                                            setIcdData((prev) => ({
-                                                                                ...prev,
-                                                                                kode_icd10: value,
-                                                                                nama_icd10: selectedIcd ? selectedIcd.nama : '',
-                                                                            }));
-                                                                        }}
-                                                                    >
-                                                                        <SelectTrigger>
-                                                                            <SelectValue placeholder="-- Pilih --" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {icd10.map((item) => (
-                                                                                <SelectItem key={item.kode} value={item.kode}>
-                                                                                    {item.kode} - {item.nama}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
+                                                                <div className="flex items-end gap-4">
+                                                                    <div className="flex-1">
+                                                                        <Label htmlFor="icd10">KODE ICD 10</Label>
+                                                                        <Select
+                                                                            value={icdData.kode_icd10 || ''}
+                                                                            onValueChange={(value) => {
+                                                                                const selectedIcd = icd10.find((icd) => icd.kode === value);
+                                                                                setIcdData((prev) => ({
+                                                                                    ...prev,
+                                                                                    kode_icd10: value,
+                                                                                    nama_icd10: selectedIcd ? selectedIcd.nama : '',
+                                                                                }));
+                                                                            }}
+                                                                        >
+                                                                            <SelectTrigger className="text-sm">
+                                                                                <SelectValue placeholder="-- Pilih --" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {icd10.map((item) => (
+                                                                                    <SelectItem key={item.kode} value={item.kode}>
+                                                                                        {item.kode} -{' '}
+                                                                                        {item.nama.length > 25
+                                                                                            ? item.nama.substring(0, 25) + '...'
+                                                                                            : item.nama}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
 
-                                                                <div>
-                                                                    <Label htmlFor="priority_icd10">Pilih</Label>
-                                                                    <Select
-                                                                        value={icdData.priority_icd10 || ''}
-                                                                        onValueChange={(value) =>
-                                                                            setIcdData((prev) => ({ ...prev, priority_icd10: value }))
-                                                                        }
-                                                                    >
-                                                                        <SelectTrigger>
-                                                                            <SelectValue placeholder="-- Pilih --" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="Primary">Primary</SelectItem>
-                                                                            <SelectItem value="Sekunder">Sekunder</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
+                                                                    <div className="flex-1">
+                                                                        <Label htmlFor="priority_icd10">Prioritas</Label>
+                                                                        <Select
+                                                                            value={icdData.priority_icd10 || ''}
+                                                                            onValueChange={(value) =>
+                                                                                setIcdData((prev) => ({ ...prev, priority_icd10: value }))
+                                                                            }
+                                                                        >
+                                                                            <SelectTrigger className="text-sm">
+                                                                                <SelectValue placeholder="-- Pilih --" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="Primary">Primary</SelectItem>
+                                                                                <SelectItem value="Secondary">Secondary</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
 
-                                                                <div className="flex justify-end">
                                                                     <Button
                                                                         type="button"
                                                                         onClick={() => {
                                                                             if (icdData.kode_icd10 && icdData.nama_icd10 && icdData.priority_icd10) {
+                                                                                // Prevent multiple Primary entries
+                                                                                const hasPrimary = icd10List.some(
+                                                                                    (it) => (it.priority_icd10 || '').toLowerCase() === 'primary',
+                                                                                );
+                                                                                if (
+                                                                                    (icdData.priority_icd10 || '').toLowerCase() === 'primary' &&
+                                                                                    hasPrimary
+                                                                                ) {
+                                                                                    toast.warning(
+                                                                                        'Prioritas Primary untuk ICD10 sudah ada. Tidak boleh lebih dari satu.',
+                                                                                    );
+                                                                                    return;
+                                                                                }
                                                                                 setIcd10List((prev) => [...prev, { ...icdData }]);
                                                                                 setIcdData((prev) => ({
                                                                                     ...prev,
@@ -1949,9 +2541,8 @@ export default function PemeriksaanSoapDokter() {
                                                                             }
                                                                         }}
                                                                         size="sm"
-                                                                        className="bg-green-600 hover:bg-green-700"
                                                                     >
-                                                                        ✓
+                                                                        + Tambah
                                                                     </Button>
                                                                 </div>
                                                             </div>
@@ -2008,33 +2599,33 @@ export default function PemeriksaanSoapDokter() {
 
                                                             {/* ICD 9 Input Form */}
                                                             <div className="space-y-3">
-                                                                <div>
-                                                                    <Label htmlFor="icd9">KODE ICD 9</Label>
-                                                                    <Select
-                                                                        value={icdData.kode_icd9 || ''}
-                                                                        onValueChange={(value) => {
-                                                                            const selectedIcd = icd9.find((icd) => icd.kode === value);
-                                                                            setIcdData((prev) => ({
-                                                                                ...prev,
-                                                                                kode_icd9: value,
-                                                                                nama_icd9: selectedIcd ? selectedIcd.nama : '',
-                                                                            }));
-                                                                        }}
-                                                                    >
-                                                                        <SelectTrigger>
-                                                                            <SelectValue placeholder="-- Pilih --" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {icd9.map((item) => (
-                                                                                <SelectItem key={item.kode} value={item.kode}>
-                                                                                    {item.kode} - {item.nama}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
+                                                                <div className="flex items-end gap-4">
+                                                                    <div className="flex-1">
+                                                                        <Label htmlFor="icd9">KODE ICD 9</Label>
+                                                                        <Select
+                                                                            value={icdData.kode_icd9 || ''}
+                                                                            onValueChange={(value) => {
+                                                                                const selectedIcd = icd9.find((icd) => icd.kode === value);
+                                                                                setIcdData((prev) => ({
+                                                                                    ...prev,
+                                                                                    kode_icd9: value,
+                                                                                    nama_icd9: selectedIcd ? selectedIcd.nama : '',
+                                                                                }));
+                                                                            }}
+                                                                        >
+                                                                            <SelectTrigger className="text-sm">
+                                                                                <SelectValue placeholder="-- Pilih --" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {icd9.map((item) => (
+                                                                                    <SelectItem key={item.kode} value={item.kode}>
+                                                                                        {item.kode} - {item.nama}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
 
-                                                                <div className="flex justify-end">
                                                                     <Button
                                                                         type="button"
                                                                         onClick={() => {
@@ -2048,9 +2639,8 @@ export default function PemeriksaanSoapDokter() {
                                                                             }
                                                                         }}
                                                                         size="sm"
-                                                                        className="bg-green-600 hover:bg-green-700"
                                                                     >
-                                                                        ✓
+                                                                        + Tambah
                                                                     </Button>
                                                                 </div>
                                                             </div>
@@ -2108,46 +2698,254 @@ export default function PemeriksaanSoapDokter() {
                                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                                                         <div>
                                                             <Label htmlFor="jenis_tindakan">Jenis Tindakan</Label>
-                                                            <Input
-                                                                id="jenis_tindakan"
-                                                                name="jenis_tindakan"
-                                                                value={tindakanData.jenis_tindakan}
-                                                                onChange={(e) =>
-                                                                    setTindakanData((prev) => ({ ...prev, jenis_tindakan: e.target.value }))
-                                                                }
-                                                                className="mt-1 border-input bg-background"
-                                                                placeholder="Masukkan jenis tindakan..."
-                                                            />
+                                                            <Select
+                                                                value={tindakanData.kode_tindakan}
+                                                                onValueChange={(value) => {
+                                                                    const selectedTindakan = tindakan.find((t) => t.kode === value);
+                                                                    setTindakanData((prev) => ({
+                                                                        ...prev,
+                                                                        kode_tindakan: selectedTindakan ? selectedTindakan.kode : '',
+                                                                        jenis_tindakan: selectedTindakan ? selectedTindakan.nama : '',
+                                                                        harga: selectedTindakan ? selectedTindakan.tarif_total : '',
+                                                                        manualPricing: false,
+                                                                    }));
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="mt-1">
+                                                                    <SelectValue placeholder="-- Pilih Tindakan --" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {tindakan && tindakan.length > 0 ? (
+                                                                        tindakan.map((item) => (
+                                                                            <SelectItem key={item.id} value={item.kode}>
+                                                                                {item.kode} - {item.nama}
+                                                                            </SelectItem>
+                                                                        ))
+                                                                    ) : (
+                                                                        <SelectItem value="no-data" disabled>
+                                                                            Tidak ada data tindakan
+                                                                        </SelectItem>
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                         <div>
-                                                            <Label htmlFor="jenis_pelaksana">Jenis Pelaksana</Label>
-                                                            <Input
-                                                                id="jenis_pelaksana"
-                                                                name="jenis_pelaksana"
+                                                            <Label htmlFor="jenis_pelaksana">Pelaksana</Label>
+                                                            <Select
                                                                 value={tindakanData.jenis_pelaksana}
-                                                                onChange={(e) =>
-                                                                    setTindakanData((prev) => ({ ...prev, jenis_pelaksana: e.target.value }))
-                                                                }
-                                                                className="mt-1 border-input bg-background"
-                                                                placeholder="Masukkan jenis pelaksana..."
-                                                            />
+                                                                onValueChange={(value) => {
+                                                                    const selected = tindakan.find((t) => t.kode === tindakanData.kode_tindakan);
+                                                                    let autoHarga = '';
+                                                                    if (selected) {
+                                                                        if (value === 'Dokter') autoHarga = selected.tarif_dokter || '';
+                                                                        else if (value === 'Perawat') autoHarga = selected.tarif_perawat || '';
+                                                                        else if (value === 'Dokter, Perawat') autoHarga = selected.tarif_total || '';
+                                                                        else autoHarga = '';
+                                                                    }
+                                                                    setTindakanData((prev) => ({
+                                                                        ...prev,
+                                                                        jenis_pelaksana: value,
+                                                                        harga: prev.manualPricing ? prev.harga : autoHarga,
+                                                                    }));
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="mt-1">
+                                                                    <SelectValue placeholder="-- Pilih Pelaksana --" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="Dokter">Dokter</SelectItem>
+                                                                    <SelectItem value="Perawat">Perawat</SelectItem>
+                                                                    <SelectItem value="Dokter, Perawat">Dokter & Perawat</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="harga">Harga</Label>
-                                                            <Input
-                                                                id="harga"
-                                                                name="harga"
-                                                                value={tindakanData.harga}
-                                                                onChange={(e) => setTindakanData((prev) => ({ ...prev, harga: e.target.value }))}
-                                                                className="mt-1 border-input bg-background"
-                                                                placeholder="Masukkan harga..."
-                                                            />
+                                                            <div className="mt-1 flex items-center gap-3">
+                                                                <label className="flex items-center gap-2 text-sm">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={tindakanData.manualPricing}
+                                                                        onChange={(e) => {
+                                                                            const manual = e.target.checked;
+                                                                            if (!manual) {
+                                                                                const selected = tindakan.find(
+                                                                                    (t) => t.kode === tindakanData.kode_tindakan,
+                                                                                );
+                                                                                let autoHarga = '';
+                                                                                if (selected) {
+                                                                                    if (tindakanData.jenis_pelaksana === 'Dokter')
+                                                                                        autoHarga = selected.tarif_dokter || '';
+                                                                                    else if (tindakanData.jenis_pelaksana === 'Perawat')
+                                                                                        autoHarga = selected.tarif_perawat || '';
+                                                                                    else if (tindakanData.jenis_pelaksana === 'Dokter & Perawat')
+                                                                                        autoHarga = selected.tarif_total || '';
+                                                                                }
+                                                                                setTindakanData((prev) => ({
+                                                                                    ...prev,
+                                                                                    manualPricing: false,
+                                                                                    harga: autoHarga,
+                                                                                }));
+                                                                            } else {
+                                                                                setTindakanData((prev) => ({ ...prev, manualPricing: true }));
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    Manual
+                                                                </label>
+                                                                <Input
+                                                                    id="harga"
+                                                                    name="harga"
+                                                                    value={tindakanData.harga}
+                                                                    onChange={(e) => setTindakanData((prev) => ({ ...prev, harga: e.target.value }))}
+                                                                    className="border-input bg-background"
+                                                                    placeholder="Otomatis / manual"
+                                                                    disabled={
+                                                                        tindakanData.jenis_pelaksana === 'Tindakan (Tidak ada harga)' ||
+                                                                        !tindakanData.manualPricing
+                                                                    }
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    {/* Keterangan dihapus sesuai permintaan */}
+
+                                                    {/* Action Buttons */}
+                                                    <div className="flex justify-end">
+                                                        <Button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (
+                                                                    tindakanData.kode_tindakan &&
+                                                                    tindakanData.jenis_tindakan &&
+                                                                    tindakanData.jenis_pelaksana
+                                                                ) {
+                                                                    const hargaNumber = Number(tindakanData.harga || 0);
+                                                                    setTindakanList((prev) => [
+                                                                        ...prev,
+                                                                        {
+                                                                            kode: tindakanData.kode_tindakan,
+                                                                            nama: tindakanData.jenis_tindakan,
+                                                                            kategori:
+                                                                                tindakan.find((t) => t.kode === tindakanData.kode_tindakan)
+                                                                                    ?.kategori || '',
+                                                                            pelaksana: tindakanData.jenis_pelaksana,
+                                                                            harga: isNaN(hargaNumber) ? 0 : hargaNumber,
+                                                                        },
+                                                                    ]);
+                                                                    setTindakanData({
+                                                                        kode_tindakan: '',
+                                                                        jenis_tindakan: '',
+                                                                        jenis_pelaksana: '',
+                                                                        harga: '',
+                                                                        manualPricing: false,
+                                                                    });
+                                                                } else {
+                                                                    toast.error('Lengkapi kode, jenis tindakan, dan pelaksana');
+                                                                }
+                                                            }}
+                                                            size="sm"
+                                                        >
+                                                            + Tambah Tindakan
+                                                        </Button>
+                                                    </div>
+
+                                                    {/* Daftar Tindakan (inside Tindakan card) */}
+                                                    {tindakanList.length > 0 && (
+                                                        <div className="mt-4">
+                                                            <Table>
+                                                                <TableHeader>
+                                                                    <TableRow>
+                                                                        <TableHead>Kode</TableHead>
+                                                                        <TableHead>Jenis Tindakan</TableHead>
+                                                                        <TableHead>Pelaksana</TableHead>
+                                                                        <TableHead>Harga</TableHead>
+                                                                        <TableHead className="text-right">Aksi</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {tindakanList.map((row, idx) => (
+                                                                        <TableRow key={`${row.kode}-${idx}`}>
+                                                                            <TableCell className="font-mono">{row.kode}</TableCell>
+                                                                            <TableCell>{row.nama}</TableCell>
+                                                                            <TableCell>{row.pelaksana}</TableCell>
+                                                                            <TableCell>Rp {row.harga.toLocaleString('id-ID')}</TableCell>
+                                                                            <TableCell className="text-right">
+                                                                                <Button
+                                                                                    variant="destructive"
+                                                                                    size="sm"
+                                                                                    onClick={() =>
+                                                                                        setTindakanList((prev) => prev.filter((_, i) => i !== idx))
+                                                                                    }
+                                                                                >
+                                                                                    Hapus
+                                                                                </Button>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    ))}
+                                                                </TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    )}
                                                 </CardContent>
                                             </div>
                                         </Card>
+                                    </div>
+                                    <div className="mt-4 flex justify-between">
+                                        <Button type="button" variant="outline" onClick={() => setActiveTab('objektif')}>
+                                            Previous
+                                        </Button>
+                                        <Button type="button" onClick={() => setActiveTab('plan')}>
+                                            Next
+                                        </Button>
+                                    </div>
+                                </TabsContent>
 
+                                {/* Plan Tab */}
+                                <TabsContent value="plan" className="mt-4">
+                                    <div className="space-y-6">
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="text-lg">Plan Tindakan</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-4">
+                                                <div>
+                                                    <Label htmlFor="expertise">Expertise / Konsultasi</Label>
+                                                    <div className="mt-1">
+                                                        <RichTextEditor
+                                                            id="expertise"
+                                                            value={formData.expertise}
+                                                            onChange={(value) => handleInputChange({ target: { name: 'expertise', value } } as any)}
+                                                            placeholder="Masukkan expertise atau konsultasi yang diperlukan..."
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <Label htmlFor="evaluasi">Evaluasi</Label>
+                                                    <div className="mt-1">
+                                                        <RichTextEditor
+                                                            id="evaluasi"
+                                                            value={formData.evaluasi}
+                                                            onChange={(value) => handleInputChange({ target: { name: 'evaluasi', value } } as any)}
+                                                            placeholder="Masukkan evaluasi kondisi pasien..."
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <Label htmlFor="plan">Rencana Tindakan / Terapi</Label>
+                                                    <div className="mt-1">
+                                                        <RichTextEditor
+                                                            id="plan"
+                                                            value={formData.plan}
+                                                            onChange={(value) => handleInputChange({ target: { name: 'plan', value } } as any)}
+                                                            placeholder="Masukkan rencana tindakan, terapi, atau pengobatan untuk pasien..."
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
                                         {/* Obat Section */}
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
@@ -2201,15 +2999,16 @@ export default function PemeriksaanSoapDokter() {
                                                                             Tidak ada obat tersedia
                                                                         </SelectItem>
                                                                     )}
-                                                                    {obatTersedia.map((obat) => (
-                                                                        <SelectItem key={obat.kode_obat_alkes} value={obat.nama_obat_alkes}>
+                                                                    {obatTersedia.map((obat, idx) => (
+                                                                        <SelectItem
+                                                                            key={`${obat.kode_obat_alkes}-${obat.nama_obat_alkes}-${idx}`}
+                                                                            value={obat.nama_obat_alkes}
+                                                                        >
                                                                             {obat.nama_obat_alkes} (Stok: {obat.total_stok})
                                                                         </SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
-                                                        </div>
-                                                        <div>
                                                             <Label htmlFor="jumlah">Qty / Jumlah</Label>
                                                             <Input
                                                                 id="jumlah"
@@ -2318,12 +3117,7 @@ export default function PemeriksaanSoapDokter() {
 
                                                     {/* Action Buttons */}
                                                     <div className="mb-4 flex flex-wrap items-center gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            onClick={tambahObat}
-                                                            disabled={!obatData.nama_obat || !obatData.jumlah}
-                                                            className="bg-blue-500 hover:bg-blue-600"
-                                                        >
+                                                        <Button type="button" onClick={tambahObat} disabled={!obatData.nama_obat || !obatData.jumlah}>
                                                             {editIndexObat !== null ? 'Simpan Perubahan' : 'Tambah Obat ke Resep'}
                                                         </Button>
                                                         {editIndexObat !== null && (
@@ -2331,7 +3125,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 Batal Edit
                                                             </Button>
                                                         )}
-                                                        <Button type="button" variant="outline" className="bg-gray-500 text-white hover:bg-gray-600">
+                                                        <Button type="button" variant="outline">
                                                             Print Resep (PDF)
                                                         </Button>
                                                     </div>
@@ -2340,7 +3134,7 @@ export default function PemeriksaanSoapDokter() {
                                                     {obatList.length > 0 ? (
                                                         <div className="mt-4">
                                                             <Label className="text-base font-semibold">Resep:</Label>
-                                                            <div className="mt-2 divide-y rounded-md border bg-gray-50">
+                                                            <div className="mt-2 divide-y rounded-md border">
                                                                 {obatList.map((obat, index) => (
                                                                     <div key={index} className="flex items-start justify-between gap-3 p-3">
                                                                         <div className="font-mono text-sm whitespace-pre-wrap">
@@ -2413,39 +3207,6 @@ export default function PemeriksaanSoapDokter() {
                                                     )}
                                                 </CardContent>
                                             </div>
-                                        </Card>
-                                    </div>
-                                    <div className="mt-4 flex justify-between">
-                                        <Button type="button" variant="outline" onClick={() => setActiveTab('objektif')}>
-                                            Previous
-                                        </Button>
-                                        <Button type="button" onClick={() => setActiveTab('plan')}>
-                                            Next
-                                        </Button>
-                                    </div>
-                                </TabsContent>
-
-                                {/* Plan Tab */}
-                                <TabsContent value="plan" className="mt-4">
-                                    <div className="space-y-6">
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle className="text-lg">Plan Tindakan</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div>
-                                                    <Label htmlFor="plan">Rencana Tindakan / Terapi</Label>
-                                                    <Textarea
-                                                        id="plan"
-                                                        name="plan"
-                                                        value={formData.plan}
-                                                        onChange={handleInputChange}
-                                                        rows={8}
-                                                        className="mt-1 border-input bg-background"
-                                                        placeholder="Masukkan rencana tindakan, terapi, atau pengobatan untuk pasien..."
-                                                    />
-                                                </div>
-                                            </CardContent>
                                         </Card>
                                     </div>
                                     <div className="mt-4 flex justify-between">
@@ -2558,13 +3319,37 @@ export default function PemeriksaanSoapDokter() {
                             <Button variant="outline" onClick={() => setShowToothModal(false)}>
                                 Cancel
                             </Button>
-                            <Button onClick={saveToothCondition} className="bg-blue-600 hover:bg-blue-700">
-                                Save
-                            </Button>
+                            <Button onClick={saveToothCondition}>Save</Button>
                         </div>
                     </div>
                 </div>
             )}
+            {/* Confirm Dialog */}
+            <AlertDialog
+                open={confirmOpen}
+                onOpenChange={(next) => {
+                    if (!next && confirmOpen && confirmResolverRef.current) {
+                        confirmResolverRef.current(false);
+                        confirmResolverRef.current = undefined;
+                    }
+                    setConfirmOpen(next);
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmOpts.title || 'Konfirmasi'}</AlertDialogTitle>
+                        {confirmOpts.description ? (
+                            <AlertDialogDescription style={{ whiteSpace: 'pre-line' }}>{confirmOpts.description}</AlertDialogDescription>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={handleConfirmCancel}>{confirmOpts.cancelText || 'Batal'}</AlertDialogCancel>
+                        <AlertDialogAction ref={confirmButtonRef} onClick={handleConfirmOk}>
+                            {confirmOpts.confirmText || 'Lanjut'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AppLayout>
     );
 }

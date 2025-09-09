@@ -48,17 +48,16 @@ export default function Login({
 
               {/* Email */}
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="login">Email atau Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  name="email"
+                  id="login"
+                  type="text"
+                  name="login"
                   required
-                  autoFocus
-                  placeholder="email@example.com"
+                  autoFocus                  
                 />
-                {errors?.email && (
-                  <p className="text-red-500 text-sm">{errors.email}</p>
+                {errors?.login && (
+                  <p className="text-red-500 text-sm">{errors.login}</p>
                 )}
               </div>
 

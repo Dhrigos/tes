@@ -14,11 +14,7 @@ class Set_Bpjs extends Model
         'USERNAME',
         'PASSWORD',
         'SECRET_KEY',
-        'USER_KEY',
-        'APP_CODE',
-        'BASE_URL',
-        'SERVICE',
-        'SERVICE_ANTREAN',
+        'USER_KEY',        
     ];
 
     protected $hidden = [

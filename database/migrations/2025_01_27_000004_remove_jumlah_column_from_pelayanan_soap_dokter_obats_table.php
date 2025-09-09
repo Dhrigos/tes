@@ -11,12 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('set_sehats', function (Blueprint $table) {
-            $table->id();
-            $table->string('org_id');
-            $table->string('client_id');
-            $table->string('client_secret');            
-            $table->timestamps();
+        Schema::table('pelayanan_soap_dokter_obats', function (Blueprint $table) {
+            $table->dropColumn('jumlah');
         });
     }
 
@@ -25,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('set_sehats');
+        Schema::table('pelayanan_soap_dokter_obats', function (Blueprint $table) {
+            $table->integer('jumlah')->after('nama_obat');
+        });
     }
 };

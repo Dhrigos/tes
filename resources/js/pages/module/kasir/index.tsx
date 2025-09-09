@@ -188,15 +188,21 @@ export default function KasirIndex({ title, apotek = [], tindakan = [] }: Props)
                                                         <TableCell className="text-center">{sumHarga.toLocaleString('id-ID')}</TableCell>
                                                         <TableCell className="text-center">{(t.created_at || '').slice(0, 10)}</TableCell>
                                                         <TableCell className="text-center">
-                                                            <Button size="sm" className="mr-2" onClick={() => openDetailModalTindakan(t)}>
+                                                            <Button
+                                                                size="sm"
+                                                                className="mr-2"
+                                                                variant="outline"
+                                                                onClick={() => openDetailModalTindakan(t)}
+                                                            >
                                                                 Detail
                                                             </Button>
-                                                            <a
-                                                                className="inline-flex items-center rounded bg-blue-500 px-2 py-1 text-xs text-white"
-                                                                href={`/kasir/pembayaran/${encodeURIComponent(t.kode_faktur || '')}?no_rawat=${encodeURIComponent(t.no_rawat || '')}`}
-                                                            >
-                                                                Bayar
-                                                            </a>
+                                                            <Button size="sm">
+                                                                <a
+                                                                    href={`/kasir/pembayaran/${encodeURIComponent(t.kode_faktur || '')}?no_rawat=${encodeURIComponent(t.no_rawat || '')}`}
+                                                                >
+                                                                    Bayar
+                                                                </a>
+                                                            </Button>
                                                         </TableCell>
                                                     </TableRow>
                                                 );

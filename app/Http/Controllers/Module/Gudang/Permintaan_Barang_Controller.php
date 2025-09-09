@@ -463,84 +463,6 @@ class Permintaan_Barang_Controller extends Controller
         }
     }
 
-    /**
-     * KONSEP BARU: Master dapat mengirim konfirmasi ke client
-     */
-    public function kirimKonfirmasi(Request $request)
-    {
-        try {
-            // Hanya Master yang dapat mengirim konfirmasi
-            $webSetting = Web_Setting::first();
-            if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Hanya Master Gudang yang dapat mengirim konfirmasi!'
-                ], 403);
-            }
-
-            $kodeRequest = $request->input('kode_request');
-            $items = $request->input('items');
-            $status = $request->input('status', 1); // 1: dikonfirmasi, 2: ditolak
-
-            if (empty($kodeRequest) || empty($items) || !is_array($items)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data tidak valid!'
-                ], 400);
-            }
-
-            // Get the permintaan barang data
-            $permintaan = Permintaan_Barang::where('kode_request', $kodeRequest)->first();
-
-            if (!$permintaan) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data permintaan tidak ditemukan!'
-                ], 404);
-            }
-
-            // Update status permintaan
-            $permintaan->update(['status' => $status]);
-
-            // Simpan ke tabel konfirmasi
-            foreach ($items as $item) {
-                Permintaan_Barang_Konfirmasi::create([
-                    'kode_request' => $kodeRequest,
-                    'kode_klinik' => $permintaan->kode_klinik,
-                    'nama_klinik' => $permintaan->nama_klinik,
-                    'tanggal_request' => now(),
-                    'kode_obat_alkes' => $item['kode_obat_alkes'],
-                    'nama_obat_alkes' => $item['nama_obat_alkes'],
-                    'qty' => $item['qty'],
-                    'jenis_barang' => $item['jenis_barang'],
-                    'status_konfirmasi' => $status
-                ]);
-            }
-
-            // Broadcast WebSocket event untuk memberitahu client
-            $this->webSocketService->broadcastKonfirmasi([
-                'kode_request' => $kodeRequest,
-                'kode_klinik' => $permintaan->kode_klinik,
-                'nama_klinik' => $permintaan->nama_klinik,
-                'status' => $status,
-                'items' => $items,
-                'tanggal_konfirmasi' => now(),
-                'source' => 'master_confirmation'
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => $status == 1 ? 'Konfirmasi berhasil dikirim ke client!' : 'Penolakan berhasil dikirim ke client!'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat mengirim konfirmasi!',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function tolakData(Request $request, $id = null)
     {
         try {
@@ -621,6 +543,11 @@ class Permintaan_Barang_Controller extends Controller
 
                     // Hapus data dari keluar
                     $connection->table('gudang_utama_keluars')->where('id', $id)->delete();
+
+                    // Update status permintaan menjadi 4 (ditolak oleh klinik)
+                    $connection->table('permintaan_barangs')
+                        ->where('kode_request', $data->kode_request)
+                        ->update(['status' => 4]);
                 } elseif (Web_Setting::first()->is_gudangutama_active == 1) {
                     // Assuming these models exist based on the pattern in terimaData
                     // You may need to adjust these model names based on your actual models
@@ -681,6 +608,10 @@ class Permintaan_Barang_Controller extends Controller
 
                     // Hapus data dari keluar
                     Permintaan_Barang_Konfirmasi::where('id', $id)->delete();
+
+                    // Update status permintaan menjadi 4 (ditolak oleh klinik)
+                    Permintaan_Barang::where('kode_request', $data->kode_request)
+                        ->update(['status' => 4]);
                 }
             } else {
                 // Bulk rejection by kode_request (all) or selected items by IDs if provided
@@ -781,6 +712,11 @@ class Permintaan_Barang_Controller extends Controller
                         $connection->table('gudang_utama_keluars')->where('kode_request', $kode_request)->delete();
                         $connection->table('permintaan_barang_konfirmasi')->where('kode_request', $kode_request)->delete();
                     }
+
+                    // Update status permintaan menjadi 4 (ditolak oleh klinik)
+                    $connection->table('permintaan_barangs')
+                        ->where('kode_request', $kode_request)
+                        ->update(['status' => 4]);
                 } elseif (Web_Setting::first()->is_gudangutama_active == 1) {
                     $datasQuery = Permintaan_Barang_Konfirmasi::where('kode_request', $kode_request);
                     if ($itemIds->isNotEmpty()) {
@@ -844,6 +780,10 @@ class Permintaan_Barang_Controller extends Controller
                     } else {
                         Permintaan_Barang_Konfirmasi::where('kode_request', $kode_request)->delete();
                     }
+
+                    // Update status permintaan menjadi 4 (ditolak oleh klinik)
+                    Permintaan_Barang::where('kode_request', $kode_request)
+                        ->update(['status' => 4]);
                 }
             }
 
@@ -975,6 +915,84 @@ class Permintaan_Barang_Controller extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat menolak item',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * KONSEP BARU: Master dapat mengirim konfirmasi ke client
+     */
+    public function kirimKonfirmasi(Request $request)
+    {
+        try {
+            // Hanya Master yang dapat mengirim konfirmasi
+            $webSetting = Web_Setting::first();
+            if (!$webSetting || $webSetting->is_gudangutama_active != 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya Master Gudang yang dapat mengirim konfirmasi!'
+                ], 403);
+            }
+
+            $kodeRequest = $request->input('kode_request');
+            $items = $request->input('items');
+            $status = $request->input('status', 1); // 1: dikonfirmasi, 2: ditolak
+
+            if (empty($kodeRequest) || empty($items) || !is_array($items)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data tidak valid!'
+                ], 400);
+            }
+
+            // Get the permintaan barang data
+            $permintaan = Permintaan_Barang::where('kode_request', $kodeRequest)->first();
+
+            if (!$permintaan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data permintaan tidak ditemukan!'
+                ], 404);
+            }
+
+            // Update status permintaan
+            $permintaan->update(['status' => $status]);
+
+            // Simpan ke tabel konfirmasi
+            foreach ($items as $item) {
+                Permintaan_Barang_Konfirmasi::create([
+                    'kode_request' => $kodeRequest,
+                    'kode_klinik' => $permintaan->kode_klinik,
+                    'nama_klinik' => $permintaan->nama_klinik,
+                    'tanggal_request' => now(),
+                    'kode_obat_alkes' => $item['kode_obat_alkes'],
+                    'nama_obat_alkes' => $item['nama_obat_alkes'],
+                    'qty' => $item['qty'],
+                    'jenis_barang' => $item['jenis_barang'],
+                    'status_konfirmasi' => $status
+                ]);
+            }
+
+            // Broadcast WebSocket event untuk memberitahu client
+            $this->webSocketService->broadcastKonfirmasi([
+                'kode_request' => $kodeRequest,
+                'kode_klinik' => $permintaan->kode_klinik,
+                'nama_klinik' => $permintaan->nama_klinik,
+                'status' => $status,
+                'items' => $items,
+                'tanggal_konfirmasi' => now(),
+                'source' => 'master_confirmation'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $status == 1 ? 'Konfirmasi berhasil dikirim ke client!' : 'Penolakan berhasil dikirim ke client!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengirim konfirmasi!',
                 'error' => $e->getMessage()
             ], 500);
         }

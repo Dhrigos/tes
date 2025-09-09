@@ -19,6 +19,7 @@ use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Gudang\Stok_Obat_Klinik_Controller;
 use App\Http\Controllers\Module\Apotek\Apotek_Controller;
+use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
 use Illuminate\Http\Request;
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
@@ -35,6 +36,7 @@ Route::get('/get_dokter_ws/{kode_poli}/{tanggal}', [Ws_Pcare_Controller::class, 
 Route::get('/get-dokter-by-poli/{poliId}', [PelayananController::class, 'getDokterByPoli']);
 
 Route::get('/get_kfa_obat/{type}/{nama}', [Satu_Sehat_Controller::class, 'get_kfa_obat']);
+Route::get('/get_location', [Satu_Sehat_Controller::class, 'get_location']);
 
 
 // API untuk Setting Harga Jual (tanpa CSRF, sementara tanpa auth untuk test)
@@ -142,9 +144,11 @@ Route::prefix('apotek')->group(function () {
     Route::post('/hargaBebas', [Apotek_Controller::class, 'hargaBebas']);
 });
 
+Route::get('/get-subspesialis/{kode}', [Dokter_Rujukan_Controller::class, 'getSubSpesialis']);
+
 // API for medicine stock
 Route::get('/obat/tersedia', [Stok_Obat_Klinik_Controller::class, 'getObatTersedia']);
 Route::get('/obat/instruksi', [Stok_Obat_Klinik_Controller::class, 'getInstruksiObat']);
 Route::get('/obat/satuan', [Stok_Obat_Klinik_Controller::class, 'getSatuanBarang']);
 
-Route::get('/patients/shared', [PasienController::class, 'shared']);
+Route::get('/pasien/shared', [PasienController::class, 'shared']);

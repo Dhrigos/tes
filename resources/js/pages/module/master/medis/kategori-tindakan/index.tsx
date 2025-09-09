@@ -12,37 +12,32 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner'; // ✅ pakai sonner
 
-interface RoleItem {
-    id: number;
-    name: string;
-}
-interface Posker {
+interface KategoriTindakan {
     id: number;
     nama: string;
-    roles?: RoleItem[];
 }
 
 interface PageProps {
-    poskers: Posker[];
-    roles: RoleItem[];
+    kategori_tindakan: KategoriTindakan[];
     flash?: {
         success?: string;
         error?: string;
+        message?: string;
     };
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Data Master', href: '' },
-    { title: 'Manajemen', href: '' },
-    { title: 'Posker', href: '' },
+    { title: 'Medis', href: '' },
+    { title: 'Kategori Tindakan', href: '' },
 ];
 
 export default function Index() {
-    const { poskers, roles, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
+    const { kategori_tindakan, flash, errors } = usePage().props as unknown as PageProps & { errors?: any };
 
     useEffect(() => {
-        if (flash?.success) {
-            toast.success(flash.success);
+        if (flash?.message) {
+            toast.success(flash.message);
         }
         if (flash?.error) {
             toast.error(flash.error);
@@ -56,7 +51,6 @@ export default function Index() {
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [nama, setNama] = useState('');
-    const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
 
     // Modal Hapus
     const [deleteOpen, setDeleteOpen] = useState(false);
@@ -66,71 +60,75 @@ export default function Index() {
     // Pencarian
     const [search, setSearch] = useState('');
 
-    const filteredPoskers = poskers.filter((a) => a.nama.toLowerCase().includes(search.toLowerCase()));
+    const filteredKategoriTindakan = kategori_tindakan.filter((a) => a.nama.toLowerCase().includes(search.toLowerCase()));
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const payload: any = { nama, role_ids: selectedRoleIds };
-
         if (editId) {
-            router.put(`/datamaster/manajemen/posker/${editId}`, payload, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setOpen(false);
-                    setNama('');
-                    setEditId(null);
-                    setSelectedRoleIds([]);
+            router.put(
+                `/datamaster/medis/kategori-tindakan/${editId}`,
+                { nama },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setOpen(false);
+                        setNama('');
+                        setEditId(null);
+                    },
                 },
-            });
+            );
         } else {
-            router.post('/datamaster/manajemen/posker', payload, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setOpen(false);
-                    setNama('');
-                    setEditId(null);
-                    setSelectedRoleIds([]);
+            router.post(
+                '/datamaster/medis/kategori-tindakan',
+                { nama },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setOpen(false);
+                        setNama('');
+                        setEditId(null);
+                    },
                 },
-                onError: () => {
-                    // modal tetap terbuka
-                },
-            });
+            );
         }
     };
 
-    const handleOpenEdit = (posker: Posker) => {
-        setEditId(posker.id);
-        setNama(posker.nama);
-        setSelectedRoleIds((posker.roles || []).map((r) => r.id));
+    const handleOpenEdit = (kategoriTindakan: KategoriTindakan) => {
+        setEditId(kategoriTindakan.id);
+        setNama(kategoriTindakan.nama);
         setOpen(true);
     };
 
-    const handleOpenDelete = (posker: Posker) => {
-        setDeleteId(posker.id);
-        setDeleteNama(posker.nama);
+    const handleOpenDelete = (kategoriTindakan: KategoriTindakan) => {
+        setDeleteId(kategoriTindakan.id);
+        setDeleteNama(kategoriTindakan.nama);
         setDeleteOpen(true);
     };
 
     const handleDelete = () => {
         if (!deleteId) return;
-        router.delete(`/datamaster/manajemen/posker/${deleteId}`, { preserveScroll: true });
-        setDeleteOpen(false);
-        setDeleteId(null);
+        router.delete(`/datamaster/medis/kategori-tindakan/${deleteId}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setDeleteOpen(false);
+                setDeleteId(null);
+            },
+        });
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Data Posker" />
+            <Head title="Kategori Pemeriksaan & Tindakan" />
             <div className="p-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Posisi Kerja</CardTitle>
+                        <CardTitle>Kategori Pemeriksaan & Tindakan</CardTitle>
                         <div className="flex items-center gap-2">
                             <div className="relative">
                                 <Search className="absolute top-2.5 left-2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Cari posker..."
+                                    placeholder="Cari kategori tindakan..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     className="w-48 pl-8"
@@ -152,20 +150,16 @@ export default function Index() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-16">#</TableHead>
-                                    <TableHead>Nama</TableHead>
-                                    <TableHead>Roles</TableHead>
-                                    <TableHead className="w-40 text-right">Aksi</TableHead>
+                                    <TableHead className="text-center">Nama Kategori</TableHead>
+                                    <TableHead className="w-40 text-center">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredPoskers.length > 0 ? (
-                                    filteredPoskers.map((item, index) => (
+                                {filteredKategoriTindakan.length > 0 ? (
+                                    filteredKategoriTindakan.map((item) => (
                                         <TableRow key={item.id}>
-                                            <TableCell>{index + 1}</TableCell>
-                                            <TableCell>{item.nama}</TableCell>
-                                            <TableCell>{(item.roles || []).map((r) => r.name).join(', ') || '-'}</TableCell>
-                                            <TableCell className="space-x-2 text-right">
+                                            <TableCell className="text-center">{item.nama}</TableCell>
+                                            <TableCell className="space-x-2 text-center">
                                                 <Button size="sm" variant="outline" onClick={() => handleOpenEdit(item)}>
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
@@ -177,7 +171,7 @@ export default function Index() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center">
+                                        <TableCell colSpan={2} className="text-center">
                                             Tidak ada data.
                                         </TableCell>
                                     </TableRow>
@@ -192,38 +186,15 @@ export default function Index() {
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{editId ? 'Edit Posisi Kerja' : 'Tambah Posisi Kerja'}</DialogTitle>
+                        <DialogTitle>{editId ? 'Edit Kategori Tindakan' : 'Tambah Kategori Tindakan'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <Input placeholder="Nama Posisi Kerja" value={nama} onChange={(e) => setNama(e.target.value)} required />
-                        <div className="space-y-2">
-                            <div className="text-sm font-medium">Roles</div>
-                            <div className="grid max-h-48 grid-cols-2 gap-2 overflow-auto rounded border p-2">
-                                {roles.map((role) => {
-                                    const checked = selectedRoleIds.includes(role.id);
-                                    return (
-                                        <label key={role.id} className="flex items-center gap-2 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={(e) => {
-                                                    const isChecked = e.target.checked;
-                                                    setSelectedRoleIds((prev) =>
-                                                        isChecked ? [...prev, role.id] : prev.filter((id) => id !== role.id),
-                                                    );
-                                                }}
-                                            />
-                                            <span>{role.name}</span>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        <Input placeholder="Nama Kategori Tindakan" value={nama} onChange={(e) => setNama(e.target.value)} required />
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Batal
                             </Button>
-                            <Button type="submit">Simpan</Button>
+                            <Button type="submit">{editId ? 'Perbarui' : 'Tambah'}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -233,10 +204,10 @@ export default function Index() {
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Konfirmasi Hapus</DialogTitle>
+                        <DialogTitle>Hapus Kategori Tindakan</DialogTitle>
                     </DialogHeader>
                     <p>
-                        Apakah Anda yakin ingin menghapus posisi kerja <span className="font-semibold">{deleteNama}</span>?
+                        Apa Anda yakin ingin menghapus data kategori tindakan <span className="font-semibold">{deleteNama}</span>?
                     </p>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>

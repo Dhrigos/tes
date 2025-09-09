@@ -225,13 +225,6 @@ export default function PelayananSoapDokter() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuItem
-                                onClick={() => router.visit(`/pelayanan/soap-dokter/rujukan/${norawat}`)}
-                                className="text-blue-600 focus:text-blue-600"
-                            >
-                                <Send className="mr-2 h-4 w-4" />
-                                Rujuk
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
                                 onClick={() => router.visit(`/pelayanan/soap-dokter/edit/${norawat}`)}
                                 className="text-yellow-600 focus:text-yellow-600"
                             >
@@ -239,11 +232,18 @@ export default function PelayananSoapDokter() {
                                 Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                                onClick={() => router.visit(`/pelayanan/soap-dokter/rujukan/${norawat}`)}
+                                className="text-blue-600 focus:text-blue-600"
+                            >
+                                <Send className="mr-2 h-4 w-4" />
+                                Surat Rujukan
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                                 onClick={() => router.visit(`/pelayanan/soap-dokter/permintaan/${norawat}`)}
                                 className="text-cyan-600 focus:text-cyan-600"
                             >
                                 <FileText className="mr-2 h-4 w-4" />
-                                Permintaan
+                                Surat Permintaan
                             </DropdownMenuItem>
                             {/* status_dokter === 2 -> tombol Selesai aktif; jika 1 tetap ada, opsional */}
                             <DropdownMenuItem

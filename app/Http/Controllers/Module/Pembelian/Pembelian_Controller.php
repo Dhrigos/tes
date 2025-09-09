@@ -213,7 +213,9 @@ class Pembelian_Controller extends Controller
                             }
 
                             $qty = (float) ($detail['qty'] ?? '0');
-                            if ($qty <= 0) { $qty = 1; }
+                            if ($qty <= 0) {
+                                $qty = 1;
+                            }
                             $hargaSatuan = (float) ($detail['harga_satuan'] ?? '0');
                             $diskonRaw = (float) ($detail['diskon'] ?? '0');
                             $diskonPersen = false;
@@ -284,8 +286,6 @@ class Pembelian_Controller extends Controller
                                     'diskon' => (string) $diskonRaw,
                                     'ppn' => (string) $ppnPercent,
                                     'tanggal_obat_masuk' => $tglMasuk,
-                                    'user_input_id' => (string) (Auth::id() ?? '0'),
-                                    'user_input_name' => (string) (Auth::user()->name ?? 'System'),
                                     'jenis' => $targetJenis,
                                 ]
                             );

@@ -1,4 +1,3 @@
-import CpptTimeline from '@/components/CpptTimeline';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -20,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle, FileText, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -33,6 +32,18 @@ interface PasienData {
     penjamin: string;
     tanggal_lahir: string;
     umur: string;
+    pasien?: {
+        nama: string;
+        tanggal_lahir: string;
+        kelamin?: {
+            nama: string;
+        };
+    };
+    pendaftaran?: {
+        penjamin?: {
+            nama: string;
+        };
+    };
 }
 
 interface HttSubpemeriksaan {
@@ -42,15 +53,7 @@ interface HttSubpemeriksaan {
 }
 
 interface PemeriksaanPageProps {
-    pelayanan: {
-        nomor_rm: string;
-        nama: string;
-        nomor_register: string;
-        jenis_kelamin: string;
-        penjamin: string;
-        tanggal_lahir: string;
-        umur: string;
-    };
+    pelayanan: PasienData;
     so_perawat?: Partial<{
         id?: number;
         sistol: string;
@@ -207,17 +210,8 @@ export default function PemeriksaanPerawat() {
     // Determine if this is edit mode based on backend mode parameter or data existence
     const mode = backendMode || new URLSearchParams(window.location.search).get('mode');
 
-    // Debug log
-    console.log('Backend mode parameter:', backendMode);
-    console.log('URL mode parameter:', new URLSearchParams(window.location.search).get('mode'));
-    console.log('Final mode:', mode);
-    console.log('SO Perawat data:', so_perawat);
-    console.log('SO Perawat ID:', so_perawat?.id);
-
     // If mode is explicitly set, use it; otherwise, determine based on data existence
     const isEditMode = mode === 'edit' || (mode !== 'pemeriksaan' && so_perawat && so_perawat.id && so_perawat.id !== null);
-
-    console.log('Final isEditMode:', isEditMode);
 
     // Dynamic breadcrumbs and title based on mode
     const breadcrumbs: BreadcrumbItem[] = [
@@ -272,6 +266,17 @@ export default function PemeriksaanPerawat() {
     const [gcsMotorik, setGcsMotorik] = useState(so_perawat.motorik || '');
     const [gcsKesadaran, setGcsKesadaran] = useState(so_perawat.kesadaran || '');
     const [catatan, setCatatan] = useState(so_perawat.summernote || '');
+
+    // Refs for keyboard navigation
+    const sistolRef = useRef<HTMLInputElement>(null);
+    const distolRef = useRef<HTMLInputElement>(null);
+    const suhuRef = useRef<HTMLInputElement>(null);
+    const nadiRef = useRef<HTMLInputElement>(null);
+    const rrRef = useRef<HTMLInputElement>(null);
+    const tinggiRef = useRef<HTMLInputElement>(null);
+    const beratRef = useRef<HTMLInputElement>(null);
+    const spo2Ref = useRef<HTMLInputElement>(null);
+    const lingkarPerutRef = useRef<HTMLInputElement>(null);
 
     // Sync form state when so_perawat props change (prefill edit mode)
     useEffect(() => {
@@ -342,11 +347,11 @@ export default function PemeriksaanPerawat() {
 
     // Load CPPT data when CPPT tab is accessed
     const loadCpptData = async () => {
-        if (!pelayanan?.nomor_register) return;
+        if (!pelayanan?.nomor_rm) return;
 
         setCpptLoading(true);
         try {
-            const response = await fetch(`/api/pelayanan/cppt/timeline/${pelayanan.nomor_register}`, {
+            const response = await fetch(`/api/pelayanan/cppt/timeline/${pelayanan.nomor_rm}`, {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
@@ -373,7 +378,7 @@ export default function PemeriksaanPerawat() {
         if (activeTab === 'cppt') {
             loadCpptData();
         }
-    }, [activeTab, pelayanan?.nomor_register]);
+    }, [activeTab, pelayanan?.nomor_rm]);
 
     // Helpers & validators for Obyektif inputs
     const calculateAge = (tanggalLahir: string): { years: number; months: number } => {
@@ -747,6 +752,25 @@ export default function PemeriksaanPerawat() {
         }
     };
 
+    // Keyboard navigation handler
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, currentField: string, nextField?: string) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Trigger blur validation for current field
+            if (currentField === 'suhu') {
+                handleSuhuBlur();
+            } else if (currentField === 'nadi') {
+                handleNadiBlur();
+            } else if (currentField === 'rr') {
+                handleRrBlur();
+            } else if (currentField === 'spo2') {
+                handleSpo2Blur();
+            } else if (currentField === 'tinggi' || currentField === 'berat') {
+                handleBmiBlur();
+            }
+        }
+    };
+
     const handleRrBlur = async () => {
         if (!rr) return;
 
@@ -770,13 +794,13 @@ export default function PemeriksaanPerawat() {
         const checkRange = (min: number, max: number) => {
             if (rrValue < min) {
                 status = 'RR Terlalu Rendah';
-                pesan = `RR Anda (${rrValue}) di bawah batas normal (${min} - ${max})`;
+                pesan = `RR pasien (${rrValue}) di bawah batas normal (${min} - ${max})`;
             } else if (rrValue > max) {
                 status = 'RR Terlalu Cepat';
-                pesan = `RR Anda (${rrValue}) di atas batas normal (${min} - ${max})`;
+                pesan = `RR pasien (${rrValue}) di atas batas normal (${min} - ${max})`;
             } else {
                 status = 'RR Normal';
-                pesan = `RR Anda (${rrValue}) berada dalam rentang normal (${min} - ${max})`;
+                pesan = `RR pasien (${rrValue}) berada dalam rentang normal (${min} - ${max})`;
             }
         };
 
@@ -794,7 +818,9 @@ export default function PemeriksaanPerawat() {
             confirmText: 'Lanjut',
             cancelText: 'Ubah',
         });
-        if (!ok) setRr('');
+        if (!ok) {
+            setRr('');
+        }
     };
 
     const handleSuhuBlur = async () => {
@@ -820,7 +846,7 @@ export default function PemeriksaanPerawat() {
             pesan = 'Suhu tubuh terlalu rendah. Segera konsultasi medis jika perlu.';
         } else if (suhuNumber >= 34.4 && suhuNumber <= 37.4) {
             status = 'Suhu Normal';
-            pesan = 'Suhu tubuh Anda berada dalam rentang normal.';
+            pesan = 'Suhu tubuh pasien berada dalam rentang normal.';
         } else if (suhuNumber >= 37.5 && suhuNumber <= 37.9) {
             status = 'Demam Ringan';
             pesan = 'Kemungkinan terdapat infeksi ringan atau peradangan.';
@@ -838,7 +864,9 @@ export default function PemeriksaanPerawat() {
             confirmText: 'Lanjut',
             cancelText: 'Ubah',
         });
-        if (!ok) setSuhu('');
+        if (!ok) {
+            setSuhu('');
+        }
     };
 
     const handleSpo2Blur = async () => {
@@ -855,13 +883,13 @@ export default function PemeriksaanPerawat() {
         if (value < 95 || value > 100) {
             title = 'SpO2 Tidak Normal';
             if (value < 95) {
-                text = `SpO2 Anda (${value}%) terlalu rendah. Normal: 95% - 100%.`;
+                text = `SpO2 pasien (${value}%) terlalu rendah. Normal: 95% - 100%.`;
             } else {
-                text = `SpO2 Anda (${value}%) terlalu tinggi. Normal: 95% - 100%.`;
+                text = `SpO2 pasien (${value}%) terlalu tinggi. Normal: 95% - 100%.`;
             }
         } else {
             title = 'SpO2 Normal';
-            text = `SpO2 Anda (${value}%) berada dalam rentang normal.`;
+            text = `SpO2 pasien (${value}%) berada dalam rentang normal.`;
         }
 
         const ok = await confirm({
@@ -870,7 +898,9 @@ export default function PemeriksaanPerawat() {
             confirmText: 'Lanjut',
             cancelText: 'Ubah',
         });
-        if (!ok) setSpo2('');
+        if (!ok) {
+            setSpo2('');
+        }
     };
 
     const handleNadiBlur = async () => {
@@ -899,8 +929,8 @@ export default function PemeriksaanPerawat() {
         const dalamRentang = nadiVal >= range.min && nadiVal <= range.max;
         const status = dalamRentang ? 'Data Nadi Sesuai' : 'Data Nadi Tidak Sesuai';
         const pesan = dalamRentang
-            ? `Nadi Anda (${nadiVal} bpm) sesuai untuk umur ${years} Tahun ${months} Bulan.`
-            : `Nadi Anda (${nadiVal} bpm) di luar rentang normal (${range.min}-${range.max} bpm) untuk umur ${years} Tahun ${months} Bulan.`;
+            ? `Nadi pasien (${nadiVal} bpm) sesuai untuk umur ${years} Tahun ${months} Bulan.`
+            : `Nadi pasien (${nadiVal} bpm) di luar rentang normal (${range.min}-${range.max} bpm) untuk umur ${years} Tahun ${months} Bulan.`;
 
         const ok = await confirm({
             title: status || 'Validasi Nadi',
@@ -908,7 +938,9 @@ export default function PemeriksaanPerawat() {
             confirmText: 'Lanjut',
             cancelText: 'Ubah',
         });
-        if (!ok) setNadi('');
+        if (!ok) {
+            setNadi('');
+        }
     };
 
     const handleBmiBlur = async () => {
@@ -936,7 +968,7 @@ export default function PemeriksaanPerawat() {
             setNilaiBmi(bmiFixed);
             setStatusBmi((prev) => prev); // keep effect-driven label
 
-            message = `Data BMI-nya adalah: ${bmiFixed},\nDengan kategori: ${bmiCategory}\nApakah Anda ingin melanjutkan?`;
+            message = `Data BMI pasien adalah: ${bmiFixed},\nDengan kategori: ${bmiCategory}\nApakah Anda ingin melanjutkan?`;
         }
 
         const ok = await confirm({
@@ -1069,6 +1101,49 @@ export default function PemeriksaanPerawat() {
         setKeluhanList(keluhanList.filter((_, i) => i !== index));
     };
 
+    // Helper function to convert readable gender to database code
+    const convertGenderToCode = (genderName: string): string => {
+        if (!genderName) return '';
+
+        // Handle different formats
+        switch (genderName.toLowerCase().trim()) {
+            case 'laki-laki':
+            case 'laki laki':
+            case 'pria':
+            case 'male':
+                return 'L'; // Laki-laki = L
+            case 'perempuan':
+            case 'wanita':
+            case 'female':
+                return 'P'; // Perempuan = P
+            default:
+                // If it's already a code, convert to new format (L/P)
+                if (genderName === 'L' || genderName === '1') {
+                    return 'L';
+                }
+                if (genderName === 'P' || genderName === '2') {
+                    return 'P';
+                }
+                return genderName; // fallback
+        }
+    };
+
+    // Helper function to convert database code to readable gender name
+    const convertCodeToGender = (genderCode: string): string => {
+        if (!genderCode) return '';
+
+        switch (genderCode.trim()) {
+            case 'L':
+            case '1':
+                return 'Laki-laki';
+            case 'P':
+            case '2':
+                return 'Perempuan';
+            default:
+                return genderCode; // fallback
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -1078,7 +1153,7 @@ export default function PemeriksaanPerawat() {
                 no_rawat: pelayanan?.nomor_register || '',
                 nomor_rm: pelayanan?.nomor_rm || '',
                 nama: pelayanan?.nama || '',
-                seks: pelayanan?.jenis_kelamin || '',
+                seks: convertGenderToCode(pelayanan?.jenis_kelamin || ''),
                 penjamin: pelayanan?.penjamin || '',
                 tanggal_lahir: pelayanan?.tanggal_lahir || '',
                 umur: pelayanan?.umur || '',
@@ -1168,7 +1243,10 @@ export default function PemeriksaanPerawat() {
                                 </div>
                                 <div>
                                     <Label>Jenis Kelamin</Label>
-                                    <Input value={pelayanan?.jenis_kelamin || ''} readOnly />
+                                    <Input
+                                        value={pelayanan?.pasien?.kelamin?.nama || convertCodeToGender(pelayanan?.jenis_kelamin || '') || ''}
+                                        readOnly
+                                    />
                                 </div>
                                 <div>
                                     <Label>Penjamin</Label>
@@ -1240,11 +1318,10 @@ export default function PemeriksaanPerawat() {
                     <Card>
                         <CardContent className="p-6">
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                <TabsList className="grid w-full grid-cols-4">
+                                <TabsList className="grid w-full grid-cols-3">
                                     <TabsTrigger value="subyektif">1. Subyektif</TabsTrigger>
                                     <TabsTrigger value="obyektif">2. Obyektif</TabsTrigger>
                                     <TabsTrigger value="htt">3. Head To Toe</TabsTrigger>
-                                    <TabsTrigger value="cppt">4. CPPT</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="subyektif" className="mt-4">
@@ -1361,21 +1438,27 @@ export default function PemeriksaanPerawat() {
                                                         </Label>
                                                         <div className="mt-1 flex items-center gap-1">
                                                             <Input
+                                                                ref={sistolRef}
                                                                 id="sistol"
                                                                 value={sistol}
                                                                 onChange={(e) => setSistol(e.target.value)}
                                                                 onBlur={handleTensiBlur}
+                                                                onKeyDown={(e) => handleKeyDown(e, 'sistol', 'distol')}
                                                                 placeholder="Sistol"
                                                                 className="w-1/2 text-sm"
+                                                                tabIndex={1}
                                                             />
                                                             <span className="text-gray-500">/</span>
                                                             <Input
+                                                                ref={distolRef}
                                                                 id="distol"
                                                                 value={distol}
                                                                 onChange={(e) => setDistol(e.target.value)}
                                                                 onBlur={handleTensiBlur}
+                                                                onKeyDown={(e) => handleKeyDown(e, 'distol', 'suhu')}
                                                                 placeholder="Distol"
                                                                 className="w-1/2 text-sm"
+                                                                tabIndex={2}
                                                             />
                                                         </div>
                                                     </div>
@@ -1385,12 +1468,15 @@ export default function PemeriksaanPerawat() {
                                                             Suhu (°C)
                                                         </Label>
                                                         <Input
+                                                            ref={suhuRef}
                                                             id="suhu"
                                                             value={suhu}
                                                             onChange={(e) => setSuhu(e.target.value)}
                                                             onBlur={handleSuhuBlur}
+                                                            onKeyDown={(e) => handleKeyDown(e, 'suhu', 'nadi')}
                                                             placeholder="Suhu"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={3}
                                                         />
                                                     </div>
 
@@ -1399,12 +1485,15 @@ export default function PemeriksaanPerawat() {
                                                             Nadi (/mnt)
                                                         </Label>
                                                         <Input
+                                                            ref={nadiRef}
                                                             id="nadi"
                                                             value={nadi}
                                                             onChange={(e) => setNadi(e.target.value)}
                                                             onBlur={handleNadiBlur}
+                                                            onKeyDown={(e) => handleKeyDown(e, 'nadi', 'rr')}
                                                             placeholder="Nadi"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={4}
                                                         />
                                                     </div>
 
@@ -1413,12 +1502,15 @@ export default function PemeriksaanPerawat() {
                                                             RR (/mnt)
                                                         </Label>
                                                         <Input
+                                                            ref={rrRef}
                                                             id="rr"
                                                             value={rr}
                                                             onChange={(e) => setRr(e.target.value)}
                                                             onBlur={handleRrBlur}
+                                                            onKeyDown={(e) => handleKeyDown(e, 'rr', 'tinggi')}
                                                             placeholder="RR"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={5}
                                                         />
                                                     </div>
 
@@ -1427,12 +1519,15 @@ export default function PemeriksaanPerawat() {
                                                             Tinggi (Cm)
                                                         </Label>
                                                         <Input
+                                                            ref={tinggiRef}
                                                             id="tinggi"
                                                             value={tinggi}
                                                             onChange={(e) => setTinggi(e.target.value)}
                                                             onBlur={handleBmiBlur}
+                                                            onKeyDown={(e) => handleKeyDown(e, 'tinggi', 'berat')}
                                                             placeholder="Tinggi"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={6}
                                                         />
                                                     </div>
 
@@ -1441,12 +1536,15 @@ export default function PemeriksaanPerawat() {
                                                             Berat (/Kg)
                                                         </Label>
                                                         <Input
+                                                            ref={beratRef}
                                                             id="berat"
                                                             value={berat}
                                                             onChange={(e) => setBerat(e.target.value)}
                                                             onBlur={handleBmiBlur}
+                                                            onKeyDown={(e) => handleKeyDown(e, 'berat', 'spo2')}
                                                             placeholder="Berat"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={7}
                                                         />
                                                     </div>
                                                 </div>
@@ -1465,12 +1563,15 @@ export default function PemeriksaanPerawat() {
                                                             SpO2
                                                         </Label>
                                                         <Input
+                                                            ref={spo2Ref}
                                                             id="spo2"
                                                             value={spo2}
                                                             onChange={(e) => setSpo2(e.target.value)}
                                                             onBlur={handleSpo2Blur}
+                                                            onKeyDown={(e) => handleKeyDown(e, 'spo2', 'lingkarPerut')}
                                                             placeholder="SpO2"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={8}
                                                         />
                                                     </div>
 
@@ -1481,7 +1582,11 @@ export default function PemeriksaanPerawat() {
                                                                 value={jenisAlergi}
                                                                 onValueChange={(value) => {
                                                                     setJenisAlergi(value);
-                                                                    setAlergi(''); // Reset alergi when jenis changes
+                                                                    if (value === '00') {
+                                                                        setAlergi('00'); // Auto-set alergi to "00" when jenis is "Tidak ada"
+                                                                    } else {
+                                                                        setAlergi(''); // Reset alergi when jenis changes
+                                                                    }
                                                                 }}
                                                                 disabled={!alergi_data || alergi_data.length === 0}
                                                             >
@@ -1495,6 +1600,9 @@ export default function PemeriksaanPerawat() {
                                                                     />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
+                                                                    <SelectItem key="00" value="00">
+                                                                        Tidak ada
+                                                                    </SelectItem>
                                                                     {jenisAlergiOptions.map((jenis) => (
                                                                         <SelectItem key={jenis} value={jenis}>
                                                                             {jenis}
@@ -1507,18 +1615,32 @@ export default function PemeriksaanPerawat() {
                                                                     <SelectValue placeholder={!jenisAlergi ? 'Pilih jenis dulu' : '-- Pilih --'} />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    {jenisAlergi && alergi_data && alergi_data.length > 0 ? (
-                                                                        alergi_data
-                                                                            .filter((item) => item.jenis_alergi?.trim() === jenisAlergi?.trim())
-                                                                            .map((item) => (
-                                                                                <SelectItem key={item.id} value={item.nama}>
-                                                                                    {item.nama}
-                                                                                </SelectItem>
-                                                                            ))
-                                                                    ) : jenisAlergi ? (
-                                                                        <SelectItem value="no-data" disabled>
-                                                                            Tidak ada data untuk jenis ini
+                                                                    {jenisAlergi === '00' ? (
+                                                                        <SelectItem key="00" value="00">
+                                                                            Tidak ada
                                                                         </SelectItem>
+                                                                    ) : jenisAlergi && alergi_data && alergi_data.length > 0 ? (
+                                                                        <>
+                                                                            <SelectItem key="00" value="00">
+                                                                                Tidak ada
+                                                                            </SelectItem>
+                                                                            {alergi_data
+                                                                                .filter((item) => item.jenis_alergi?.trim() === jenisAlergi?.trim())
+                                                                                .map((item) => (
+                                                                                    <SelectItem key={item.id} value={item.nama}>
+                                                                                        {item.nama}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                        </>
+                                                                    ) : jenisAlergi ? (
+                                                                        <>
+                                                                            <SelectItem key="00" value="00">
+                                                                                Tidak ada
+                                                                            </SelectItem>
+                                                                            <SelectItem value="no-data" disabled>
+                                                                                Tidak ada data untuk jenis ini
+                                                                            </SelectItem>
+                                                                        </>
                                                                     ) : (
                                                                         <SelectItem value="select-first" disabled>
                                                                             Pilih jenis alergi dulu
@@ -1535,11 +1657,13 @@ export default function PemeriksaanPerawat() {
                                                             Lingkar Perut
                                                         </Label>
                                                         <Input
+                                                            ref={lingkarPerutRef}
                                                             id="lingkarPerut"
                                                             value={lingkarPerut}
                                                             onChange={(e) => setLingkarPerut(e.target.value)}
                                                             placeholder="Lingkar Perut"
                                                             className="mt-1 text-sm"
+                                                            tabIndex={9}
                                                         />
                                                     </div>
                                                 </div>
@@ -1554,7 +1678,7 @@ export default function PemeriksaanPerawat() {
                                                             value={nilaiBmi}
                                                             readOnly
                                                             placeholder="Nilai BMI"
-                                                            className="mt-1 bg-gray-100 text-sm"
+                                                            className="mt-1 cursor-not-allowed bg-muted text-sm opacity-60"
                                                         />
                                                     </div>
 
@@ -1567,7 +1691,7 @@ export default function PemeriksaanPerawat() {
                                                             value={statusBmi}
                                                             readOnly
                                                             placeholder="Status BMI"
-                                                            className="mt-1 bg-gray-100 text-sm"
+                                                            className="mt-1 cursor-not-allowed bg-muted text-sm opacity-60"
                                                         />
                                                     </div>
                                                 </div>
@@ -1644,7 +1768,7 @@ export default function PemeriksaanPerawat() {
                                                             value={gcsKesadaran}
                                                             readOnly
                                                             placeholder="Otomatis terisi"
-                                                            className="mt-1 bg-gray-100 text-sm"
+                                                            className="mt-1 cursor-not-allowed bg-muted text-sm opacity-60"
                                                         />
                                                     </div>
                                                 </div>
@@ -1806,26 +1930,6 @@ export default function PemeriksaanPerawat() {
                                             Previous
                                         </Button>
                                         <Button type="submit">{submitButtonText}</Button>
-                                    </div>
-                                </TabsContent>
-
-                                <TabsContent value="cppt" className="mt-4">
-                                    <div className="space-y-6">
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle className="flex items-center gap-2">
-                                                    <FileText className="h-5 w-5" />
-                                                    CPPT (Catatan Perkembangan Pasien Terintegrasi)
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <CpptTimeline
-                                                    nomor_register={pelayanan?.nomor_register || ''}
-                                                    entries={cpptEntries}
-                                                    loading={cpptLoading}
-                                                />
-                                            </CardContent>
-                                        </Card>
                                     </div>
                                 </TabsContent>
                             </Tabs>

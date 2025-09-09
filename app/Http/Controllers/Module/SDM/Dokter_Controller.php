@@ -27,6 +27,8 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\Module\SDM\DokterPendidikan;
 use App\Models\Module\SDM\DokterPelatihan;
 use App\Models\Module\SDM\DokterJadwal;
+use Carbon\Carbon;
+
 
 class Dokter_Controller extends Controller
 {
@@ -159,6 +161,14 @@ class Dokter_Controller extends Controller
             $file->storeAs('public/dokter', $filename);
             $dokter->update(['foto' => $filename]);
         }
+
+        
+        User::create([
+            'name' => $validatedData['nama'],
+            'username' => $validatedData['nik'],
+            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
+            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('y-m-d')),
+        ]);        
 
         $message = 'Data dokter berhasil ditambahkan, namun masih perlu dilengkapi!';
 

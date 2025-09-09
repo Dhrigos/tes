@@ -34,6 +34,7 @@ use App\Http\Controllers\Module\Master\Data\Medis\Tindakan_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Instruksi_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Penggunaan_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
+use App\Http\Controllers\Module\Master\Data\Medis\Kategori_Tindakan_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Barang_Controller;
@@ -67,11 +68,12 @@ use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use App\Http\Controllers\Module\Kasir\Kasir_Controller;
 use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
+use App\Models\Module\Master\Data\Medis\Tindakan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 use App\Models\Module\Pelayanan\Pelayanan;
-
-
+use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 
 // SDM
 Route::middleware(['auth'])->prefix('sdm')->as('sdm.')->group(function () {
@@ -294,6 +296,11 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::put('/poli/{id}', [Poli_Controller::class, 'update'])->name('poli.update');
         Route::delete('/poli/{id}', [Poli_Controller::class, 'destroy'])->name('poli.destroy');
         Route::post('/poli/sync', [Poli_Controller::class, 'sync'])->name('poli.sync');
+
+        Route::get('/kategori-tindakan', [Kategori_Tindakan_Controller::class, 'index'])->name('kategori-tindakan.index');
+        Route::post('/kategori-tindakan', [Kategori_Tindakan_Controller::class, 'store'])->name('kategori-tindakan.store');
+        Route::put('/kategori-tindakan/{id}', [Kategori_Tindakan_Controller::class, 'update'])->name('kategori-tindakan.update');
+        Route::delete('/kategori-tindakan/{id}', [Kategori_Tindakan_Controller::class, 'destroy'])->name('kategori-tindakan.destroy');
     });
 
     // Grup untuk Gudang
@@ -378,6 +385,10 @@ Route::prefix('api/master')->group(function () {
     Route::get('/htt/pemeriksaan', [Htt_Pemeriksaan_Controller::class, 'listAll']);
     Route::get('/htt/subpemeriksaan/{pemeriksaanId}', [Htt_Subpemeriksaan_Controller::class, 'getByPemeriksaan']);
     Route::get('/htt/subpemeriksaan', [Htt_Subpemeriksaan_Controller::class, 'listAll']);
+    // Tindakan API
+    Route::get('/tindakan', function () {
+        return Tindakan::all();
+    });
 });
 Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran-online');
 Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'add'])->name('pendaftaran-online.add');
@@ -415,9 +426,8 @@ Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->
     Route::post('/soap-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'store'])->name('soap-dokter.store');
     Route::put('/soap-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'update'])->name('soap-dokter.update');
 
-    Route::get('/soap-dokter/rujukan/{norawat}', [Dokter_Rujukan_Controller::class, 'show'])->name('soap-dokter.rujukan.show');
+    Route::get('/soap-dokter/rujukan/{norawat}', [Dokter_Rujukan_Controller::class, 'index'])->name('soap-dokter.rujukan.show');
     Route::post('/soap-dokter/rujukan', [Dokter_Rujukan_Controller::class, 'store'])->name('soap-dokter.rujukan.store');
-    Route::put('/soap-dokter/rujukan/{norawat}', [Dokter_Rujukan_Controller::class, 'update'])->name('soap-dokter.rujukan.update');
 
     Route::get('/soap-dokter/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'show'])->name('soap-dokter.permintaan.show');
     Route::post('/soap-dokter/permintaan', [Pelayanan_Permintaan_Controller::class, 'store'])->name('soap-dokter.permintaan.store');
@@ -433,7 +443,7 @@ Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->
 });
 
 // API routes for pelayanan
-Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () {
+Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () { //ini pake api
     Route::get('/', [PelayananController::class, 'index']);
     Route::get('/hadir/{norawat}', [Pelayanan_So_Perawat_Controller::class, 'hadirPasien']);
     Route::delete('/batal/{norawat}', [Pelayanan_So_Perawat_Controller::class, 'batalKunjungan']);
@@ -441,170 +451,9 @@ Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () {
     Route::post('/selesai/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'selesaiPasien']);
     Route::get('/hadir-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'hadirDokter']);
     Route::post('/selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'selesaiPasien']);
-    
+
     // CPPT API routes
-    Route::get('/cppt/timeline/{nomor_register}', function($nomor_register) {
-        try {
-            // Get SO Perawat data
-            $soPerawat = \App\Models\Module\Pelayanan\Pelayanan_So_Perawat::where('no_rawat', $nomor_register)
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            // Get SOAP Dokter data
-            $soapDokter = \App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            $entries = [];
-            
-            // Process SO Perawat entries
-            foreach ($soPerawat as $so) {
-                $soapDetails = [];
-                
-                // Subjective: Keluhan dari tableData
-                $tableData = json_decode($so->tableData ?? '{}', true);
-                if (isset($tableData['keluhanList']) && is_array($tableData['keluhanList'])) {
-                    $keluhanText = "Daftar Keluhan:\n";
-                    foreach ($tableData['keluhanList'] as $keluhan) {
-                        $keluhanText .= "- " . $keluhan['keluhan'];
-                        if (!empty($keluhan['durasi'])) {
-                            $keluhanText .= " (" . $keluhan['durasi'] . ")";
-                        }
-                        $keluhanText .= "\n";
-                    }
-                    $soapDetails[] = [
-                        'tipe_soap' => 'subjective',
-                        'content' => trim($keluhanText)
-                    ];
-                }
-                
-                // Objective: Vital signs
-                $objectiveParts = [];
-                if ($so->tensi) $objectiveParts[] = "Tensi: " . $so->tensi;
-                if ($so->suhu) $objectiveParts[] = "Suhu: " . $so->suhu . "°C";
-                if ($so->nadi) $objectiveParts[] = "Nadi: " . $so->nadi . "/menit";
-                if ($so->rr) $objectiveParts[] = "RR: " . $so->rr . "/menit";
-                if ($so->spo2) $objectiveParts[] = "SpO2: " . $so->spo2 . "%";
-                if ($so->berat) $objectiveParts[] = "Berat: " . $so->berat . " kg";
-                if ($so->tinggi) $objectiveParts[] = "Tinggi: " . $so->tinggi . " cm";
-                if ($so->nilai_bmi) $objectiveParts[] = "BMI: " . $so->nilai_bmi;
-                if ($so->alergi) $objectiveParts[] = "Alergi: " . $so->alergi;
-                
-                if (!empty($objectiveParts)) {
-                    $soapDetails[] = [
-                        'tipe_soap' => 'objective',
-                        'content' => implode(", ", $objectiveParts)
-                    ];
-                }
-                
-                // Plan: HTT Items
-                if (isset($tableData['httItems']) && is_array($tableData['httItems'])) {
-                    $httText = "Tindakan Perawat:\n";
-                    foreach ($tableData['httItems'] as $htt) {
-                        $httText .= "- " . $htt['pemeriksaan'];
-                        if (!empty($htt['subPemeriksaan'])) {
-                            $httText .= " - " . $htt['subPemeriksaan'];
-                        }
-                        if (!empty($htt['detail'])) {
-                            $httText .= ": " . $htt['detail'];
-                        }
-                        $httText .= "\n";
-                    }
-                    $soapDetails[] = [
-                        'tipe_soap' => 'plan',
-                        'content' => trim($httText)
-                    ];
-                }
-                
-                if (!empty($soapDetails)) {
-                    $entries[] = [
-                        'id' => 'so_' . $so->id,
-                        'nomor_register' => $so->no_rawat,
-                        'tanggal_waktu' => $so->created_at->toISOString(),
-                        'profesi' => 'perawat',
-                        'catatan_tambahan' => null,
-                        'soap_details' => $soapDetails
-                    ];
-                }
-            }
-            
-            // Process SOAP Dokter entries
-            foreach ($soapDokter as $soap) {
-                $soapDetails = [];
-                
-                // Subjective: Anamnesa
-                if ($soap->anamnesa) {
-                    $soapDetails[] = [
-                        'tipe_soap' => 'subjective',
-                        'content' => $soap->anamnesa
-                    ];
-                }
-                
-                // Objective: Vital signs
-                $objectiveParts = [];
-                if ($soap->tensi) $objectiveParts[] = "Tensi: " . $soap->tensi;
-                if ($soap->suhu) $objectiveParts[] = "Suhu: " . $soap->suhu . "°C";
-                if ($soap->nadi) $objectiveParts[] = "Nadi: " . $soap->nadi . "/menit";
-                if ($soap->rr) $objectiveParts[] = "RR: " . $soap->rr . "/menit";
-                if ($soap->spo2) $objectiveParts[] = "SpO2: " . $soap->spo2 . "%";
-                if ($soap->berat) $objectiveParts[] = "Berat: " . $soap->berat . " kg";
-                if ($soap->tinggi) $objectiveParts[] = "Tinggi: " . $soap->tinggi . " cm";
-                if ($soap->nilai_bmi) $objectiveParts[] = "BMI: " . $soap->nilai_bmi;
-                if ($soap->alergi) $objectiveParts[] = "Alergi: " . $soap->alergi;
-                
-                if (!empty($objectiveParts)) {
-                    $soapDetails[] = [
-                        'tipe_soap' => 'objective',
-                        'content' => implode(", ", $objectiveParts)
-                    ];
-                }
-                
-                // Assessment
-                if ($soap->assesmen) {
-                    $soapDetails[] = [
-                        'tipe_soap' => 'assessment',
-                        'content' => $soap->assesmen
-                    ];
-                }
-                
-                // Plan
-                if ($soap->plan) {
-                    $soapDetails[] = [
-                        'tipe_soap' => 'plan',
-                        'content' => $soap->plan
-                    ];
-                }
-                
-                if (!empty($soapDetails)) {
-                    $entries[] = [
-                        'id' => 'soap_' . $soap->id,
-                        'nomor_register' => $soap->no_rawat,
-                        'tanggal_waktu' => $soap->created_at->toISOString(),
-                        'profesi' => 'dokter',
-                        'catatan_tambahan' => null,
-                        'soap_details' => $soapDetails
-                    ];
-                }
-            }
-            
-            // Sort entries by date (newest first)
-            usort($entries, function($a, $b) {
-                return strtotime($b['tanggal_waktu']) - strtotime($a['tanggal_waktu']);
-            });
-            
-            return response()->json([
-                'success' => true,
-                'entries' => $entries
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memuat data CPPT: ' . $e->getMessage(),
-                'entries' => []
-            ], 500);
-        }
-    });
+    Route::get('/cppt/timeline/{nomor_rm}', [PelayananController::class, 'getCpptTimeline']);
 });
 
 Route::middleware(['auth', 'verified'])->prefix('apotek')->as('apotek.')->group(function () {

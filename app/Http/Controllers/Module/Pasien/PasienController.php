@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Module\Pasien;
 
 use App\Http\Controllers\Controller;
 use App\Models\Module\Pasien\Pasien;
+use App\Models\Module\Pasien\Pasien_History;
 use App\Models\Module\Master\Data\Umum\Kelamin;
 use App\Models\Module\Master\Data\Umum\Goldar;
 use App\Models\Module\Master\Data\Umum\Pernikahan;
@@ -14,6 +15,7 @@ use App\Models\Module\Master\Data\Umum\Suku;
 use App\Models\Module\Master\Data\Umum\Bangsa;
 use App\Models\Module\Master\Data\Umum\Bahasa;
 use App\Models\Module\Master\Data\Umum\Asuransi;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Container\Attributes\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as FacadesLog;
@@ -130,7 +132,7 @@ class PasienController extends Controller
         $kabupatenKode = $request->filled('kabupaten') ? $this->resolveRegionCode($request->kabupaten, City::class) : $pasien->kabupaten_kode;
         $kecamatanKode = $request->filled('kecamatan') ? $this->resolveRegionCode($request->kecamatan, District::class) : $pasien->kecamatan_kode;
         $desaKode = $request->filled('desa') ? $this->resolveRegionCode($request->desa, Village::class) : $pasien->desa_kode;
-        FacadesLog::info('[Verifikasi] Resolve wilayah', compact('provinsiKode','kabupatenKode','kecamatanKode','desaKode'));
+        FacadesLog::info('[Verifikasi] Resolve wilayah', compact('provinsiKode', 'kabupatenKode', 'kecamatanKode', 'desaKode'));
 
         $aktifPenjamin2 = $request->boolean('aktif_penjamin_2');
         $aktifPenjamin3 = $request->boolean('aktif_penjamin_3');
@@ -256,7 +258,7 @@ class PasienController extends Controller
         $kabupatenKode = $this->resolveRegionCode($request->kabupaten, City::class) ?? ($request->kabupaten ?: null);
         $kecamatanKode = $this->resolveRegionCode($request->kecamatan, District::class) ?? ($request->kecamatan ?: null);
         $desaKode = $this->resolveRegionCode($request->desa, Village::class) ?? ($request->desa ?: null);
-        FacadesLog::info('[Update] Resolve wilayah', compact('provinsiKode','kabupatenKode','kecamatanKode','desaKode'));
+        FacadesLog::info('[Update] Resolve wilayah', compact('provinsiKode', 'kabupatenKode', 'kecamatanKode', 'desaKode'));
 
         $aktifPenjamin2 = $request->boolean('aktif_penjamin_2');
         $aktifPenjamin3 = $request->boolean('aktif_penjamin_3');
@@ -313,7 +315,6 @@ class PasienController extends Controller
             $file->storeAs('public/pasien', $filename);
             $pasien->update(['foto' => $filename]);
         }
-
     }
 
     /**
@@ -332,7 +333,44 @@ class PasienController extends Controller
 
         // Ambil field yang aman untuk di-update
         $write = collect($data)->only([
-            'no_rm','nik','nama','kode_ihs','tempat_lahir','tanggal_lahir','no_bpjs','tgl_exp_bpjs','kelas_bpjs','jenis_peserta_bpjs','provide','kodeprovide','hubungan_keluarga','alamat','rt','rw','kode_pos','kewarganegaraan','seks','agama','pendidikan','goldar','pernikahan','pekerjaan','telepon','provinsi_kode','kabupaten_kode','kecamatan_kode','desa_kode','suku','bahasa','bangsa','verifikasi','penjamin_2_nama','penjamin_2_no','penjamin_3_nama','penjamin_3_no','foto'
+            'no_rm',
+            'nik',
+            'nama',
+            'kode_ihs',
+            'tempat_lahir',
+            'tanggal_lahir',
+            'no_bpjs',
+            'tgl_exp_bpjs',
+            'kelas_bpjs',
+            'jenis_peserta_bpjs',
+            'provide',
+            'kodeprovide',
+            'hubungan_keluarga',
+            'alamat',
+            'rt',
+            'rw',
+            'kode_pos',
+            'kewarganegaraan',
+            'seks',
+            'agama',
+            'pendidikan',
+            'goldar',
+            'pernikahan',
+            'pekerjaan',
+            'telepon',
+            'provinsi_kode',
+            'kabupaten_kode',
+            'kecamatan_kode',
+            'desa_kode',
+            'suku',
+            'bahasa',
+            'bangsa',
+            'verifikasi',
+            'penjamin_2_nama',
+            'penjamin_2_no',
+            'penjamin_3_nama',
+            'penjamin_3_no',
+            'foto'
         ])->toArray();
 
         // Upsert berdasarkan no_rm
@@ -341,7 +379,7 @@ class PasienController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
-    
+
 
     private function sendPasienSyncToRemotes(Pasien $pasien, string $event): void
     {
@@ -400,7 +438,7 @@ class PasienController extends Controller
                 try {
                     Http::withHeaders(['X-Sync-Token' => $token])
                         ->timeout(3)
-                        ->post(rtrim($url, '/').'/api/sync/pasien/upsert', $json);
+                        ->post(rtrim($url, '/') . '/api/sync/pasien/upsert', $json);
                 } catch (\Throwable $e) {
                     // Jangan ganggu proses utama
                 }
@@ -410,9 +448,9 @@ class PasienController extends Controller
         }
     }
 
-    
 
-    
+
+
 
     /**
      * Method helper untuk mengecek kelengkapan data
@@ -603,21 +641,21 @@ class PasienController extends Controller
         $request->validate([
             'kode_klinik' => 'required|string'
         ]);
-    
+
         $kodeKlinikRequest = $request->kode_klinik;
-    
+
         // Ambil setting kode klinik dan kode grup dari web_settings
-        $setting = \DB::table('web_settings')
+        $setting = DB::table('web_settings')
             ->select('kode_klinik', 'kode_group_klinik')
             ->first();
-    
+
         if (!$setting) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Setting web klinik belum tersedia.'
             ], 404);
         }
-    
+
         // Cek apakah kode klinik request sesuai dengan setting
         if ($setting->kode_klinik != $kodeKlinikRequest) {
             return response()->json([
@@ -625,14 +663,43 @@ class PasienController extends Controller
                 'message' => 'Kode klinik tidak sesuai.'
             ], 403);
         }
-    
+
         // Ambil semua pasien (tidak ada filter is_shared atau relasi clinic)
         $patients = Pasien::all();
-    
+
+        // Ambil no_rm dari patients
+        $noRmList = $patients->pluck('no_rm')->filter()->unique()->values();
+
+        // Ambil histori sesuai no_rm
+        $histories = Pasien_History::whereIn('no_rm', $noRmList)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('no_rm')
+            ->map(function ($items) {
+                return $items->map(function ($row) {
+                    return [
+                        'id' => $row->id,
+                        'no_rm' => $row->no_rm,
+                        'nama' => $row->nama,
+                        'history' => $row->history,
+                        'created_at' => optional($row->created_at)->toISOString(),
+                        'updated_at' => optional($row->updated_at)->toISOString(),
+                    ];
+                })->all();
+            });
+
+        // Gabungkan histories ke tiap pasien
+        $patientsWithHistories = $patients->map(function ($patient) use ($histories) {
+            return [                
+                $patient,
+                // tambahkan kolom pasien lain sesuai kebutuhan                
+                'histories' => $histories->get($patient->no_rm, []),
+            ];
+        });
         return response()->json([
             'status' => 'success',
-            'data' => $patients
+            'data'   => $patientsWithHistories,
         ]);
+        
     }
-    
 }

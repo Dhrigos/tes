@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import React, { useEffect, useState } from 'react';
+import { usePage } from '@inertiajs/react';
 import { toast } from 'sonner';
 
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ function ConfigSatuSehat() {
         SATUSEHAT_BASE_URL: '',
     });
     const [loading, setLoading] = useState(false);
+    const [enabledSS, setEnabledSS] = useState<boolean>(true);
 
     // Load data saat komponen dimount
     useEffect(() => {
@@ -51,8 +53,50 @@ function ConfigSatuSehat() {
         }
     };
 
+    // Prefill toggle dari Inertia props
+    const { props } = usePage<any>();
+    useEffect(() => {
+        const isActive = props?.web_setting?.is_satusehat_active;
+        if (typeof isActive !== 'undefined') {
+            setEnabledSS(Boolean(isActive));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props?.web_setting?.is_satusehat_active]);
+
+    const handleToggleChangeSS = async (checked: boolean) => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/web-settings/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    toggle_type: 'toggleSatusehat',
+                    value: checked,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setEnabledSS(checked);
+                toast.success(data.message || 'Status Satu Sehat diperbarui');
+            } else {
+                toast.error(data.message || 'Gagal memperbarui status Satu Sehat');
+            }
+        } catch (error) {
+            toast.error('Terjadi kesalahan saat mengubah pengaturan Satu Sehat');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!enabledSS) return;
         setLoading(true);
 
         try {
@@ -88,56 +132,69 @@ function ConfigSatuSehat() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 p-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium">Client ID</label>
-                    <Input
-                        name="client_id"
-                        type="text"
-                        value={formData.client_id}
-                        onChange={handleChange}
-                        placeholder="Masukkan Client ID"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Organization ID</label>
-                    <Input name="org_id" type="text" value={formData.org_id} onChange={handleChange} placeholder="Masukkan Org ID" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Client Secret</label>
-                    <Input
-                        name="client_secret"
-                        type="password"
-                        value={formData.client_secret}
-                        onChange={handleChange}
-                        placeholder="••••••••"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Secret Key</label>
-                    <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required />
-                </div>
-                <div className="col-span-2">
-                    <label className="block text-sm font-medium">Satu Sehat Base URL</label>
-                    <Input
-                        name="SATUSEHAT_BASE_URL"
-                        type="url"
-                        value={formData.SATUSEHAT_BASE_URL}
-                        onChange={handleChange}
-                        placeholder="https://api.satusehat.kemkes.go.id"
-                        required
-                    />
-                </div>
+        <div className="space-y-4 p-4">
+            <div className="flex items-center justify-between">
+                <span className="font-medium">Aktifkan Satu Sehat</span>
+                <Switch checked={enabledSS} onCheckedChange={handleToggleChangeSS} disabled={loading} />
             </div>
-            <div className="flex justify-end">
-                <Button type="submit" disabled={loading}>
-                    {loading ? 'Menyimpan...' : 'Simpan Config Satu Sehat'}
-                </Button>
-            </div>
-        </form>
+            <Card>
+                <CardContent className="p-4">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium">Client ID</label>
+                                <Input
+                                    name="client_id"
+                                    type="text"
+                                    value={formData.client_id}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Client ID"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Organization ID</label>
+                                <Input name="org_id" type="text" value={formData.org_id} onChange={handleChange} placeholder="Masukkan Org ID" required disabled={!enabledSS || loading} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Client Secret</label>
+                                <Input
+                                    name="client_secret"
+                                    type="password"
+                                    value={formData.client_secret}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Secret Key</label>
+                                <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabledSS || loading} />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium">Satu Sehat Base URL</label>
+                                <Input
+                                    name="SATUSEHAT_BASE_URL"
+                                    type="url"
+                                    value={formData.SATUSEHAT_BASE_URL}
+                                    onChange={handleChange}
+                                    placeholder="https://api.satusehat.kemkes.go.id"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <Button type="submit" disabled={loading || !enabledSS}>
+                                {loading ? 'Menyimpan...' : 'Simpan Config Satu Sehat'}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
@@ -145,56 +202,75 @@ function ConfigSatuSehat() {
 function ConfigBPJS() {
     const [formData, setFormData] = useState({
         CONSID: '',
+        KPFK: '',
         SECRET_KEY: '',
+        USER_KEY: '',
         USERNAME: '',
         PASSWORD: '',
-        KPFK: '',
-        APP_CODE: '',
-        USER_KEY: '',
-        BASE_URL: '',
-        SERVICE: '',
-        SERVICE_ANTREAN: '',
     });
     const [loading, setLoading] = useState(false);
+    const [enabled, setEnabled] = useState<boolean>(true);
 
-    // Load data saat komponen dimount
+    // Prefill dari Inertia props (dibagikan via HandleInertiaRequests)
+    const { props } = usePage<any>();
     useEffect(() => {
-        fetchBPJSData();
-    }, []);
+        const bpjs = props?.set_bpjs;
+        if (bpjs) {
+            setFormData({
+                CONSID: bpjs.CONSID || '',
+                KPFK: bpjs.KPFK || '',
+                SECRET_KEY: bpjs.SECRET_KEY || '',
+                USER_KEY: bpjs.USER_KEY || '',
+                USERNAME: bpjs.USERNAME || '',
+                PASSWORD: bpjs.PASSWORD || '',
+            });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props?.set_bpjs]);
 
-    const fetchBPJSData = async () => {
+    // Prefill toggle BPJS dari web_setting props
+    useEffect(() => {
+        const isActive = props?.web_setting?.is_bpjs_active;
+        if (typeof isActive !== 'undefined') {
+            setEnabled(Boolean(isActive));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props?.web_setting?.is_bpjs_active]);
+
+    const handleToggleChange = async (checked: boolean) => {
+        setLoading(true);
         try {
-            const response = await fetch('/api/web-settings/show', {
+            const response = await fetch('/api/web-settings/toggle', {
+                method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                body: JSON.stringify({
+                    toggle_type: 'toggleBPJS',
+                    value: checked,
+                }),
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.data.set_bpjs) {
-                    setFormData({
-                        CONSID: data.data.set_bpjs.CONSID || '',
-                        SECRET_KEY: data.data.set_bpjs.SECRET_KEY || '',
-                        USERNAME: data.data.set_bpjs.USERNAME || '',
-                        PASSWORD: data.data.set_bpjs.PASSWORD || '',
-                        KPFK: data.data.set_bpjs.KPFK || '',
-                        APP_CODE: data.data.set_bpjs.APP_CODE || '',
-                        USER_KEY: data.data.set_bpjs.USER_KEY || '',
-                        BASE_URL: data.data.set_bpjs.BASE_URL || '',
-                        SERVICE: data.data.set_bpjs.SERVICE || '',
-                        SERVICE_ANTREAN: data.data.set_bpjs.SERVICE_ANTREAN || '',
-                    });
-                }
+            const data = await response.json();
+
+            if (data.success) {
+                setEnabled(checked);
+                toast.success(data.message || 'Status BPJS diperbarui');
+            } else {
+                toast.error(data.message || 'Gagal memperbarui status BPJS');
             }
         } catch (error) {
-            console.error('Error fetching BPJS data:', error);
+            toast.error('Terjadi kesalahan saat mengubah pengaturan BPJS');
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!enabled) return;
         setLoading(true);
 
         try {
@@ -211,9 +287,9 @@ function ConfigBPJS() {
             const data = await response.json();
 
             if (data.success) {
-                toast.success(data.message);
+                toast.success(data.message || 'Konfigurasi BPJS berhasil disimpan');
             } else {
-                toast.error(data.message);
+                toast.error(data.message || 'Gagal menyimpan konfigurasi BPJS');
             }
         } catch (error) {
             toast.error('Terjadi kesalahan saat menyimpan data');
@@ -230,69 +306,49 @@ function ConfigBPJS() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 p-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium">Cons ID</label>
-                    <Input name="CONSID" type="text" value={formData.CONSID} onChange={handleChange} placeholder="Masukkan Cons ID" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Secret Key</label>
-                    <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Username</label>
-                    <Input name="USERNAME" type="text" value={formData.USERNAME} onChange={handleChange} placeholder="Masukkan Username" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Password</label>
-                    <Input name="PASSWORD" type="password" value={formData.PASSWORD} onChange={handleChange} placeholder="••••••••" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">KPFK (Kode Apotek)</label>
-                    <Input name="KPFK" type="text" value={formData.KPFK} onChange={handleChange} placeholder="Masukkan Kode Apotek" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">App Code</label>
-                    <Input name="APP_CODE" type="text" value={formData.APP_CODE} onChange={handleChange} placeholder="Masukkan App Code" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">User Key</label>
-                    <Input name="USER_KEY" type="password" value={formData.USER_KEY} onChange={handleChange} placeholder="••••••••" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Base URL</label>
-                    <Input
-                        name="BASE_URL"
-                        type="url"
-                        value={formData.BASE_URL}
-                        onChange={handleChange}
-                        placeholder="https://apijkn.bpjs-kesehatan.go.id"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Service URL</label>
-                    <Input name="SERVICE" type="url" value={formData.SERVICE} onChange={handleChange} placeholder="URL Service" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium">Service Antrean URL</label>
-                    <Input
-                        name="SERVICE_ANTREAN"
-                        type="url"
-                        value={formData.SERVICE_ANTREAN}
-                        onChange={handleChange}
-                        placeholder="URL Service Antrean"
-                        required
-                    />
-                </div>
+        <div className="space-y-4 p-4">
+            <div className="flex items-center justify-between">
+                <span className="font-medium">Aktifkan BPJS</span>
+                <Switch checked={enabled} onCheckedChange={handleToggleChange} disabled={loading} />
             </div>
-            <div className="flex justify-end">
-                <Button type="submit" disabled={loading}>
-                    {loading ? 'Menyimpan...' : 'Simpan Config BPJS'}
-                </Button>
-            </div>
-        </form>
+            <Card>
+                <CardContent className="p-4">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium">Cons ID</label>
+                            <Input name="CONSID" type="text" value={formData.CONSID} onChange={handleChange} placeholder="Masukkan Cons ID" required disabled={!enabled || loading} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">KPFK (Kode Apotek)</label>
+                            <Input name="KPFK" type="text" value={formData.KPFK} onChange={handleChange} placeholder="Masukkan Kode Apotek" required disabled={!enabled || loading} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">Secret Key</label>
+                            <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">User Key</label>
+                            <Input name="USER_KEY" type="password" value={formData.USER_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">Username</label>
+                            <Input name="USERNAME" type="text" value={formData.USERNAME} onChange={handleChange} placeholder="Masukkan Username" required disabled={!enabled || loading} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">Password</label>
+                            <Input name="PASSWORD" type="password" value={formData.PASSWORD} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
+                        </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <Button type="submit" disabled={loading || !enabled}>
+                                {loading ? 'Menyimpan...' : 'Simpan Config BPJS'}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
@@ -403,34 +459,7 @@ function ConfigGudang() {
                 <span className="font-medium">Aktifkan Fitur Gudang</span>
                 {/* Toggle harus selalu tampil, tidak tergantung enabled */}
                 <Switch checked={enabled} onCheckedChange={handleToggleChange} disabled={loading} />
-            </div>
-
-            {enabled ? (
-                Boolean(externalDatabases?.length) ? (
-                    <div className="space-y-2">
-                        <h4 className="font-medium">Pilih Gudang Utama:</h4>
-                        <div className="space-y-2">
-                            {externalDatabases.map((db) => (
-                                <div key={db.id} className="flex items-center justify-between rounded border p-2">
-                                    <span>{db.name}</span>
-                                    <Button size="sm" variant={db.active ? 'default' : 'outline'} onClick={() => handleSetActiveGudang(db.database)}>
-                                        {db.active ? 'Aktif' : 'Pilih'}
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-sm text-muted-foreground">Belum ada data gudang eksternal.</div>
-                )
-            ) : null}
-
-            {/* Tombol konfirmasi nonaktifkan tetap tampil jika enabled true, tapi disabled */}
-            {!enabled && (
-                <Button variant="destructive" onClick={handleConfirmDisable}>
-                    Konfirmasi Nonaktifkan
-                </Button>
-            )}
+            </div>            
         </div>
     );
 }
@@ -997,44 +1026,31 @@ function Advanced() {
     const [formData, setFormData] = useState({
         nama: '',
         kode_klinik: '',
+        kode_group_klinik: '',
         alamat: '',
     });
     const [loading, setLoading] = useState(false);
 
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    // Load data saat komponen dimount
+    // Prefill dari Inertia props (dibagikan via HandleInertiaRequests)
+    const { props } = usePage<any>();
     useEffect(() => {
-        fetchAdvancedData();
-    }, []);
-
-    const fetchAdvancedData = async () => {
-        try {
-            const response = await fetch('/api/web-settings/show', {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+        const setting = props?.web_setting;
+        if (setting) {
+            setFormData({
+                nama: setting.nama || '',
+                kode_klinik: setting.kode_klinik || '',
+                kode_group_klinik: setting.kode_group_klinik || '',
+                alamat: setting.alamat || '',
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.data.setting) {
-                    setFormData({
-                        nama: data.data.setting.nama || '',
-                        kode_klinik: data.data.setting.kode_klinik || '',
-                        alamat: data.data.setting.alamat || '',
-                    });
-
-                    if (data.data.setting.profile_image) {
-                        setPreview(`/setting/${data.data.setting.profile_image}`);
-                    }
-                }
+            if (setting.profile_image) {
+                setPreview(`/setting/${setting.profile_image}`);
             }
-        } catch (error) {
-            console.error('Error fetching advanced data:', error);
         }
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props?.web_setting]);
 
     const handleLogoClick = () => {
         fileInputRef.current?.click();
@@ -1067,6 +1083,7 @@ function Advanced() {
             const formDataToSend = new FormData();
             formDataToSend.append('nama', formData.nama);
             formDataToSend.append('kode_klinik', formData.kode_klinik);
+            formDataToSend.append('kode_group_klinik', formData.kode_group_klinik);
             formDataToSend.append('alamat', formData.alamat);
 
             if (logo) {
@@ -1115,7 +1132,7 @@ function Advanced() {
                 <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleLogoChange} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
                     <label className="block text-sm font-medium">Nama Klinik</label>
                     <Input name="nama" type="text" value={formData.nama} onChange={handleChange} placeholder="Masukkan Nama Klinik" required />
@@ -1131,7 +1148,17 @@ function Advanced() {
                         required
                     />
                 </div>
-                <div className="col-span-2">
+                <div>
+                    <label className="block text-sm font-medium">Kode Group Klinik</label>
+                    <Input
+                        name="kode_group_klinik"
+                        type="text"
+                        value={formData.kode_group_klinik}
+                        onChange={handleChange}
+                        placeholder="Masukkan Kode Group Klinik"
+                    />
+                </div>
+                <div className="col-span-1 md:col-span-3">
                     <label className="block text-sm font-medium">Alamat Klinik</label>
                     <textarea
                         name="alamat"

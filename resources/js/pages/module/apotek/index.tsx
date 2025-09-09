@@ -26,6 +26,12 @@ interface Props {
 }
 
 const formatCurrency = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
+const formatGender = (v: any) => {
+    const val = String(v ?? '').trim();
+    if (val === '1') return 'Laki-laki';
+    if (val === '2') return 'Perempuan';
+    return val || '-';
+};
 
 export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, embalase, stok, obat, satuan }: Props) {
     const [step, setStep] = React.useState<1 | 2>(1);
@@ -82,10 +88,10 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
             const resepArray = Array.isArray(row?.resep_items) ? row.resep_items : row?.resep ? [row.resep] : [];
 
             const cleaned = (resepArray || [])
-                .filter((r: AnyRecord) => r && r.nama_obat && Number(r.jumlah || 0) > 0)
+                .filter((r: AnyRecord) => r && r.nama_obat)
                 .map((r: AnyRecord) => ({
                     nama_obat: r?.nama_obat || '',
-                    jumlah: Number(r?.jumlah || 0),
+                    jumlah: r?.jumlah != null ? Number(r.jumlah) : 1,
                     satuan_gudang: r?.satuan_gudang || '',
                     instruksi: r?.instruksi || '',
                     signa: r?.signa || '',
@@ -117,7 +123,6 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                 body: JSON.stringify({}),
             });
             const data = await res.json();
-            console.log(data);
             if (data?.kode) setFakturApotek(data.kode);
         } catch {}
     };
@@ -231,12 +236,13 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                 const kode = data?.kode || '';
                 const harga = Number(data?.harga || 0);
                 if (kode && harga > 0) {
-                    const totalItem = resep.jumlah * harga;
+                    const qty = (resep as any)?.jumlah != null ? Number((resep as any).jumlah) : 1;
+                    const totalItem = qty * harga;
                     newItems.push({
                         nama: resep.nama_obat,
                         kode,
                         harga,
-                        qty: resep.jumlah,
+                        qty,
                         total: totalItem,
                     });
                 }
@@ -493,7 +499,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                                                             <TableRow
                                                                 key={idx}
                                                                 onClick={() => setSelectedRowIndex(idx)}
-                                                                className={selectedRowIndex === idx ? 'bg-blue-100' : ''}
+                                                                className={selectedRowIndex === idx ? '' : ''}
                                                             >
                                                                 <TableCell>{idx + 1}</TableCell>
                                                                 <TableCell>{it.nama}</TableCell>
@@ -720,7 +726,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                                         <TableCell className="text-center">{row?.nomor_rm}</TableCell>
                                         <TableCell className="text-center">{row?.no_rawat}</TableCell>
                                         <TableCell className="text-center">{row?.nama}</TableCell>
-                                        <TableCell className="text-center">{row?.seks}</TableCell>
+                                        <TableCell className="text-center">{formatGender(row?.seks)}</TableCell>
                                         <TableCell className="text-center">{row?.penjamin}</TableCell>
                                         <TableCell className="text-center">
                                             <Button size="sm" onClick={() => handlePilihPasien(row)}>
