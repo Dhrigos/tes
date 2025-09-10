@@ -3,6 +3,9 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+
+use App\Models\Module\Master\Data\Manajemen\Posker;
+use App\Models\Module\SDM\Staff;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -46,5 +49,27 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get user roles based on their posker (job position)
+     */
+    public function getRolesFromPosker(): array
+    {
+        // Find staff record linked to this user
+        $staff = Staff::where('users', $this->id)->first();
+
+        if (!$staff || !$staff->status_pegawaian) {
+            return ['Admin']; // Default to Admin if no posker found
+        }
+
+        // Get posker and its roles
+        $posker = Posker::with('roles')->find($staff->status_pegawaian);
+
+        if (!$posker || !$posker->roles || $posker->roles->isEmpty()) {
+            return ['Admin']; // Default to Admin if no roles found
+        }
+
+        return $posker->roles->pluck('name')->toArray();
     }
 }

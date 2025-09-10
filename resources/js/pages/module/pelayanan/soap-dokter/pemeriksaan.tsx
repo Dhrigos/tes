@@ -21,7 +21,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { FileText } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface PatientData {
@@ -187,11 +187,19 @@ interface ExistingDietData {
     jenis_diet_makanan_tidak: string;
 }
 
+interface AlergiData {
+    id: number;
+    kode: string;
+    jenis_alergi: string;
+    nama: string;
+}
+
 interface PageProps {
     pelayanan: PatientData;
     soap_dokter?: SoapDokterData;
     so_perawat?: any;
     existing_diet_data: ExistingDietData[];
+    alergi_data: AlergiData[];
     gcs_eye: GcsEye[];
     gcs_verbal: GcsVerbal[];
     gcs_motorik: GcsMotorik[];
@@ -226,6 +234,7 @@ export default function PemeriksaanSoapDokter() {
         soap_dokter,
         so_perawat,
         existing_diet_data,
+        alergi_data,
         gcs_eye,
         gcs_verbal,
         gcs_motorik,
@@ -247,6 +256,12 @@ export default function PemeriksaanSoapDokter() {
     const [activeTab, setActiveTab] = useState('subyektif');
     const [cpptEntries, setCpptEntries] = useState<any[]>([]);
     const [cpptLoading, setCpptLoading] = useState(false);
+
+    const truncate = (text: string, max: number = 30): string => {
+        if (!text) return '';
+        const s = String(text);
+        return s.length > max ? s.slice(0, max) + '...' : s;
+    };
 
     // Load CPPT data when CPPT tab is accessed
     const loadCpptData = async () => {
@@ -282,6 +297,8 @@ export default function PemeriksaanSoapDokter() {
             loadCpptData();
         }
     }, [activeTab, pelayanan?.nomor_rm]);
+
+    // Opsi jenis alergi unik dan detail alergi terfilter (dideklarasikan setelah formData)
 
     const [formData, setFormData] = useState<SoapDokterData>(() => {
         const p = so_perawat as any;
@@ -329,6 +346,24 @@ export default function PemeriksaanSoapDokter() {
             tableData: (soap_dokter?.tableData && Array.isArray(soap_dokter.tableData) ? soap_dokter.tableData : p?.tableData || []) as any[],
         };
     });
+
+    // Opsi jenis alergi unik dan detail alergi terfilter
+    const jenisAlergiOptions: string[] = useMemo(() => {
+        if (!Array.isArray(alergi_data)) return [] as string[];
+        const set = new Set<string>();
+        for (const item of alergi_data) {
+            const j = (item?.jenis_alergi || '').trim();
+            if (j) set.add(j);
+        }
+        return Array.from(set);
+    }, [alergi_data]);
+
+    const detailAlergiOptions: AlergiData[] = useMemo(() => {
+        if (!Array.isArray(alergi_data)) return [] as AlergiData[];
+        const jenis = (formData.jenis_alergi || '').trim();
+        if (!jenis) return [] as AlergiData[];
+        return alergi_data.filter((item) => (item?.jenis_alergi || '').trim() === jenis);
+    }, [alergi_data, formData.jenis_alergi]);
 
     // Confirm dialog state & helpers (mirror perawat)
     type ConfirmOptions = { title?: string; description?: string; confirmText?: string; cancelText?: string };
@@ -414,12 +449,65 @@ export default function PemeriksaanSoapDokter() {
     const [satuanBarang, setSatuanBarang] = useState<Array<{ id: number; nama: string }>>([]);
     const [loadingObat, setLoadingObat] = useState(false);
     const [editIndexObat, setEditIndexObat] = useState<number | null>(null);
-    const [isResepHeaderVisible, setIsResepHeaderVisible] = useState(false);
+    const [isResepHeaderVisible, setIsResepHeaderVisible] = useState(true);
+
+    const tambahPenandaKeList = () => {
+        const penandaText = `R:/${obatData.penanda || ''}`;
+        // Jika sedang edit dan item aslinya adalah penanda, update item tsb
+        if (editIndexObat !== null) {
+            const original = obatList[editIndexObat];
+            const isOriginalPenanda = !original.nama_obat && typeof original.penanda === 'string' && original.penanda.startsWith('R:/');
+            if (isOriginalPenanda) {
+                const updated = [...obatList];
+                updated[editIndexObat] = {
+                    penanda: penandaText,
+                    nama_obat: '',
+                    jumlah: '',
+                    instruksi: '',
+                    signa: '',
+                    satuan_gudang: '',
+                    penggunaan: '',
+                };
+                setObatList(updated);
+                setEditIndexObat(null);
+                setObatData((prev) => ({ ...prev, penanda: '' }));
+                setIsResepHeaderVisible(false);
+                return;
+            }
+        }
+        // Jika tidak sedang edit penanda, tambahkan item penanda baru
+        const headerItem = {
+            penanda: penandaText,
+            nama_obat: '',
+            jumlah: '',
+            instruksi: '',
+            signa: '',
+            satuan_gudang: '',
+            penggunaan: '',
+        };
+        setObatList([...obatList, headerItem]);
+        setObatData((prev) => ({ ...prev, penanda: '' }));
+        setIsResepHeaderVisible(false);
+    };
 
     const tambahObat = () => {
         if (editIndexObat !== null) {
             const updated = [...obatList];
-            updated[editIndexObat] = obatData;
+            const original = obatList[editIndexObat];
+            const isOriginalPenanda = !original.nama_obat && typeof original.penanda === 'string' && original.penanda.startsWith('R:/');
+            if (isOriginalPenanda) {
+                updated[editIndexObat] = {
+                    penanda: `R:/${obatData.penanda || ''}`,
+                    nama_obat: '',
+                    jumlah: '',
+                    instruksi: '',
+                    signa: '',
+                    satuan_gudang: '',
+                    penggunaan: '',
+                };
+            } else {
+                updated[editIndexObat] = obatData;
+            }
             setObatList(updated);
             setEditIndexObat(null);
         } else {
@@ -460,7 +548,20 @@ export default function PemeriksaanSoapDokter() {
 
     const editObat = (index: number) => {
         const item = obatList[index];
-        setObatData({ ...item });
+        const isPenanda = !item.nama_obat && typeof item.penanda === 'string' && item.penanda.startsWith('R:/');
+        if (isPenanda) {
+            setObatData({
+                penanda: item.penanda.slice(3),
+                nama_obat: '',
+                jumlah: '',
+                instruksi: '',
+                signa: '',
+                satuan_gudang: '',
+                penggunaan: '',
+            });
+        } else {
+            setObatData({ ...item });
+        }
         setEditIndexObat(index);
     };
 
@@ -1803,29 +1904,68 @@ export default function PemeriksaanSoapDokter() {
                                                                 <Label htmlFor="jenis_alergi">Jenis Alergi</Label>
                                                                 <Select
                                                                     value={formData.jenis_alergi}
-                                                                    onValueChange={(value) => handleSelectChange('jenis_alergi', value)}
+                                                                    onValueChange={(value) => {
+                                                                        handleSelectChange('jenis_alergi', value);
+                                                                        // Sinkronkan detail dengan jenis: jika "00" maka detail juga "00", selain itu reset
+                                                                        if (value === '00') {
+                                                                            handleSelectChange('alergi', '00');
+                                                                        } else {
+                                                                            handleSelectChange('alergi', '');
+                                                                        }
+                                                                    }}
                                                                 >
                                                                     <SelectTrigger ref={jenisAlergiTriggerRef as any}>
                                                                         <SelectValue placeholder="Pilih jenis alergi" />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
-                                                                        <SelectItem value="Tidak Ada">Tidak Ada</SelectItem>
-                                                                        <SelectItem value="Obat">Obat</SelectItem>
-                                                                        <SelectItem value="Makanan">Makanan</SelectItem>
-                                                                        <SelectItem value="Udara">Udara</SelectItem>
-                                                                        <SelectItem value="Lainnya">Lainnya</SelectItem>
+                                                                        {/* Opsi universal: Tidak ada */}
+                                                                        <SelectItem value="00">Tidak ada</SelectItem>
+                                                                        {jenisAlergiOptions.length === 0 ? (
+                                                                            <SelectItem value="no-data-jenis" disabled>
+                                                                                Tidak ada data
+                                                                            </SelectItem>
+                                                                        ) : (
+                                                                            jenisAlergiOptions.map((opt: string) => (
+                                                                                <SelectItem key={opt} value={opt}>
+                                                                                    {opt}
+                                                                                </SelectItem>
+                                                                            ))
+                                                                        )}
                                                                     </SelectContent>
                                                                 </Select>
                                                             </div>
                                                             <div>
                                                                 <Label htmlFor="alergi">Detail Alergi</Label>
-                                                                <Input
-                                                                    id="alergi"
-                                                                    name="alergi"
+                                                                <Select
                                                                     value={formData.alergi}
-                                                                    onChange={handleInputChange}
-                                                                    placeholder="Sebutkan detail alergi..."
-                                                                />
+                                                                    onValueChange={(value) => handleSelectChange('alergi', value)}
+                                                                    disabled={!formData.jenis_alergi}
+                                                                >
+                                                                    <SelectTrigger>
+                                                                        <SelectValue
+                                                                            placeholder={
+                                                                                !formData.jenis_alergi
+                                                                                    ? 'Pilih jenis terlebih dahulu'
+                                                                                    : 'Pilih detail alergi'
+                                                                            }
+                                                                        />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {/* Opsi universal: Tidak ada */}
+                                                                        <SelectItem value="00">Tidak ada</SelectItem>
+                                                                        {detailAlergiOptions.length === 0 ? (
+                                                                            <SelectItem value="no-data-detail" disabled>
+                                                                                Tidak ada data
+                                                                            </SelectItem>
+                                                                        ) : (
+                                                                            detailAlergiOptions.map((item: AlergiData) => (
+                                                                                <SelectItem key={item.id} value={(item.nama || '').trim()}>
+                                                                                    {(item.nama || '').trim()}
+                                                                                </SelectItem>
+                                                                            ))
+                                                                        )}
+                                                                    </SelectContent>
+                                                                </Select>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2562,7 +2702,9 @@ export default function PemeriksaanSoapDokter() {
                                                                         {icd10List.map((item, index) => (
                                                                             <TableRow key={index}>
                                                                                 <TableCell className="font-mono">{item.kode_icd10}</TableCell>
-                                                                                <TableCell className="text-sm">{item.nama_icd10}</TableCell>
+                                                                                <TableCell className="text-sm">
+                                                                                    {truncate(item.nama_icd10 || '', 30)}
+                                                                                </TableCell>
                                                                                 <TableCell>
                                                                                     <span
                                                                                         className={`rounded px-2 py-1 text-xs ${
@@ -2659,7 +2801,9 @@ export default function PemeriksaanSoapDokter() {
                                                                         {icd9List.map((item, index) => (
                                                                             <TableRow key={index}>
                                                                                 <TableCell className="font-mono">{item.kode_icd9}</TableCell>
-                                                                                <TableCell className="text-sm">{item.nama_icd9}</TableCell>
+                                                                                <TableCell className="text-sm">
+                                                                                    {truncate(item.nama_icd9 || '', 30)}
+                                                                                </TableCell>
                                                                                 <TableCell>
                                                                                     <Button
                                                                                         type="button"
@@ -2966,7 +3110,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 variant="outline"
                                                                 size="sm"
                                                                 className="bu"
-                                                                onClick={() => setIsResepHeaderVisible(true)}
+                                                                onClick={tambahPenandaKeList}
                                                             >
                                                                 R:/
                                                             </Button>
@@ -2995,7 +3139,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 </SelectTrigger>
                                                                 <SelectContent>
                                                                     {obatTersedia.length === 0 && !loadingObat && (
-                                                                        <SelectItem value="" disabled>
+                                                                        <SelectItem value="no-obat" disabled>
                                                                             Tidak ada obat tersedia
                                                                         </SelectItem>
                                                                     )}
@@ -3009,15 +3153,6 @@ export default function PemeriksaanSoapDokter() {
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
-                                                            <Label htmlFor="jumlah">Qty / Jumlah</Label>
-                                                            <Input
-                                                                id="jumlah"
-                                                                name="jumlah"
-                                                                type="number"
-                                                                value={obatData.jumlah}
-                                                                onChange={(e) => setObatData((prev) => ({ ...prev, jumlah: e.target.value }))}
-                                                                placeholder="Contoh: 500"
-                                                            />
                                                         </div>
                                                         <div>
                                                             <Label htmlFor="instruksi">Instruksi</Label>
@@ -3117,7 +3252,7 @@ export default function PemeriksaanSoapDokter() {
 
                                                     {/* Action Buttons */}
                                                     <div className="mb-4 flex flex-wrap items-center gap-2">
-                                                        <Button type="button" onClick={tambahObat} disabled={!obatData.nama_obat || !obatData.jumlah}>
+                                                        <Button type="button" onClick={tambahObat} disabled={!obatData.nama_obat || !obatData.signa}>
                                                             {editIndexObat !== null ? 'Simpan Perubahan' : 'Tambah Obat ke Resep'}
                                                         </Button>
                                                         {editIndexObat !== null && (
@@ -3134,15 +3269,30 @@ export default function PemeriksaanSoapDokter() {
                                                     {obatList.length > 0 ? (
                                                         <div className="mt-4">
                                                             <Label className="text-base font-semibold">Resep:</Label>
-                                                            <div className="mt-2 divide-y rounded-md border">
+                                                            {isResepHeaderVisible && obatData.penanda && (
+                                                                <div className="mt-2 divide-y rounded-md border bg-gray-50">
+                                                                    <div className="p-3 font-mono text-sm whitespace-pre-wrap">
+                                                                        {obatData.penanda}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            <div className="mt-2 h-64 divide-y overflow-y-auto rounded-md border">
                                                                 {obatList.map((obat, index) => (
                                                                     <div key={index} className="flex items-start justify-between gap-3 p-3">
                                                                         <div className="font-mono text-sm whitespace-pre-wrap">
                                                                             {(() => {
-                                                                                let resep = obat.penanda ? `R:/ ${obat.penanda}\n` : 'R:/\n';
+                                                                                // Item khusus penanda: hanya tampilkan penanda
+                                                                                if (!obat.nama_obat && obat.penanda) {
+                                                                                    return `${obat.penanda}`;
+                                                                                }
+                                                                                // Item obat biasa
+                                                                                let resep = '';
                                                                                 resep += `${obat.nama_obat}\n`;
                                                                                 if (obat.instruksi) resep += `${obat.instruksi}\n`;
-                                                                                resep += `S ${obat.signa} ${obat.satuan_gudang} ${obat.penggunaan}`;
+                                                                                if (obat.signa || obat.satuan_gudang || obat.penggunaan) {
+                                                                                    resep +=
+                                                                                        `S ${obat.signa || ''} ${obat.satuan_gudang || ''} ${obat.penggunaan || ''}`.trim();
+                                                                                }
                                                                                 return resep;
                                                                             })()}
                                                                         </div>
@@ -3167,14 +3317,26 @@ export default function PemeriksaanSoapDokter() {
                                                                             >
                                                                                 ↓
                                                                             </Button>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => editObat(index)}
-                                                                            >
-                                                                                Edit
-                                                                            </Button>
+                                                                            {(() => {
+                                                                                const isEditablePenanda =
+                                                                                    !obat.nama_obat &&
+                                                                                    typeof obat.penanda === 'string' &&
+                                                                                    obat.penanda.startsWith('R:/') &&
+                                                                                    obat.penanda.length > 3;
+                                                                                if (obat.nama_obat || isEditablePenanda) {
+                                                                                    return (
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => editObat(index)}
+                                                                                        >
+                                                                                            Edit
+                                                                                        </Button>
+                                                                                    );
+                                                                                }
+                                                                                return null;
+                                                                            })()}
                                                                             <Button
                                                                                 type="button"
                                                                                 variant="ghost"
@@ -3192,17 +3354,9 @@ export default function PemeriksaanSoapDokter() {
                                                     ) : (
                                                         <div>
                                                             <Label className="text-base font-semibold">Resep:</Label>
-                                                            {isResepHeaderVisible ? (
-                                                                <div className="mt-2 divide-y rounded-md border bg-gray-50">
-                                                                    <div className="p-3 font-mono text-sm whitespace-pre-wrap">
-                                                                        {`R:/${obatData.penanda ? ' ' + obatData.penanda : ''}`}
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="mt-2 rounded-md border bg-gray-50 p-3 text-sm text-gray-500">
-                                                                    Resep akan muncul di sini setelah menambahkan obat...
-                                                                </div>
-                                                            )}
+                                                            <div className="mt-2 h-64 overflow-y-auto rounded-md border bg-gray-50 p-3 text-sm text-gray-500">
+                                                                Resep akan muncul di sini setelah menambahkan obat...
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </CardContent>
@@ -3224,7 +3378,7 @@ export default function PemeriksaanSoapDokter() {
                                             <CardHeader>
                                                 <CardTitle className="flex items-center gap-2">
                                                     <FileText className="h-5 w-5" />
-                                                    CPPT (Catatan Perkembangan Pasien Terintegrasi)
+                                                    History Pemeriksaan Pasien
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>

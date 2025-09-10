@@ -28,6 +28,7 @@ use App\Models\Module\Pelayanan\PelayananSoPerawat;
 use App\Models\Module\Pelayanan\PelayananStatus;
 use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
+use App\Services\PelayananStatusService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Query\Exception as QueryException;
 use Illuminate\Database\QueryException as DatabaseQueryException;
@@ -76,6 +77,8 @@ class PelayananController extends Controller
             return false; // Gagal tetapi tidak melempar exception
         }
     }
+
+    
     /**
      * Display a listing of pelayanan data (general)
      */

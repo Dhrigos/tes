@@ -141,12 +141,20 @@ class Dokter_Controller extends Controller
         $desaKode = $request->input('desa_kode') ?? ($request->desa ? Village::find($request->desa)?->code : null);
 
 
+        $user_id = User::create([
+            'name' => $validatedData['nama'],
+            'username' => $validatedData['nik'],
+            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
+            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('Ymd')),
+        ]);
+
         $dokterData = array_merge($validatedData, [
             'provinsi_kode' => $provinsiKode,
             'kabupaten_kode' => $kabupatenKode,
             'kecamatan_kode' => $kecamatanKode,
             'desa_kode' => $desaKode,
             'verifikasi' => 1,
+            'users' => $user_id->id,
         ]);
 
         // Hapus field yang tidak ada di fillable
@@ -162,13 +170,7 @@ class Dokter_Controller extends Controller
             $dokter->update(['foto' => $filename]);
         }
 
-        
-        User::create([
-            'name' => $validatedData['nama'],
-            'username' => $validatedData['nik'],
-            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
-            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('y-m-d')),
-        ]);        
+
 
         $message = 'Data dokter berhasil ditambahkan, namun masih perlu dilengkapi!';
 
@@ -374,6 +376,49 @@ class Dokter_Controller extends Controller
             $dokter->update(['foto' => $filename]);
         }
 
+        // Sinkronisasi akun user saat edit (robust)
+        try {
+            $dokter->refresh();
+            $generatedEmail = strtolower(str_replace(' ', '_', $dokter->nama)) . '@dolphinhealthtech.co.id';
+
+            $linkedUser = null;
+            if (! empty($dokter->users)) {
+                $linkedUser = User::find($dokter->users);
+            }
+            if (! $linkedUser) {
+                $linkedUser = User::where('username', $dokter->nik)
+                    ->orWhere('email', $generatedEmail)
+                    ->first();
+                if ($linkedUser && $dokter->users != $linkedUser->id) {
+                    $dokter->update(['users' => $linkedUser->id]);
+                    $dokter->refresh();
+                }
+            }
+
+            if (! $linkedUser) {
+                $linkedUser = User::create([
+                    'name' => $dokter->nama,
+                    'username' => $dokter->nik,
+                    'email' => $generatedEmail,
+                    'password' => bcrypt(Carbon::parse(($validatedData['tanggal_lahir'] ?? $dokter->tanggal_lahir))->format('Ymd')),
+                ]);
+                $dokter->update(['users' => $linkedUser->id]);
+                $dokter->refresh();
+            }
+
+            $updatePayload = [
+                'name' => $dokter->nama,
+                'username' => $dokter->nik,
+                'email' => $generatedEmail,
+            ];
+            if (array_key_exists('tanggal_lahir', $validatedData) && ! is_null($validatedData['tanggal_lahir'])) {
+                $updatePayload['password'] = bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('Ymd'));
+            }
+            User::where('id', $linkedUser->id)->update($updatePayload);
+        } catch (\Throwable $e) {
+            // Abaikan error sinkronisasi user agar update tetap berhasil
+        }
+
         $message = $newVerification === 2
             ? 'Data dokter berhasil diperbarui dan terverifikasi!'
             : 'Data dokter berhasil diperbarui, namun masih perlu dilengkapi!';
@@ -384,6 +429,24 @@ class Dokter_Controller extends Controller
     public function destroy($id)
     {
         $dokter = Dokter::findOrFail($id);
+        // Hapus akun user terkait (robust)
+        try {
+            $generatedEmail = strtolower(str_replace(' ', '_', $dokter->nama)) . '@dolphinhealthtech.co.id';
+            $linkedUser = null;
+            if (! empty($dokter->users)) {
+                $linkedUser = User::find($dokter->users);
+            }
+            if (! $linkedUser) {
+                $linkedUser = User::where('username', $dokter->nik)
+                    ->orWhere('email', $generatedEmail)
+                    ->first();
+            }
+            if ($linkedUser) {
+                $linkedUser->delete();
+            }
+        } catch (\Throwable $e) {
+            // Abaikan error penghapusan user agar proses lanjut
+        }
         $dokter->delete();
 
         return back()->with('success', 'Data dokter berhasil dihapus!');
@@ -499,5 +562,4 @@ class Dokter_Controller extends Controller
 
         return response()->json($dokter);
     }
-
 }

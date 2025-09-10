@@ -13,7 +13,7 @@ use App\Models\Module\Master\Data\Umum\Pendidikan;
 use App\Models\Module\Master\Data\Umum\Suku;
 use App\Models\Module\Master\Data\Umum\Bangsa;
 use App\Models\Module\Master\Data\Umum\Bahasa;
-use App\User;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -140,11 +140,19 @@ class Staff_Controller extends Controller
         $kecamatanKode = $this->resolveDistrictCode($kecamatanInput);
         $desaKode = $this->resolveVillageCode($desaInput);
 
+        $user_id = User::create([
+            'name' => $validatedData['nama'],
+            'username' => $validatedData['nik'],
+            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
+            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('Ymd')),
+        ]);
+
         $staffData = array_merge($validatedData, [
             'provinsi_kode' => $provinsiKode,
             'kabupaten_kode' => $kabupatenKode,
             'kecamatan_kode' => $kecamatanKode,
             'desa_kode' => $desaKode,
+            'users' => $user_id->id,
         ]);
 
         // Hapus field yang tidak ada di fillable
@@ -157,13 +165,6 @@ class Staff_Controller extends Controller
         }
 
         $staff = Staff::create($staffData);
-
-        User::create([
-            'name' => $validatedData['nama'],
-            'username' => $validatedData['nik'],
-            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
-            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('y-m-d')),
-        ]);
 
         return back()->with('success', 'Data staff berhasil ditambahkan!');
     }
@@ -233,8 +234,52 @@ class Staff_Controller extends Controller
         }
 
         $staff->update($staffData);
+        $staff->refresh();
 
+        // Sinkronisasi akun user saat edit
+        try {
+            $generatedEmail = strtolower(str_replace(' ', '_', $staff->nama)) . '@dolphinhealthtech.co.id';
 
+            // 1) Tentukan user id yang valid
+            $linkedUser = null;
+            if (! empty($staff->users)) {
+                $linkedUser = User::find($staff->users);
+            }
+            if (! $linkedUser) {
+                $linkedUser = User::where('username', $staff->nik)
+                    ->orWhere('email', $generatedEmail)
+                    ->first();
+                if ($linkedUser && $staff->users != $linkedUser->id) {
+                    $staff->update(['users' => $linkedUser->id]);
+                    $staff->refresh();
+                }
+            }
+
+            // 2) Jika masih belum ada user, buat baru
+            if (! $linkedUser) {
+                $linkedUser = User::create([
+                    'name' => $staff->nama,
+                    'username' => $staff->nik,
+                    'email' => $generatedEmail,
+                    'password' => bcrypt(Carbon::parse(($validatedData['tanggal_lahir'] ?? $staff->tanggal_lahir))->format('Ymd')),
+                ]);
+                $staff->update(['users' => $linkedUser->id]);
+                $staff->refresh();
+            }
+
+            // 3) Update user terhubung dengan payload terbaru
+            $updatePayload = [
+                'name' => $staff->nama,
+                'username' => $staff->nik,
+                'email' => $generatedEmail,
+            ];
+            if (array_key_exists('tanggal_lahir', $validatedData) && ! is_null($validatedData['tanggal_lahir'])) {
+                $updatePayload['password'] = bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('Ymd'));
+            }
+            User::where('id', $linkedUser->id)->update($updatePayload);
+        } catch (\Throwable $e) {
+            // Abaikan error sinkronisasi user agar update tetap berhasil
+        }
 
         return back()->with('success', 'Data staff berhasil diperbarui!');
     }
@@ -242,6 +287,25 @@ class Staff_Controller extends Controller
     public function destroy($id)
     {
         $staff = Staff::findOrFail($id);
+        // Hapus akun user terkait (robust): pakai relasi id, atau fallback username/email
+        try {
+            $generatedEmail = strtolower(str_replace(' ', '_', $staff->nama)) . '@dolphinhealthtech.co.id';
+
+            $linkedUser = null;
+            if (! empty($staff->users)) {
+                $linkedUser = User::find($staff->users);
+            }
+            if (! $linkedUser) {
+                $linkedUser = User::where('username', $staff->nik)
+                    ->orWhere('email', $generatedEmail)
+                    ->first();
+            }
+            if ($linkedUser) {
+                $linkedUser->delete();
+            }
+        } catch (\Throwable $e) {
+            // Abaikan error penghapusan user agar proses lanjut
+        }
         $staff->delete();
 
         return back()->with('success', 'Data staff berhasil dihapus!');

@@ -1,6 +1,16 @@
 'use client';
 
 import LaravoltIndonesiaExample from '@/components/LaravoltIndonesiaExample';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -167,6 +177,8 @@ export default function StaffIndex() {
         profile: null as File | null,
     });
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmTarget, setConfirmTarget] = useState<Staff | null>(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -336,16 +348,23 @@ export default function StaffIndex() {
     };
 
     const handleDelete = (staff: Staff) => {
-        if (confirm(`Apakah Anda yakin ingin menghapus staff ${staff.user_name_input || staff.nik}?`)) {
-            router.delete(`/sdm/staff/${staff.id}`, {
-                onSuccess: () => {
-                    toast.success('Data staff berhasil dihapus!');
-                },
-                onError: () => {
-                    toast.error('Terjadi kesalahan saat menghapus data!');
-                },
-            });
-        }
+        setConfirmTarget(staff);
+        setConfirmOpen(true);
+    };
+
+    const performDelete = () => {
+        if (!confirmTarget) return;
+        router.delete(`/sdm/staff/${confirmTarget.id}`, {
+            onSuccess: () => {
+                toast.success('Data staff berhasil dihapus!');
+                setConfirmOpen(false);
+                setConfirmTarget(null);
+            },
+            onError: () => {
+                toast.error('Terjadi kesalahan saat menghapus data!');
+                setConfirmOpen(false);
+            },
+        });
     };
 
     // Helper functions for formatting
@@ -955,6 +974,21 @@ export default function StaffIndex() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Apakah Anda yakin ingin menghapus staff {confirmTarget?.user_name_input || confirmTarget?.nik || '-'}? Tindakan ini
+                                tidak dapat dibatalkan.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setConfirmOpen(false)}>Batal</AlertDialogCancel>
+                            <AlertDialogAction onClick={performDelete}>Hapus</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </AppLayout>
     );

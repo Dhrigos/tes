@@ -12,6 +12,7 @@ use Laravolt\Indonesia\Models\Village;
 class Pasien extends Model
 {
     protected $fillable = [
+        'uuid',
         'no_rm',
         'nik',
         'nama',

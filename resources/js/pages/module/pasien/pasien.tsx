@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { ChevronDown, Edit, Plus, Search, User, UserCheck, UserX, Users } from 'lucide-react';
+import { ChevronDown, Edit, Plus, RefreshCcw, Search, User, UserCheck, UserX, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -167,6 +167,17 @@ export default function PendaftaranPasien() {
     const [open, setOpen] = useState(false);
     const [date, setDate] = useState<Date | undefined>(formLengkapi.tanggal_lahir ? new Date(formLengkapi.tanggal_lahir) : undefined);
     const [openBpjs, setOpenBpjs] = useState(false);
+    const [openTambah, setOpenTambah] = useState(false);
+    const [baruStep, setBaruStep] = useState(1);
+    const [namaBaru, setNamaBaru] = useState('');
+    const [nikBaru, setNikBaru] = useState('');
+    const [tglLahirBaru, setTglLahirBaru] = useState('');
+    const [kelaminBaru, setKelaminBaru] = useState<string>('');
+    const [teleponBaru, setTeleponBaru] = useState('');
+    const [alamatBaru, setAlamatBaru] = useState('');
+    const [goldarBaru, setGoldarBaru] = useState<string>('');
+    const [pernikahanBaru, setPernikahanBaru] = useState<string>('');
+    const [fotoBaru, setFotoBaru] = useState<File | null>(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -372,6 +383,41 @@ export default function PendaftaranPasien() {
         });
     };
 
+    const handleSubmitTambahPasien = (e: React.FormEvent) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('nama', namaBaru);
+        formData.append('nik', nikBaru);
+        formData.append('tgl_lahir', tglLahirBaru);
+        formData.append('kelamin', kelaminBaru);
+        formData.append('telepon', teleponBaru);
+        formData.append('alamat', alamatBaru);
+        formData.append('goldar', goldarBaru);
+        formData.append('pernikahan', pernikahanBaru);
+        if (fotoBaru) formData.append('foto', fotoBaru);
+
+        router.post('/pasien/store', formData, {
+            onSuccess: () => {
+                toast.success('Pasien baru berhasil ditambahkan');
+                setOpenTambah(false);
+                setBaruStep(1);
+                setNamaBaru('');
+                setNikBaru('');
+                setTglLahirBaru('');
+                setKelaminBaru('');
+                setTeleponBaru('');
+                setAlamatBaru('');
+                setGoldarBaru('');
+                setPernikahanBaru('');
+                setFotoBaru(null);
+            },
+            onError: (errors) => {
+                // errors handled by inertia props toast elsewhere if provided
+                toast.error('Gagal menambahkan pasien');
+            },
+        });
+    };
+
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -431,6 +477,12 @@ export default function PendaftaranPasien() {
                                     className="w-64 pl-10"
                                 />
                             </div>
+                            <Button size="sm" onClick={() => setOpenTambah(true)}>
+                                <Plus className="mr-2 h-4 w-4" /> Tambah Pasien
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => router.visit('/pasien/singkron')}>
+                                <RefreshCcw className="mr-2 h-4 w-4" /> Singkron Pasien
+                            </Button>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -1198,6 +1250,154 @@ export default function PendaftaranPasien() {
 
                                 {currentStep === steps.length && <Button type="submit">Simpan</Button>}
                             </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal Tambah Pasien Baru */}
+                <Dialog open={openTambah} onOpenChange={setOpenTambah}>
+                    <DialogContent aria-describedby={undefined} className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Tambah Pasien Baru</DialogTitle>
+                        </DialogHeader>
+
+                        <form className="mt-2 space-y-4" onSubmit={handleSubmitTambahPasien}>
+                            {/* Stepper */}
+                            <div className="mb-2 flex items-center justify-center gap-2">
+                                {[1, 2, 3].map((s, idx) => (
+                                    <div key={s} className="flex items-center">
+                                        <div
+                                            className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-base font-bold ${
+                                                baruStep === s
+                                                    ? 'border-cyan-500 bg-cyan-500 text-white'
+                                                    : 'border-gray-300 bg-gray-200 text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                            }`}
+                                        >
+                                            {s}
+                                        </div>
+                                        {idx < 2 && <div className="mx-2 h-1 w-8 rounded bg-gray-300 dark:bg-gray-600"></div>}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {baruStep === 1 && (
+                                <>
+                                    <div>
+                                        <Label>Nama</Label>
+                                        <Input placeholder="Nama" value={namaBaru} onChange={(e) => setNamaBaru(e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <Label>NIK</Label>
+                                        <Input placeholder="NIK" value={nikBaru} onChange={(e) => setNikBaru(e.target.value)} type="text" />
+                                    </div>
+                                    <div>
+                                        <Label>Tanggal Lahir</Label>
+                                        <Input
+                                            type="date"
+                                            placeholder="Tanggal Lahir"
+                                            value={tglLahirBaru}
+                                            onChange={(e) => setTglLahirBaru(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Kelamin</Label>
+                                        <Select value={kelaminBaru} onValueChange={setKelaminBaru}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih Kelamin" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {kelamin.map((k) => (
+                                                    <SelectItem key={k.id} value={String(k.id)}>
+                                                        {k.nama}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="mt-2 flex justify-end gap-2">
+                                        <Button type="button" variant="outline" onClick={() => setOpenTambah(false)}>
+                                            Batal
+                                        </Button>
+                                        <Button type="button" className="bg-cyan-500 hover:bg-cyan-600" onClick={() => setBaruStep(2)}>
+                                            Lanjut
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+
+                            {baruStep === 2 && (
+                                <>
+                                    <div>
+                                        <Label>Nomor Telepon</Label>
+                                        <Input
+                                            placeholder="Nomor Telepon"
+                                            type="tel"
+                                            value={teleponBaru}
+                                            onChange={(e) => setTeleponBaru(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Alamat</Label>
+                                        <Input placeholder="Alamat" value={alamatBaru} onChange={(e) => setAlamatBaru(e.target.value)} />
+                                    </div>
+                                    <div className="mt-2 flex justify-between gap-2">
+                                        <Button type="button" variant="outline" onClick={() => setBaruStep(1)}>
+                                            Kembali
+                                        </Button>
+                                        <Button type="button" className="bg-cyan-500 hover:bg-cyan-600" onClick={() => setBaruStep(3)}>
+                                            Lanjut
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+
+                            {baruStep === 3 && (
+                                <>
+                                    <div>
+                                        <Label>Golongan Darah</Label>
+                                        <Select value={goldarBaru} onValueChange={setGoldarBaru}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih Golongan Darah" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {goldar.map((g) => (
+                                                    <SelectItem key={g.id} value={String(g.id)}>
+                                                        {g.nama}
+                                                        {g.rhesus && g.rhesus !== 'Tidak Ada' ? ` ${g.rhesus}` : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label>Status Pernikahan</Label>
+                                        <Select value={pernikahanBaru} onValueChange={setPernikahanBaru}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Status Pernikahan" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {pernikahan.map((p) => (
+                                                    <SelectItem key={p.id} value={String(p.id)}>
+                                                        {p.nama}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label>Foto</Label>
+                                        <Input type="file" accept="image/*" onChange={(e) => setFotoBaru(e.target.files?.[0] ?? null)} />
+                                    </div>
+                                    <div className="mt-2 flex justify-between gap-2">
+                                        <Button type="button" variant="outline" onClick={() => setBaruStep(2)}>
+                                            Kembali
+                                        </Button>
+                                        <Button type="submit" className="bg-cyan-500 hover:bg-cyan-600">
+                                            Simpan
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
                         </form>
                     </DialogContent>
                 </Dialog>

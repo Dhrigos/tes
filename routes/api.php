@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Module\Pasien\PasienController;
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\MJKN_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Satu_Sehat_Controller;
 use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Setting_Harga_Jual_Controller;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Gudang\Stok_Obat_Klinik_Controller;
 use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
 use Illuminate\Http\Request;
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
@@ -73,7 +75,8 @@ Route::prefix('pelayanan')->group(function () {
     Route::post('/selesai-daftar/{norawat}', [PelayananController::class, 'selesaiDaftar']);
     // Hadir dokter dan selesai dokter
     Route::get('/hadir-dokter/{norawat}', [PelayananController::class, 'hadirDokter']);
-    Route::post('/selesai-dokter/{norawat}', [PelayananController::class, 'selesaiDokter']);
+    Route::post('/selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'selesaiPasien']);
+    Route::post('/setengah-selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'setengahSelesaiPasien']);
     // Batalkan pelayanan dan hapus data terkait
     Route::delete('/batal/{norawat}', [PelayananController::class, 'batalPelayanan']);
 });
@@ -152,3 +155,13 @@ Route::get('/obat/instruksi', [Stok_Obat_Klinik_Controller::class, 'getInstruksi
 Route::get('/obat/satuan', [Stok_Obat_Klinik_Controller::class, 'getSatuanBarang']);
 
 Route::get('/pasien/shared', [PasienController::class, 'shared']);
+
+
+Route::prefix('m_jkn')->group(function () {
+    Route::get('/token', [MJKN_Controller::class, 'get_token'])->name('get_token.m_jkn');
+    Route::post('/get_antrian', [MJKN_Controller::class, 'get_antrian'])->name('get_antrian.m_jkn');
+    Route::get('/status_antrian/{kode_poli}/{tgl}', [MJKN_Controller::class, 'get_status_antrian'])->name('get_status_antrian.m_jkn');
+    Route::get('/sisa_antrian/{noka}/{kode_poli}/{tgl_periksa}', [MJKN_Controller::class, 'get_sisa_antrian'])->name('get_sisa_antrian.m_jkn');
+    Route::put('/batalkan_antrian', [MJKN_Controller::class, 'batalkan_antrian'])->name('batalkan_antrian.m_jkn');
+    Route::post('/set_pasien_baru', [MJKN_Controller::class, 'set_pasien_baru'])->name('pasien_baru.m_jkn');
+});

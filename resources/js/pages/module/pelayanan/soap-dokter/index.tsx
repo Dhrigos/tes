@@ -45,7 +45,7 @@ interface PelayananData {
     tanggal_kujungan: string;
     poli_id: number;
     dokter_id: number;
-    tindakan_button: 'panggil' | 'soap' | 'edit' | 'complete' | 'Complete';
+    tindakan_button: 'panggil' | 'soap' | 'edit' | 'half_complete' | 'Complete';
     pasien: Pasien;
     poli: Poli;
     dokter: Dokter;
@@ -166,6 +166,12 @@ export default function PelayananSoapDokter() {
                         Menunggu Dokter
                     </Badge>
                 );
+            case 'half_complete':
+                return (
+                    <Badge variant="outline" className="bg-purple-100 text-purple-800">
+                        Half Complete
+                    </Badge>
+                );
             case 'Complete':
                 return (
                     <Badge variant="default" className="bg-green-100 text-green-800">
@@ -245,6 +251,15 @@ export default function PelayananSoapDokter() {
                                 <FileText className="mr-2 h-4 w-4" />
                                 Surat Permintaan
                             </DropdownMenuItem>
+                            {/* Tambah aksi Konfirmasi saat status_dokter === 3 */}
+                            <DropdownMenuItem
+                                onClick={() => router.visit(`/pelayanan/soap-dokter/konfirmasi/${norawat}`)}
+                                disabled={(row.status_dokter ?? 0) !== 3}
+                                className="text-purple-600 focus:text-purple-600"
+                            >
+                                <FileText className="mr-2 h-4 w-4" />
+                                Konfirmasi
+                            </DropdownMenuItem>
                             {/* status_dokter === 2 -> tombol Selesai aktif; jika 1 tetap ada, opsional */}
                             <DropdownMenuItem
                                 disabled={(row.status_dokter ?? 0) !== 2}
@@ -256,6 +271,29 @@ export default function PelayananSoapDokter() {
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                );
+            case 'half_complete':
+                return (
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                            onClick={() => router.visit(`/pelayanan/soap-dokter/konfirmasi/${norawat}`)}
+                        >
+                            <FileText className="mr-1 h-4 w-4" />
+                            Konfirmasi
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            className="border-green-600 text-green-600 hover:bg-green-50"
+                            onClick={() => handlePasienSelesai(row.nomor_register)}
+                        >
+                            <UserCheck className="mr-1 h-4 w-4" />
+                            Selesai
+                        </Button>
+                    </div>
                 );
             case 'Complete':
                 return (

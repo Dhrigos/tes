@@ -66,11 +66,19 @@ class PelayananStatusService
     }
 
     /**
-     * Mark dokter complete (pelayanan selesai) - status 3
+     * Mark dokter butuh konfirmasi (ada permintaan radiologi/lab) - status 3
      */
     public function tandaiDokterPelayananSelesai(string $nomorRegister): Pelayanan_status
     {
         return $this->setStatusDokter($nomorRegister, 3);
+    }
+
+    /**
+     * Mark dokter selesai penuh (tanpa permintaan lanjutan) - status 4
+     */
+    public function tandaiDokterSelesaiPenuh(string $nomorRegister): Pelayanan_status
+    {
+        return $this->setStatusDokter($nomorRegister, 4);
     }
 }
 

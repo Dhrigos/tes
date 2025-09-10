@@ -30,11 +30,11 @@ use App\Http\Controllers\Module\Master\Data\Medis\Icd9_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Jenis_Diet_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Makanan_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Radiologi_Controller;
-use App\Http\Controllers\Module\Master\Data\Medis\Tindakan_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Instruksi_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Penggunaan_Obat_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Poli_Controller;
 use App\Http\Controllers\Module\Master\Data\Medis\Kategori_Tindakan_Controller;
+use App\Http\Controllers\Module\Master\Data\Medis\Tindakan_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik_Controller;
 use App\Http\Controllers\Module\Master\Data\Gudang\Daftar_Barang_Controller;
@@ -67,13 +67,9 @@ use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use App\Http\Controllers\Module\Kasir\Kasir_Controller;
-use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
-use App\Models\Module\Master\Data\Medis\Tindakan;
+use App\Http\Controllers\Module\Laporan\Laporan_Controller;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
-use App\Models\Module\Pelayanan\Pelayanan;
-use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
-use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 
 // SDM
 Route::middleware(['auth'])->prefix('sdm')->as('sdm.')->group(function () {
@@ -360,6 +356,7 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->prefix('pasien')->as('pasien.')->group(
     function () {
+        Route::post('/store', [PasienController::class, 'store'])->name('store');
         Route::get('/', [PasienController::class, 'index'])->name('index');
         Route::post('/verifikasi', [PasienController::class, 'verifikasi'])->name('verifikasi');
         Route::post('/update', [PasienController::class, 'update'])->name('update');
@@ -385,10 +382,8 @@ Route::prefix('api/master')->group(function () {
     Route::get('/htt/pemeriksaan', [Htt_Pemeriksaan_Controller::class, 'listAll']);
     Route::get('/htt/subpemeriksaan/{pemeriksaanId}', [Htt_Subpemeriksaan_Controller::class, 'getByPemeriksaan']);
     Route::get('/htt/subpemeriksaan', [Htt_Subpemeriksaan_Controller::class, 'listAll']);
-    // Tindakan API
-    Route::get('/tindakan', function () {
-        return Tindakan::all();
-    });
+    // Tindakan API - gunakan controller, bukan model langsung
+    Route::get('/tindakan', [Tindakan_Controller::class, 'listAll']);
 });
 Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran-online');
 Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'add'])->name('pendaftaran-online.add');
@@ -423,6 +418,9 @@ Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->
     Route::get('/soap-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'index'])->name('soap-dokter.index');
     Route::get('/soap-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'show'])->name('soap-dokter.show');
     Route::get('/soap-dokter/edit/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'edit'])->name('soap-dokter.edit');
+    Route::get('/soap-dokter/konfirmasi/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'konfirmasi'])->name('soap-dokter.konfirmasi');
+    Route::post('/soap-dokter/konfirmasi/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'storeKonfirmasi'])->name('soap-dokter.konfirmasi.store');
+    Route::get('/soap-dokter/files/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'getFiles'])->name('soap-dokter.files');
     Route::post('/soap-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'store'])->name('soap-dokter.store');
     Route::put('/soap-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'update'])->name('soap-dokter.update');
 
@@ -465,6 +463,22 @@ Route::middleware(['auth', 'verified'])->prefix('kasir')->as('kasir.')->group(fu
     Route::get('/', [Kasir_Controller::class, 'index'])->name('index');
     Route::get('/pembayaran/{kode_faktur}', [Kasir_Controller::class, 'kasirPembayaran'])->name('pembayaran');
     Route::post('/add', [Kasir_Controller::class, 'kasiradd'])->name('add');
+});
+
+Route::middleware(['auth', 'verified'])->prefix('laporan')->as('laporan.')->group(function () {
+    Route::get('/antrian', [Laporan_Controller::class, 'pendataan_antrian'])->name('antrian');
+    Route::post('/antrian/print', [Laporan_Controller::class, 'print_antrian'])->name('antrian.print');
+
+    Route::get('/pendaftaran', [Laporan_Controller::class, 'pendataan_pendaftaran'])->name('pendaftaran');
+    Route::post('/pendaftaran/print', [Laporan_Controller::class, 'print_pendaftaran'])->name('pendaftaran.print');
+
+    Route::get('/dokter', [Laporan_Controller::class, 'pendataan_dokter'])->name('dokter');
+    Route::post('/dokter/print', [Laporan_Controller::class, 'print_dokter'])->name('dokter.print');
+    Route::post('/dokter/print-detail', [Laporan_Controller::class, 'print_dokter_detail'])->name('dokter.print-detail');
+
+    Route::get('/perawat', [Laporan_Controller::class, 'pendataan_perawat'])->name('perawat');
+    Route::post('/perawat/print', [Laporan_Controller::class, 'print_perawat'])->name('perawat.print');
+    Route::post('/perawat/print-detail', [Laporan_Controller::class, 'print_perawat_detail'])->name('perawat.print-detail');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

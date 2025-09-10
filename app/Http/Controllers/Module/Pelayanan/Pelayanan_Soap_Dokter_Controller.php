@@ -10,6 +10,8 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_status;
 use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Konfirmasi;
+use App\Models\Module\Pelayanan\Pelayanan_Soap_Konfirmasi_File;
 use App\Services\PelayananStatusService;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Eye;
 use App\Models\Module\Pelayanan\Gcs\Gcs_Verbal;
@@ -21,6 +23,7 @@ use App\Models\Module\Master\Data\Medis\Icd9;
 use App\Models\Module\Master\Data\Medis\Jenis_Diet;
 use App\Models\Module\Master\Data\Medis\Makanan;
 use App\Models\Module\Master\Data\Medis\Tindakan;
+use App\Models\Module\Master\Data\Medis\Alergi;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Diet;
 use App\Models\Module\Pasien\Pasien_History;
 use Illuminate\Http\Request;
@@ -123,14 +126,16 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                     if ($statusDokter === 0) {
                         $tindakan = 'panggil';
                     } elseif ($statusDokter === 1) {
-                        // saat pemeriksaan dokter berjalan, jika sudah ada SOAP, tampilkan edit
-                        $existingSoap = Pelayanan_Soap_Dokter::where('no_rawat', $p->nomor_register)->first();
-                        $tindakan = $existingSoap ? 'edit' : 'soap';
+                        // Step 1 (dokter berjalan): selalu tampilkan SOAP, tidak ada Edit di tahap ini
+                        $tindakan = 'soap';
                     } elseif ($statusDokter === 2) {
                         // tindakan lanjutan (rujukan, permintaan, edit)
                         $tindakan = 'edit';
                     } elseif ($statusDokter === 3) {
-                        // pelayanan selesai
+                        // half complete: ada permintaan radiologi/lab, butuh konfirmasi
+                        $tindakan = 'half_complete';
+                    } elseif ($statusDokter === 4) {
+                        // pelayanan selesai penuh
                         $tindakan = 'Complete';
                     }
                 }
@@ -318,6 +323,16 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Get Tindakan master data
             $tindakan = Tindakan::all();
 
+            // Get Alergi master data
+            $alergiData = Alergi::all();
+            if ($alergiData->isEmpty()) {
+                try {
+                    $alergiData = DB::table('alergi')->get();
+                } catch (\Exception $e) {
+                    // ignore fallback failure
+                }
+            }
+
 
             return Inertia::render('module/pelayanan/soap-dokter/pemeriksaan', [
                 'pelayanan' => $patientData,
@@ -334,6 +349,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'jenis_diet' => $jenisDiet,
                 'makanan' => $makanan,
                 'tindakan' => $tindakan,
+                'alergi_data' => $alergiData,
                 'norawat' => $norawat,
                 // Prefill bundles for edit mode
                 'saved_icd10' => $savedIcd10,
@@ -895,6 +911,8 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
 
             // Saat update, pastikan status dokter minimal berjalan (1)
             app(PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register);
+            // Tandai dokter selesai tahap pemeriksaan (2)
+            app(PelayananStatusService::class)->tandaiDokterSelesai($nomor_register);
 
             // Save to patient history with enriched assessment/plan context
             $historyPayload = $validated;
@@ -973,8 +991,8 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 ]);
             }
 
-            // Dokter selesai layanan penuh: set 3 (pelayanan selesai)
-            app(PelayananStatusService::class)->tandaiDokterPelayananSelesai($nomor_register);
+            // Dokter selesai layanan penuh: set 4 (pelayanan selesai penuh)
+            app(PelayananStatusService::class)->tandaiDokterSelesaiPenuh($nomor_register);
 
             return response()->json([
                 'success' => true,
@@ -984,6 +1002,44 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menyelesaikan pasien: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark patient as half-finished (setengah selesai) - status_dokter = 3
+     * Dipanggil saat membuat permintaan Radiologi/Laboratorium (aksi Print di halaman permintaan)
+     */
+    public function setengahSelesaiPasien(Request $request, $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat, true);
+            if ($nomor_register === false || $nomor_register === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Parameter tidak valid'
+                ], 400);
+            }
+
+            $pelayanan = Pelayanan::where('nomor_register', $nomor_register)->first();
+            if (!$pelayanan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data pelayanan tidak ditemukan'
+                ], 404);
+            }
+
+            // Tandai dokter half-complete (3) tanpa menutup pendaftaran
+            app(PelayananStatusService::class)->tandaiDokterPelayananSelesai($nomor_register);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status dokter diatur ke 3 (setengah selesai)'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui status: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -1032,5 +1088,153 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
     public function edit(Request $request, string $norawat): InertiaResponse
     {
         return $this->show($request, $norawat);
+    }
+
+    /**
+     * Halaman konfirmasi setelah ada permintaan (radiologi/lab) - status 3
+     */
+    public function konfirmasi(Request $request, string $norawat): InertiaResponse
+    {
+        $nomor_register = base64_decode($norawat, true);
+        $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
+            ->where('nomor_register', $nomor_register)
+            ->first();
+
+        $patientData = [
+            'nomor_rm' => $pelayanan->nomor_rm ?? '',
+            'nama' => optional($pelayanan->pasien)->nama ?? '',
+            'nomor_register' => $pelayanan->nomor_register ?? '',
+            'jenis_kelamin' => optional($pelayanan->pasien)->seks ?? '',
+            'penjamin' => optional(optional($pelayanan->pendaftaran)->penjamin)->nama ?? '',
+            'tanggal_lahir' => optional($pelayanan->pasien)->tanggal_lahir ?? '',
+            'umur' => '',
+        ];
+
+        return Inertia::render('module/pelayanan/soap-dokter/konfirmasi', [
+            'pelayanan' => $patientData,
+            'norawat' => $norawat,
+        ]);
+    }
+
+    /**
+     * Simpan konfirmasi SOAP dengan file upload
+     */
+    public function storeKonfirmasi(Request $request, string $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat, true);
+            if ($nomor_register === false || $nomor_register === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Parameter tidak valid'
+                ], 400);
+            }
+
+            $validated = $request->validate([
+                'nomor_rm' => 'required|string',
+                'nama' => 'required|string',
+                'seks' => 'nullable|string',
+                'penjamin' => 'nullable|string',
+                'tanggal_lahir' => 'nullable|string',
+                'umur' => 'nullable|string',
+                'keterangan' => 'nullable|string',
+                'files' => 'nullable|array',
+                'files.*.file' => 'required|file|max:10240', // 10MB max per file
+                'files.*.description' => 'nullable|string|max:500',
+            ]);
+
+            // Buat atau update konfirmasi
+            $konfirmasi = Pelayanan_Soap_Konfirmasi::updateOrCreate(
+                ['no_rawat' => $nomor_register],
+                [
+                    'nomor_rm' => $validated['nomor_rm'],
+                    'nama' => $validated['nama'],
+                    'seks' => $validated['seks'],
+                    'penjamin' => $validated['penjamin'],
+                    'tanggal_lahir' => $validated['tanggal_lahir'],
+                    'umur' => $validated['umur'],
+                    'keterangan' => $validated['keterangan'],
+                ]
+            );
+
+            // Simpan file upload jika ada
+            if (!empty($validated['files'])) {
+                foreach ($validated['files'] as $fileData) {
+                    $file = $fileData['file'];
+                    $description = $fileData['description'] ?? '';
+                    
+                    // Simpan file ke storage
+                    $storedPath = Pelayanan_Soap_Konfirmasi_File::storeUploaded($file);
+                    
+                    // Simpan metadata file ke database
+                    Pelayanan_Soap_Konfirmasi_File::create([
+                        'konfirmasi_id' => $konfirmasi->id,
+                        'original_name' => $file->getClientOriginalName(),
+                        'stored_path' => $storedPath,
+                        'mime_type' => $file->getClientMimeType(),
+                        'size_kb' => (int) round($file->getSize() / 1024),
+                        'description' => $description,
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Konfirmasi berhasil disimpan',
+                'data' => $konfirmasi->load('files')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan konfirmasi: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Ambil daftar file konfirmasi untuk preview
+     */
+    public function getFiles(Request $request, string $norawat): JsonResponse
+    {
+        try {
+            $nomor_register = base64_decode($norawat, true);
+            if ($nomor_register === false || $nomor_register === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Parameter tidak valid'
+                ], 400);
+            }
+
+            $konfirmasi = Pelayanan_Soap_Konfirmasi::with('files')
+                ->where('no_rawat', $nomor_register)
+                ->first();
+
+            if (!$konfirmasi) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $konfirmasi->files->map(function ($file) {
+                    return [
+                        'id' => $file->id,
+                        'original_name' => $file->original_name,
+                        'url' => $file->url,
+                        'mime_type' => $file->mime_type,
+                        'size_kb' => $file->size_kb,
+                        'description' => $file->description,
+                        'created_at' => $file->created_at->format('d/m/Y H:i'),
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data file: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -1,6 +1,16 @@
 'use client';
 
 import LaravoltIndonesiaExample from '@/components/LaravoltIndonesiaExample';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -220,6 +230,8 @@ export default function PerawatIndex() {
         profile: null as File | null,
     });
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmTarget, setConfirmTarget] = useState<Perawat | null>(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -442,16 +454,22 @@ export default function PerawatIndex() {
     };
 
     const handleDelete = (perawat: Perawat) => {
-        if (confirm(`Apakah Anda yakin ingin menghapus perawat ${perawat.user_name_input || perawat.nik}?`)) {
-            router.delete(`/sdm/perawat/${perawat.id}`, {
-                onSuccess: () => {
-                    // Flash success dari server akan ditampilkan via useEffect
-                },
-                onError: () => {
-                    toast.error('Terjadi kesalahan saat menghapus data!');
-                },
-            });
-        }
+        setConfirmTarget(perawat);
+        setConfirmOpen(true);
+    };
+
+    const performDelete = () => {
+        if (!confirmTarget) return;
+        router.delete(`/sdm/perawat/${confirmTarget.id}`, {
+            onSuccess: () => {
+                setConfirmOpen(false);
+                setConfirmTarget(null);
+            },
+            onError: () => {
+                toast.error('Terjadi kesalahan saat menghapus data!');
+                setConfirmOpen(false);
+            },
+        });
     };
 
     // Helper functions for formatting
@@ -1225,6 +1243,21 @@ export default function PerawatIndex() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Apakah Anda yakin ingin menghapus perawat {confirmTarget?.user_name_input || confirmTarget?.nik || '-'}? Tindakan ini
+                                tidak dapat dibatalkan.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setConfirmOpen(false)}>Batal</AlertDialogCancel>
+                            <AlertDialogAction onClick={performDelete}>Hapus</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </AppLayout>
     );

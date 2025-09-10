@@ -13,6 +13,7 @@ use App\Models\Module\Master\Data\Umum\Pendidikan;
 use App\Models\Module\Master\Data\Umum\Suku;
 use App\Models\Module\Master\Data\Umum\Bangsa;
 use App\Models\Module\Master\Data\Umum\Bahasa;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Laravolt\Indonesia\Models\Province;
@@ -145,12 +146,20 @@ class Perawat_Controller extends Controller
         $kecamatanKode = $this->resolveDistrictCode($kecamatanInput);
         $desaKode = $this->resolveVillageCode($desaInput);
 
+        $user_id = User::create([
+            'name' => $validatedData['nama'],
+            'username' => $validatedData['nik'],
+            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
+            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('Ymd')),
+        ]);
+
         $perawatData = array_merge($validatedData, [
             'provinsi_kode' => $provinsiKode,
             'kabupaten_kode' => $kabupatenKode,
             'kecamatan_kode' => $kecamatanKode,
             'desa_kode' => $desaKode,
             'verifikasi' => 1, // Default belum verifikasi
+            'users' => $user_id->id,
         ]);
 
         // Hapus field yang tidak ada di fillable (hanya unset jika ada)
@@ -169,14 +178,6 @@ class Perawat_Controller extends Controller
         }
 
         $perawat = Perawat::create($perawatData);
-
-        User::create([
-            'name' => $validatedData['nama'],
-            'username' => $validatedData['nik'],
-            'email' => strtolower(str_replace(' ', '_', $validatedData['nama'])) . '@dolphinhealthtech.co.id',
-            'password' => bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('y-m-d')),
-        ]);
-        
 
         return back()->with('success', 'Data perawat berhasil ditambahkan!');
     }
@@ -243,8 +244,48 @@ class Perawat_Controller extends Controller
         }
 
         $perawat->update($perawatData);
+        // Sinkronisasi akun user saat edit (robust)
+        try {
+            $perawat->refresh();
+            $generatedEmail = strtolower(str_replace(' ', '_', $perawat->nama)) . '@dolphinhealthtech.co.id';
 
+            $linkedUser = null;
+            if (! empty($perawat->users)) {
+                $linkedUser = User::find($perawat->users);
+            }
+            if (! $linkedUser) {
+                $linkedUser = User::where('username', $perawat->nik)
+                    ->orWhere('email', $generatedEmail)
+                    ->first();
+                if ($linkedUser && $perawat->users != $linkedUser->id) {
+                    $perawat->update(['users' => $linkedUser->id]);
+                    $perawat->refresh();
+                }
+            }
 
+            if (! $linkedUser) {
+                $linkedUser = User::create([
+                    'name' => $perawat->nama,
+                    'username' => $perawat->nik,
+                    'email' => $generatedEmail,
+                    'password' => bcrypt(Carbon::parse(($validatedData['tanggal_lahir'] ?? $perawat->tanggal_lahir))->format('Ymd')),
+                ]);
+                $perawat->update(['users' => $linkedUser->id]);
+                $perawat->refresh();
+            }
+
+            $updatePayload = [
+                'name' => $perawat->nama,
+                'username' => $perawat->nik,
+                'email' => $generatedEmail,
+            ];
+            if (array_key_exists('tanggal_lahir', $validatedData) && ! is_null($validatedData['tanggal_lahir'])) {
+                $updatePayload['password'] = bcrypt(Carbon::parse($validatedData['tanggal_lahir'])->format('Ymd'));
+            }
+            User::where('id', $linkedUser->id)->update($updatePayload);
+        } catch (\Throwable $e) {
+            // Abaikan error sinkronisasi user agar update tetap berhasil
+        }
 
         return back()->with('success', 'Data perawat berhasil diperbarui!');
     }
@@ -252,6 +293,24 @@ class Perawat_Controller extends Controller
     public function destroy($id)
     {
         $perawat = Perawat::findOrFail($id);
+        // Hapus akun user terkait (robust)
+        try {
+            $generatedEmail = strtolower(str_replace(' ', '_', $perawat->nama)) . '@dolphinhealthtech.co.id';
+            $linkedUser = null;
+            if (! empty($perawat->users)) {
+                $linkedUser = User::find($perawat->users);
+            }
+            if (! $linkedUser) {
+                $linkedUser = User::where('username', $perawat->nik)
+                    ->orWhere('email', $generatedEmail)
+                    ->first();
+            }
+            if ($linkedUser) {
+                $linkedUser->delete();
+            }
+        } catch (\Throwable $e) {
+            // Abaikan error penghapusan user agar proses lanjut
+        }
         $perawat->delete();
         return back()->with('success', 'Data perawat berhasil dihapus!');
     }

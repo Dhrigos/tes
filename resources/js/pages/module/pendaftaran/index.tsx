@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, AlertCircle, CheckCircle, Clock, FileText, Plus, Search, Stethoscope, UserCheck, UserIcon, Users, X } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle, Clock, FileText, Plus, Printer, Search, Stethoscope, UserCheck, UserIcon, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast, Toaster } from 'sonner';
 
@@ -452,12 +452,12 @@ const PendaftaranDashboard = () => {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
+                    Accept: 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
-                    alasan_batal: alasanBatal
-                })
+                    alasan_batal: alasanBatal,
+                }),
             });
 
             const result = await response.json();
@@ -579,6 +579,36 @@ const PendaftaranDashboard = () => {
         setSelectedAction(null);
         setAlasanBatal('');
         setSelectedDokter('');
+    };
+
+    const buildTicketHtml = (item: PendaftaranData) => {
+        return `
+            <div id="printArea">
+                <h1 style="font-size: 3rem; text-align: center;">${item.antrian}</h1>
+            </div>
+        `;
+    };
+
+    const handleCetak = (item: PendaftaranData) => {
+        try {
+            const ticketHtml = buildTicketHtml(item);
+            const printWindow = window.open('', '', 'width=420,height=600');
+            if (!printWindow) {
+                toast.error('Pop-up diblokir. Izinkan pop-up untuk mencetak.');
+                return;
+            }
+            printWindow.document.write('<html><head><title>Cetak Nomor Antrian</title>');
+            printWindow.document.write('</head><body style="text-align:center; font-family:sans-serif;">');
+            printWindow.document.write(ticketHtml);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        } catch (err) {
+            console.error('Print error:', err);
+            toast.error('Gagal mencetak tiket');
+        }
     };
 
     const getStatusPendaftaran = (status: number | string) => {
@@ -837,6 +867,15 @@ const PendaftaranDashboard = () => {
                                                                     Batal
                                                                 </Button>
                                                             )}
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 px-2 text-xs hover:bg-gray-50"
+                                                                onClick={() => handleCetak(item)}
+                                                            >
+                                                                <Printer className="mr-1 h-3 w-3" />
+                                                                Cetak
+                                                            </Button>
                                                         </div>
                                                     </td>
                                                 </tr>
