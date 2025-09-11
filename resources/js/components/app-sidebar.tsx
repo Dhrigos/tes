@@ -162,10 +162,15 @@ const mainNavItems: MenuItem[] = [
         icon: LayoutGrid,
         roles: ['Admin', 'Manajemen'],
         children: [
+            { title: 'Apotek', href: '/laporan/apotek', roles: ['Admin', 'Manajemen'] },
+            { title: 'Kasir', href: '/laporan/kasir', roles: ['Admin', 'Manajemen'] },
             { title: 'Antrian', href: '/laporan/antrian', roles: ['Admin', 'Manajemen'] },
             { title: 'Pendaftaran', href: '/laporan/pendaftaran', roles: ['Admin', 'Manajemen'] },
+            { title: 'Trend Pendaftaran', href: '/laporan/trend-pendaftaran', roles: ['Admin', 'Manajemen'] },
+            { title: 'Top ICD-10', href: '/laporan/top-icd10', roles: ['Admin', 'Manajemen'] },
             { title: 'Dokter', href: '/laporan/dokter', roles: ['Admin', 'Manajemen'] },
             { title: 'Perawat', href: '/laporan/perawat', roles: ['Admin', 'Manajemen'] },
+            { title: 'Stok Penyesuaian', href: '/laporan/stok-penyesuaian', roles: ['Admin', 'Manajemen'] },
         ],
     },
     {

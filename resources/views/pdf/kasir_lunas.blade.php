@@ -3,16 +3,13 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Laporan Pelayanan Dokter</title>
+    <title>Laporan Faktur Lunas Kasir</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             font-size: 12px;
-            /* Lebih kecil */
             line-height: 1.2;
-            /* Lebih rapat */
             margin: 10px;
-            /* Margin lebih kecil */
             padding: 0;
         }
 
@@ -31,9 +28,7 @@
 
         .logo {
             width: 50px;
-            /* Lebih kecil */
             height: 50px;
-            /* Lebih kecil */
             border-radius: 50%;
         }
 
@@ -47,8 +42,7 @@
             margin-bottom: 2px;
         }
 
-        .header-address,
-        .header-phone {
+        .header-address {
             font-size: 12px;
             margin-bottom: 2px;
         }
@@ -87,28 +81,24 @@
         table.items {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
-            margin-top: 10px;
+            margin: 10px 0;
         }
 
-        table.items th {
-            border: 1px solid #000;
-            padding: 2px;
-            text-align: center;
-            font-size: 12px;
-            height: 30px;
-        }
-
+        table.items th,
         table.items td {
             border: 1px solid #000;
             padding: 2px;
-            text-align: left;
             font-size: 10px;
-            height: 30px;
+            height: 26px;
         }
 
         table.items th {
+            text-align: center;
             background-color: #f2f2f2;
+        }
+
+        table.items td {
+            text-align: left;
         }
 
         .summary-table {
@@ -122,17 +112,6 @@
             padding: 3px 0;
             vertical-align: top;
             border: none;
-        }
-
-        .total-row td {
-            font-weight: bold;
-            padding-top: 3px;
-        }
-
-        .summary-divider {
-            border-top: 1px solid #000;
-            margin: 5px 0;
-            width: 100%;
         }
 
         .footer {
@@ -152,40 +131,13 @@
             margin: 0 auto;
             margin-top: 40px;
         }
-
-        .page-break {
-            page-break-after: always;
-        }
-
-        .content-wrapper {
-            min-height: auto;
-            /* Hapus fixed height */
-        }
-
-        .footnote {
-            font-size: 12px;
-            font-style: italic;
-            margin-top: 3px;
-            margin-bottom: 8px;
-            text-align: right;
-            font-weight: bold;
-        }
-
-        .total-divider {
-            border-top: 1px solid #000;
-            width: 100%;
-            margin: 2px 0;
-        }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <!-- Brand Logo dari sidebar dengan path yang diubah ke public/profile/default.png -->
         <div class="logo-container">
-            <img src="{{ public_path('profile/default.png') }}"
-                alt="Klinik Logo" class="logo"
-                style="width: 80px; height: 80px; opacity: .8">
+            <img src="{{ public_path('profile/default.png') }}" alt="Klinik Logo" class="logo" style="width: 80px; height: 80px; opacity: .8">
         </div>
         <div class="header-text">
             <div class="header-title">{{ $namaKlinik }}</div>
@@ -195,7 +147,7 @@
 
     <div class="divider"></div>
 
-    <div class="document-title">LAPORAN PELAYANAN DOKTER PER PERIODE</div>
+    <div class="document-title">LAPORAN FAKTUR LUNAS KASIR</div>
 
     <table class="info-table" style="width: 100%;">
         <tr>
@@ -206,20 +158,13 @@
             <td class="info-separator">:</td>
             <td>{{ $poli ?? 'Semua Poli' }}</td>
         </tr>
-
         <tr>
-            <td class="info-label">Laporan Antrian</td>
+            <td class="info-label">Laporan Oleh</td>
             <td class="info-separator">:</td>
             <td>[{{ auth()->user()->name ?? 'Petugas' }}]</td>
-            <td class="info-label">Dokter</td>
+            <td class="info-label">Periode</td>
             <td class="info-separator">:</td>
-            <td>{{ $dokter ?? 'Semua Dokter' }}</td>
-        </tr>
-
-        <tr>
-            <td colspan="6">
-                Periode : {{ $tanggal_awal }} sampai {{ $tanggal_akhir }}
-            </td>
+            <td>{{ $tanggal_awal }} s/d {{ $tanggal_akhir }}</td>
         </tr>
     </table>
 
@@ -228,49 +173,59 @@
             <thead>
                 <tr>
                     <th>No</th>
+                    <th>Invoice</th>
                     <th>No RM</th>
-                    <th>Nama </th>
                     <th>No Rawat</th>
-                    <th>Jenis Kelamin</th>
-                    <th>Tanggal Kunjungan</th>
-                    <th>Jam Kunjungan</th>
+                    <th>Nama</th>
                     <th>Poli</th>
                     <th>Dokter</th>
                     <th>Penjamin</th>
+                    <th>Sub Total</th>
+                    <th>Tambahan</th>
+                    <th>Total</th>
+                    <th>Pembayaran</th>
+                    <th>Tanggal</th>
+                    <th>Petugas Entry</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach ($data as $i => $item)
+                @foreach ($data as $i => $row)
                 <tr>
-                    <td>{{ $i + 1 }}</td>
-                    <td>{{ $item['nomor_rm'] ?? '-' }}</td>
-                    <td>{{ $item['pasien']['nama'] ?? $item['pasien_nama'] ?? '-' }}</td>
-                    <td>{{ $item['nomor_register'] ?? '-' }}</td>
+                    <td>{{ $row['no'] ?? ($i + 1) }}</td>
+                    <td>{{ $row['kode_faktur'] ?? '-' }}</td>
+                    <td>{{ $row['no_rm'] ?? '-' }}</td>
+                    <td>{{ $row['no_rawat'] ?? '-' }}</td>
+                    <td>{{ $row['nama'] ?? '-' }}</td>
+                    <td>{{ $row['poli'] ?? '-' }}</td>
+                    <td>{{ $row['dokter'] ?? '-' }}</td>
+                    <td>{{ $row['penjamin'] ?? '-' }}</td>
+                    <td style="text-align: right;">{{ $row['sub_total'] ?? '-' }}</td>
                     <td>
                         @php
-                        $seks = $item['pasien']['seks'] ?? $item['pasien_seks'] ?? 'U';
-                        echo $seks === 'L' ? 'Laki-laki' : ($seks === 'P' ? 'Perempuan' : 'Tidak Diketahui');
+                        $extras = [];
+                        if (!empty($row['potongan_harga']) && $row['potongan_harga'] != 0) { $extras[] = 'Diskon: ' . $row['potongan_harga']; }
+                        if (!empty($row['administrasi']) && $row['administrasi'] != 0) { $extras[] = 'Administrasi: ' . $row['administrasi']; }
+                        if (!empty($row['materai']) && $row['materai'] != 0) { $extras[] = 'Materai: ' . $row['materai']; }
+                        echo $extras ? implode("<br>", $extras) : '-';
                         @endphp
                     </td>
-                    @php
-                    $rawTanggalKunjungan = $item['tanggal_kunjungan'] ?? $item['tanggal_kujungan'] ?? null;
-                    $tanggalKunjungan = '-';
-                    $jamKunjungan = '-';
-                    if (!empty($rawTanggalKunjungan)) {
-                    $parts = preg_split('/[T\s]/', $rawTanggalKunjungan);
-                    if (isset($parts[0]) && $parts[0] !== '') {
-                    $tanggalKunjungan = $parts[0];
-                    }
-                    if (isset($parts[1]) && $parts[1] !== '') {
-                    $jamKunjungan = $parts[1];
-                    }
-                    }
-                    @endphp
-                    <td>{{ $tanggalKunjungan }}</td>
-                    <td>{{ $jamKunjungan }}</td>
-                    <td>{{ $item['poli']['nama'] ?? $item['poli_nama'] ?? '-' }}</td>
-                    <td>{{ $item['dokter']['namauser']['name'] ?? $item['dokter']['nama'] ?? $item['dokter']['name'] ?? $item['dokter_nama'] ?? '-' }}</td>
-                    <td>{{ $item['penjamin']['nama'] ?? $item['penjamin_nama'] ?? '-' }}</td>
+                    <td style="text-align: right;">{{ $row['total'] ?? '-' }}</td>
+                    <td>
+                        @php
+                        $payments = [];
+                        for ($j = 1; $j <= 3; $j++) {
+                            $method=$row['payment_method_' . $j] ?? null;
+                            $nominal=$row['payment_nominal_' . $j] ?? null;
+                            if ($method && $nominal) {
+                            $label=ucfirst((string) $method);
+                            $payments[]=$label . ': ' . $nominal;
+                            }
+                            }
+                            echo $payments ? implode('<br>', $payments) : '-';
+                            @endphp
+                    </td>
+                    <td>{{ isset($row['tanggal']) ? explode('T', $row['tanggal'])[0] : '-' }}</td>
+                    <td>{{ $row['user_input_name'] ?? '-' }}</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -280,14 +235,12 @@
             <table class="summary-table">
                 <tr>
                     <td>Jumlah Invoice</td>
-                    <td>:</td>
+                    <td>:</n>
                     <td style="text-align: right;">{{ $total_invoice }} Data</td>
                 </tr>
             </table>
         </div>
     </div>
-
-
 
     <div class="footer">
         <table class="signature-table">

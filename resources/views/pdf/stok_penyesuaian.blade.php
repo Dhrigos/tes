@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Laporan Pelayanan Dokter</title>
+    <title>Laporan Selisih Mutasi & Penyesuaian</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -195,31 +195,32 @@
 
     <div class="divider"></div>
 
-    <div class="document-title">LAPORAN PELAYANAN DOKTER PER PERIODE</div>
+    <div class="document-title">LAPORAN SELISIH MUTASI & PENYESUAIAN PER PERIODE</div>
 
     <table class="info-table" style="width: 100%;">
         <tr>
             <td class="info-label">Dicetak pada</td>
             <td class="info-separator">:</td>
             <td>{{ \Carbon\Carbon::now()->format('d/m/Y H:i') }}</td>
-            <td class="info-label">Poli</td>
+            <td class="info-label">Obat/Alkes</td>
             <td class="info-separator">:</td>
-            <td>{{ $poli ?? 'Semua Poli' }}</td>
+            <td>{{ $obat ?? 'Semua Obat/Alkes' }}</td>
         </tr>
 
         <tr>
-            <td class="info-label">Laporan Antrian</td>
+            <td class="info-label">Laporan Oleh</td>
             <td class="info-separator">:</td>
             <td>[{{ auth()->user()->name ?? 'Petugas' }}]</td>
-            <td class="info-label">Dokter</td>
+            <td class="info-label">Jenis</td>
             <td class="info-separator">:</td>
-            <td>{{ $dokter ?? 'Semua Dokter' }}</td>
+            <td>{{ $jenis ?? 'Semua Jenis' }}</td>
         </tr>
 
         <tr>
-            <td colspan="6">
-                Periode : {{ $tanggal_awal }} sampai {{ $tanggal_akhir }}
-            </td>
+            <td class="info-label">Tipe</td>
+            <td class="info-separator">:</td>
+            <td>{{ $tipe ?? 'Semua Tipe' }}</td>
+            <td colspan="3">Periode : {{ $tanggal_awal }} sampai {{ $tanggal_akhir }}</td>
         </tr>
     </table>
 
@@ -228,49 +229,34 @@
             <thead>
                 <tr>
                     <th>No</th>
-                    <th>No RM</th>
-                    <th>Nama </th>
-                    <th>No Rawat</th>
-                    <th>Jenis Kelamin</th>
-                    <th>Tanggal Kunjungan</th>
-                    <th>Jam Kunjungan</th>
-                    <th>Poli</th>
-                    <th>Dokter</th>
-                    <th>Penjamin</th>
+                    <th>Kode Obat/Alkes</th>
+                    <th>Nama Obat/Alkes</th>
+                    <th>Qty Sebelum</th>
+                    <th>Qty Mutasi</th>
+                    <th>Qty Sesudah</th>
+                    <th>Jenis Penyesuaian</th>
+                    <th>Alasan</th>
+                    <th>Tanggal</th>
+                    <th>Jam</th>
+                    <th>Petugas</th>
+                    <th>Tipe</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($data as $i => $item)
                 <tr>
                     <td>{{ $i + 1 }}</td>
-                    <td>{{ $item['nomor_rm'] ?? '-' }}</td>
-                    <td>{{ $item['pasien']['nama'] ?? $item['pasien_nama'] ?? '-' }}</td>
-                    <td>{{ $item['nomor_register'] ?? '-' }}</td>
-                    <td>
-                        @php
-                        $seks = $item['pasien']['seks'] ?? $item['pasien_seks'] ?? 'U';
-                        echo $seks === 'L' ? 'Laki-laki' : ($seks === 'P' ? 'Perempuan' : 'Tidak Diketahui');
-                        @endphp
-                    </td>
-                    @php
-                    $rawTanggalKunjungan = $item['tanggal_kunjungan'] ?? $item['tanggal_kujungan'] ?? null;
-                    $tanggalKunjungan = '-';
-                    $jamKunjungan = '-';
-                    if (!empty($rawTanggalKunjungan)) {
-                    $parts = preg_split('/[T\s]/', $rawTanggalKunjungan);
-                    if (isset($parts[0]) && $parts[0] !== '') {
-                    $tanggalKunjungan = $parts[0];
-                    }
-                    if (isset($parts[1]) && $parts[1] !== '') {
-                    $jamKunjungan = $parts[1];
-                    }
-                    }
-                    @endphp
-                    <td>{{ $tanggalKunjungan }}</td>
-                    <td>{{ $jamKunjungan }}</td>
-                    <td>{{ $item['poli']['nama'] ?? $item['poli_nama'] ?? '-' }}</td>
-                    <td>{{ $item['dokter']['namauser']['name'] ?? $item['dokter']['nama'] ?? $item['dokter']['name'] ?? $item['dokter_nama'] ?? '-' }}</td>
-                    <td>{{ $item['penjamin']['nama'] ?? $item['penjamin_nama'] ?? '-' }}</td>
+                    <td>{{ $item['kode_obat'] ?? '-' }}</td>
+                    <td>{{ $item['nama_obat'] ?? '-' }}</td>
+                    <td>{{ $item['qty_sebelum'] ?? '-' }}</td>
+                    <td>{{ $item['qty_mutasi'] ?? '-' }}</td>
+                    <td>{{ $item['qty_sesudah'] ?? '-' }}</td>
+                    <td>{{ $item['jenis_penyesuaian'] ?? '-' }}</td>
+                    <td>{{ $item['alasan'] ?? '-' }}</td>
+                    <td>{{ $item['tanggal'] ?? '-' }}</td>
+                    <td>{{ $item['jam'] ?? '-' }}</td>
+                    <td>{{ $item['user_input_name'] ?? '-' }}</td>
+                    <td>{{ $item['jenis_gudang'] ?? ($item['tipe'] ?? '-') }}</td>
                 </tr>
                 @endforeach
             </tbody>

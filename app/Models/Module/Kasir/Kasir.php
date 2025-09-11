@@ -49,4 +49,21 @@ class Kasir extends Model
     {
         return $this->hasMany(Kasir_Detail::class, 'kode_faktur', 'kode_faktur');
     }
+
+    public function apotek_lunas()
+    {
+        return $this->hasMany(Kasir_Detail::class, 'kode_faktur', 'kode_faktur')
+            ->whereNotNull('nama_obat_tindakan')
+            ->select([
+                'id',
+                'kode_faktur',
+                'no_rawat',
+                'no_rm',
+                'nama_obat_tindakan',
+                'harga_obat_tindakan',
+                'qty',
+                'total as total_sementara',
+                'tanggal'
+            ]);
+    }
 }

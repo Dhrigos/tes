@@ -253,7 +253,16 @@
                         @endphp
                     </td>
                     <td>{{ isset($item['tanggal_kujungan']) ? explode('T', $item['tanggal_kujungan'])[0] : '-' }}</td>
-                    <td>{{ isset($item['tanggal_kujungan']) ? explode('T', $item['tanggal_kujungan'])[1] : '-' }}</td>
+                    <td>
+                        @if(isset($item['tanggal_kujungan']))
+                        @php
+                        $parts = explode('T', $item['tanggal_kujungan']);
+                        echo isset($parts[1]) ? $parts[1] : '-';
+                        @endphp
+                        @else
+                        -
+                        @endif
+                    </td>
                     <td>{{ $item['poli']['nama'] ?? '-' }}</td>
                     <td>{{ $item['soap_perawat']['user_input_name'] ?? '-' }}</td>
                     <td>{{ $item['penjamin']['nama'] ?? '-' }}</td>

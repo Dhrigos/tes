@@ -239,8 +239,15 @@
                     <td>{{ $item['pasien']['nama'] ?? '-' }}</td>
                     <td>
                         @php
-                        $seks = $item['pasien']['seks'] ?? 'U';
-                        echo $seks === 'L' ? 'Laki-laki' : ($seks === 'P' ? 'Perempuan' : 'Tidak Diketahui');
+                        $seksRaw = $item['pasien']['seks'] ?? null;
+                        $seksStr = is_null($seksRaw) ? '' : (string) $seksRaw;
+                        if ($seksStr === '1' || strtoupper($seksStr) === 'L') {
+                        echo 'Laki-laki';
+                        } elseif ($seksStr === '2' || strtoupper($seksStr) === 'P') {
+                        echo 'Perempuan';
+                        } else {
+                        echo 'Tidak Diketahui';
+                        }
                         @endphp
                     </td>
                     <td>{{ $item['nomor_antrian'] ?? '-' }}</td>

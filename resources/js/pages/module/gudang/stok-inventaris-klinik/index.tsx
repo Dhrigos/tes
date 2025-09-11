@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/react';
-import { Eye, Search } from 'lucide-react';
+import { Edit, Eye, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -62,6 +62,13 @@ export default function Index() {
     const [selectedItem, setSelectedItem] = useState<{ kode: string; nama: string } | null>(null);
     const [detailData, setDetailData] = useState<StokInventarisKlinikDetail[]>([]);
 
+    // Modal penyesuaian
+    const [isAdjOpen, setIsAdjOpen] = useState(false);
+    const [aktifitas, setAktifitas] = useState('');
+    const [keteranganQty, setKeteranganQty] = useState('');
+    const [qty, setQty] = useState<string>('');
+    const [alasan, setAlasan] = useState('');
+
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
         if (flash?.error) toast.error(flash.error);
@@ -88,6 +95,56 @@ export default function Index() {
         setSelectedItem({ kode, nama });
         setDetailData(filteredItems);
         setIsModalOpen(true);
+    };
+
+    const openAdj = (kode: string, nama: string) => {
+        setSelectedItem({ kode, nama });
+        setAktifitas('');
+        setKeteranganQty('');
+        setQty('');
+        setAlasan('');
+        setIsAdjOpen(true);
+    };
+
+    useEffect(() => {
+        if (aktifitas === 'stok_opname') {
+            setKeteranganQty('');
+            setAlasan('');
+        }
+    }, [aktifitas]);
+
+    const submitAdj = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedItem) return;
+        const payload = {
+            kode_barang: selectedItem.kode,
+            aktifitas_penyesuaian: aktifitas,
+            nama_barang: selectedItem.nama,
+            keterangan_qty_penyesuaian: keteranganQty,
+            qty_penyesuaian: qty === '' ? undefined : parseInt(qty, 10),
+            alasan_penyesuaian: alasan,
+        } as Record<string, unknown>;
+
+        try {
+            const res = await fetch('/gudang/stok-inventaris-klinik/penyesuaian', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data?.success) {
+                toast.success(data.message || 'Penyesuaian berhasil');
+                window.location.reload();
+            } else {
+                toast.error(data?.message || 'Gagal menyimpan penyesuaian');
+            }
+        } catch (err) {
+            toast.error('Terjadi kesalahan dalam menyimpan data!');
+        }
     };
 
     const handleCloseModal = () => {
@@ -123,7 +180,7 @@ export default function Index() {
                                     <TableHead>Kode</TableHead>
                                     <TableHead>Nama Barang</TableHead>
                                     <TableHead className="text-right">Total Stok</TableHead>
-                                    <TableHead className="w-32 text-right">Aksi</TableHead>
+                                    <TableHead className="w-48 text-right">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -134,7 +191,7 @@ export default function Index() {
                                             <TableCell>{item.kode}</TableCell>
                                             <TableCell>{item.nama}</TableCell>
                                             <TableCell className="text-right">{item.total_stok}</TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="space-x-2 text-right">
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
@@ -144,6 +201,9 @@ export default function Index() {
                                                     onClick={() => handleOpenDetail(item.kode, item.nama)}
                                                 >
                                                     <Eye className="mr-1 h-4 w-4" /> Detail
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => openAdj(item.kode, item.nama)}>
+                                                    <Edit className="mr-1 h-4 w-4" /> Penyesuaian
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -212,6 +272,83 @@ export default function Index() {
                             </TableBody>
                         </Table>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Penyesuaian */}
+            <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
+                <DialogContent className="max-h-[90vh] overflow-y-auto text-sm sm:max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-gray-800">
+                            {selectedItem ? `Penyesuaian: ${selectedItem.kode} - ${selectedItem.nama}` : 'Penyesuaian'}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={submitAdj} id="adjFormInventaris">
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-12 items-center gap-2">
+                                <label className="col-span-4">Aktivitas</label>
+                                <div className="col-span-8">
+                                    <select
+                                        className="w-full rounded border px-3 py-2"
+                                        value={aktifitas}
+                                        onChange={(e) => setAktifitas(e.target.value)}
+                                        required
+                                    >
+                                        <option value="" disabled>
+                                            -- Pilih Aktivitas --
+                                        </option>
+                                        <option value="stok_opname">Koreksi Total</option>
+                                        <option value="koreksi_manual">Koreksi Manual</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-12 items-center gap-2">
+                                <label className="col-span-4">Jumlah</label>
+                                <div className="col-span-5">
+                                    <select
+                                        className="w-full rounded border px-3 py-2"
+                                        value={keteranganQty}
+                                        onChange={(e) => setKeteranganQty(e.target.value)}
+                                        required
+                                        disabled={aktifitas === 'stok_opname'}
+                                    >
+                                        <option value="" disabled>
+                                            -- Ubah Menjadi --
+                                        </option>
+                                        <option value="tambahkan">Tambahkan Sebanyak</option>
+                                        <option value="kurangi">Kurangi Sebanyak</option>
+                                    </select>
+                                </div>
+                                <div className="col-span-3">
+                                    <input
+                                        type="number"
+                                        className="w-full rounded border px-3 py-2"
+                                        min={0}
+                                        value={qty}
+                                        onChange={(e) => setQty(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-12 items-center gap-2">
+                                <label className="col-span-4">Alasan</label>
+                                <div className="col-span-8">
+                                    <input
+                                        type="text"
+                                        className="w-full rounded border px-3 py-2"
+                                        placeholder="Tulis alasan penyesuaian"
+                                        value={alasan}
+                                        onChange={(e) => setAlasan(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-6 text-right">
+                            <button type="submit" className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+                                Simpan
+                            </button>
+                        </div>
+                    </form>
                 </DialogContent>
             </Dialog>
         </AppLayout>

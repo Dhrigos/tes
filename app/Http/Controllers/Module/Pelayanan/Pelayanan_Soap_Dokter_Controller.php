@@ -1066,8 +1066,9 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 ], 404);
             }
 
-            // Tandai dokter mulai memeriksa dan kunci perawat final (3)
+            // Tandai dokter mulai memeriksa dan set timestamp panggil dokter, serta kunci perawat final (3)
             app(\App\Services\PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register);
+            app(\App\Services\PelayananStatusService::class)->setWaktuPanggilDokter($nomor_register);
             app(\App\Services\PelayananStatusService::class)->tandaiPerawatFinal($nomor_register);
 
             return response()->json([

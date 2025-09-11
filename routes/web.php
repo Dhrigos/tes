@@ -395,9 +395,13 @@ Route::middleware(['auth', 'verified'])->prefix('pembelian')->as('pembelian.')->
 
 Route::middleware(['auth', 'verified'])->prefix('gudang')->as('gudang.')->group(function () {
     Route::get('/stok-barang', [Stok_Barang_Controller::class, 'index'])->name('stok-barang.index');
+    Route::post('/stok-barang/penyesuaian', [Stok_Barang_Controller::class, 'penyesuaian'])->name('stok-barang.penyesuaian');
     Route::get('/stok-inventaris', [Stok_Inventaris_Controller::class, 'index'])->name('stok-inventaris.index');
+    Route::post('/stok-inventaris/penyesuaian', [Stok_Inventaris_Controller::class, 'penyesuaian'])->name('stok-inventaris.penyesuaian');
     Route::get('/stok-obat-klinik', [Stok_Obat_Klinik_Controller::class, 'index'])->name('stok-obat-klinik.index');
+    Route::post('/stok-obat-klinik/penyesuaian', [Stok_Obat_Klinik_Controller::class, 'penyesuaian'])->name('stok-obat-klinik.penyesuaian');
     Route::get('/stok-inventaris-klinik', [Stok_Inventaris_Klinik_Controller::class, 'index'])->name('stok-inventaris-klinik.index');
+    Route::post('/stok-inventaris-klinik/penyesuaian', [Stok_Inventaris_Klinik_Controller::class, 'penyesuaian'])->name('stok-inventaris-klinik.penyesuaian');
 
     // Permintaan Barang
     Route::get('/permintaan-barang', [Permintaan_Barang_Controller::class, 'index'])->name('permintaan-barang.index');
@@ -472,6 +476,9 @@ Route::middleware(['auth', 'verified'])->prefix('laporan')->as('laporan.')->grou
     Route::get('/pendaftaran', [Laporan_Controller::class, 'pendataan_pendaftaran'])->name('pendaftaran');
     Route::post('/pendaftaran/print', [Laporan_Controller::class, 'print_pendaftaran'])->name('pendaftaran.print');
 
+    Route::get('/trend-pendaftaran', [Laporan_Controller::class, 'pendataan_trend_pendaftaran'])->name('trend-pendaftaran');
+    Route::get('/top-icd10', [Laporan_Controller::class, 'top_icd10'])->name('top-icd10');
+
     Route::get('/dokter', [Laporan_Controller::class, 'pendataan_dokter'])->name('dokter');
     Route::post('/dokter/print', [Laporan_Controller::class, 'print_dokter'])->name('dokter.print');
     Route::post('/dokter/print-detail', [Laporan_Controller::class, 'print_dokter_detail'])->name('dokter.print-detail');
@@ -479,6 +486,19 @@ Route::middleware(['auth', 'verified'])->prefix('laporan')->as('laporan.')->grou
     Route::get('/perawat', [Laporan_Controller::class, 'pendataan_perawat'])->name('perawat');
     Route::post('/perawat/print', [Laporan_Controller::class, 'print_perawat'])->name('perawat.print');
     Route::post('/perawat/print-detail', [Laporan_Controller::class, 'print_perawat_detail'])->name('perawat.print-detail');
+
+    Route::get('/apotek', [Laporan_Controller::class, 'apotek'])->name('apotek');
+    Route::post('/apotek/print', [Laporan_Controller::class, 'print_apotek'])->name('apotek.print');
+
+    Route::get('/stok-penyesuaian', [Laporan_Controller::class, 'laporan_stok_penyesuaian'])->name('stok-penyesuaian');
+    Route::post('/stok-penyesuaian/print', [Laporan_Controller::class, 'print_stok_penyesuaian'])->name('stok-penyesuaian.print');
+
+    Route::get('/kasir', [Laporan_Controller::class, 'kasir'])->name('kasir');
+    Route::post('/kasir/print', [Laporan_Controller::class, 'print_kasir'])->name('kasir.print');
+
+    Route::get('/kasir-detail', [Laporan_Controller::class, 'kasir_detail'])->name('kasir-detail');
+    Route::post('/kasir-detail/print', [Laporan_Controller::class, 'kasir_detail_print'])->name('kasir-detail.print');
+    Route::post('/kasir-diskon/print', [Laporan_Controller::class, 'datakasir_diskon_print'])->name('kasir-diskon.print');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

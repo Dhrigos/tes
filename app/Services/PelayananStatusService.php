@@ -80,6 +80,16 @@ class PelayananStatusService
     {
         return $this->setStatusDokter($nomorRegister, 4);
     }
+
+    /**
+     * Set timestamp when patient is called to doctor.
+     */
+    public function setWaktuPanggilDokter(string $nomorRegister): Pelayanan_status
+    {
+        return $this->perbaruiStatus($nomorRegister, [
+            'waktu_panggil_dokter' => now(),
+        ]);
+    }
 }
 
 

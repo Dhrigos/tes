@@ -213,7 +213,7 @@
             <td>[{{ auth()->user()->name ?? 'Petugas' }}]</td>
             <td class="info-label">Dokter</td>
             <td class="info-separator">:</td>
-            <td>{{ $poli ?? 'Semua Dokter' }}</td>
+            <td>{{ $dokter ?? 'Semua Dokter' }}</td>
         </tr>
 
         <tr>
@@ -244,19 +244,35 @@
                 @foreach ($data as $i => $item)
                 <tr>
                     <td>{{ $i + 1 }}</td>
-                    <td>{{ $item['nomor_rm'] ?? '-' }}</td>
-                    <td>{{ $item['pasien']['nama'] ?? '-' }}</td>
+                    <td>{{ $item['pasien']['nomor_rm'] ?? ($item['pasien']['no_rm'] ?? '-') }}</td>
+                    <td>{{ $item['pasien']['nama'] ?? ($item['pasien_nama'] ?? '-') }}</td>
                     <td>{{ $item['nomor_register'] ?? '-' }}</td>
                     <td>
                         @php
-                        $seks = $item['pasien']['seks'] ?? 'U';
+                        $seks = $item['pasien']['seks'] ?? ($item['pasien_seks'] ?? 'U');
                         echo $seks === 'L' ? 'Laki-laki' : ($seks === 'P' ? 'Perempuan' : 'Tidak Diketahui');
                         @endphp
                     </td>
-                    <td>{{ isset($item['tanggal_kujungan']) ? explode('T', $item['tanggal_kujungan'])[0] : '-' }}</td>
-                    <td>{{ isset($item['tanggal_kujungan']) ? explode('T', $item['tanggal_kujungan'])[1] : '-' }}</td>
-                    <td>{{ $item['poli']['nama'] ?? '-' }}</td>
-                    <td>{{ $item['dokter']['namauser']['name'] ?? '-' }}</td>
+                    @php
+                    $kunj = $item['tanggal_kujungan'] ?? $item['created_at'] ?? null;
+                    $tanggalKunjungan = '-';
+                    $jamKunjungan = '-';
+                    if (!empty($kunj)) {
+                    try {
+                    $dt = \Carbon\Carbon::parse($kunj);
+                    $tanggalKunjungan = $dt->format('Y-m-d');
+                    $jamKunjungan = $dt->format('H:i');
+                    } catch (\Exception $e) {
+                    $parts = preg_split('/[T\s]/', (string) $kunj);
+                    if (isset($parts[0]) && $parts[0] !== '') { $tanggalKunjungan = $parts[0]; }
+                    if (isset($parts[1]) && $parts[1] !== '') { $jamKunjungan = substr($parts[1], 0, 5); }
+                    }
+                    }
+                    @endphp
+                    <td>{{ $tanggalKunjungan }}</td>
+                    <td>{{ $jamKunjungan }}</td>
+                    <td>{{ $item['poli']['nama'] ?? ($item['poli_nama'] ?? '-') }}</td>
+                    <td>{{ $item['dokter']['namauser']['name'] ?? ($item['dokter']['nama'] ?? ($item['dokter']['name'] ?? ($item['dokter_nama'] ?? '-'))) }}</td>
                     <td>{{ $item['penjamin']['nama'] ?? '-' }}</td>
                     <td>{{ $item['antrian'] ?? '-' }}</td>
                 </tr>

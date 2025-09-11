@@ -8,6 +8,8 @@ use App\Models\Module\Pasien\Pasien;
 use App\Models\Module\SDM\Dokter;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use App\Models\Module\Pelayanan\Pelayanan_So_Perawat;
+use App\Models\Module\Pelayanan\Pelayanan_status;
+use App\Models\Module\Apotek\Apotek;
 use Illuminate\Database\Eloquent\Model;
 
 
@@ -63,5 +65,17 @@ class Pendaftaran extends Model
     public function status()
     {
         return $this->hasOne(Pendaftaran_status::class, 'register_id');
+    }
+
+    // Waktu Panggil Dokter dari tabel pelayanan_statuses (by nomor_register)
+    public function pelayanan_statuses()
+    {
+        return $this->hasOne(Pelayanan_status::class, 'nomor_register', 'nomor_register');
+    }
+
+    // Data apotek terkait (by no_rawat = nomor_register)
+    public function apoteks()
+    {
+        return $this->hasMany(Apotek::class, 'no_rawat', 'nomor_register');
     }
 }

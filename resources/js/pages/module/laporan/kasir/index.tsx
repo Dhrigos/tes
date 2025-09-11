@@ -1,4 +1,3 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,80 +9,82 @@ import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 
-// -------------------
-// Laporan Antrian Page
-// -------------------
-interface LAP_Pasien {
-    no_rm: string;
-    nik: string;
-    nama: string;
-    seks: string;
-}
-interface LAP_AntrianItem {
-    pasien: LAP_Pasien;
-    nomor_antrian: string;
-    created_at?: string;
+// -----------------------
+// Laporan Faktur Lunas Kasir
+// -----------------------
+interface KasirRow {
+    kode_faktur?: string;
+    no_rm?: string;
+    no_rawat?: string;
+    nama?: string;
+    poli?: string;
+    dokter?: string;
+    penjamin?: string;
+    sub_total?: number | string;
+    potongan_harga?: number | string;
+    administrasi?: number | string;
+    materai?: number | string;
+    total?: number | string;
+    payment_method_1?: string;
+    payment_nominal_1?: number | string;
+    payment_method_2?: string;
+    payment_nominal_2?: number | string;
+    payment_method_3?: string;
+    payment_nominal_3?: number | string;
     tanggal?: string;
+    user_input_name?: string;
 }
 
-const formatSeks = (value?: string) => {
-    const v = String(value ?? '').trim();
-    if (v === '1' || v.toUpperCase() === 'L') return 'Laki-laki';
-    if (v === '2' || v.toUpperCase() === 'P') return 'Perempuan';
-    return '-';
+const formatDatePart = (iso?: string) => {
+    if (!iso) return '';
+    const parts = String(iso).split('T');
+    return parts[0] || '';
 };
 
-const formatYMD = (isoDate?: string) => {
-    if (!isoDate) return '-';
-    const d = new Date(isoDate);
-    if (Number.isNaN(d.getTime())) return '-';
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+const formatTimePart = (iso?: string) => {
+    if (!iso) return '';
+    const parts = String(iso).split('T');
+    return (parts[1] || '').slice(0, 5);
+};
+
+const formatRupiah = (amount: number) => {
+    return 'Rp ' + amount.toLocaleString('id-ID');
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/antrian/print';
+const PRINT_URL = '/laporan/kasir/print';
 
-type PageProps = { title: string; data: LAP_AntrianItem[] };
+type PageProps = { title: string; header: KasirRow[] };
 
-const LaporanAntrian = () => {
+const LaporanApotek = () => {
     const { props } = usePage<PageProps>();
-    const [rawData, setRawData] = useState<LAP_AntrianItem[]>([]);
+    const [rawData, setRawData] = useState<KasirRow[]>([]);
     const [dateStart, setDateStart] = useState('');
     const [dateEnd, setDateEnd] = useState('');
+    const [filterPoli, setFilterPoli] = useState('');
     const [loading, setLoading] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
-    // We will render filteredData directly; no separate displayed list needed
 
     useEffect(() => {
         setLoading(true);
-        const items = Array.isArray(props?.data) ? props.data : [];
-        // Normalize incoming data to expected shape
-        const normalized = items.map((it: any) => {
-            const tanggal = it.tanggal && String(it.tanggal).length >= 10 ? String(it.tanggal).slice(0, 10) : formatYMD(it.created_at);
-            const nomorFormatted = typeof it.nomor === 'number' ? String(it.nomor) : it.nomor || '';
-            const nomor_antrian = it.nomor_antrian || `${it.prefix || ''}${nomorFormatted}`;
-            const pasien = it.pasien || it.pasien_data || { no_rm: it.no_rm || '-', nik: it.nik || '-', nama: it.nama || '-', seks: it.seks || '-' };
-            return { ...it, tanggal, nomor_antrian, pasien } as LAP_AntrianItem;
-        });
-        setRawData(normalized);
+        const items = Array.isArray(props?.header) ? props.header : [];
+        setRawData(items);
         setLoading(false);
     }, [props]);
 
     const filteredData = useMemo(() => {
-        const start = dateStart || undefined;
-        const end = dateEnd || undefined;
-        return rawData.filter((item) => {
-            const ymd = item.tanggal || formatYMD(item.created_at);
-            if (start && ymd !== '-' && ymd < start) return false;
-            if (end && ymd !== '-' && ymd > end) return false;
+        return rawData.filter((row) => {
+            const ymd = formatDatePart(row.tanggal);
+            if (dateStart && ymd && ymd < dateStart) return false;
+            if (dateEnd && ymd && ymd > dateEnd) return false;
+            if (filterPoli && (row.poli || '') !== filterPoli) return false;
             return true;
         });
-    }, [rawData, dateStart, dateEnd]);
+    }, [rawData, dateStart, dateEnd, filterPoli]);
 
-    // Pagination 10 items per page
+    const poliOptions = useMemo(() => Array.from(new Set((rawData || []).map((d) => d.poli).filter(Boolean) as string[])), [rawData]);
+
+    // Pagination 10 header rows per page
     const [page, setPage] = useState(1);
     const pageSize = 10;
     const totalItems = filteredData.length;
@@ -94,15 +95,16 @@ const LaporanAntrian = () => {
     }, [filteredData, page]);
     useEffect(() => {
         setPage(1);
-    }, [dateStart, dateEnd]);
+    }, [dateStart, dateEnd, filterPoli]);
 
     const handleFilter = () => {
-        // Filtering is applied automatically via filteredData memo
+        // Filtering is reactive via filteredData
     };
 
     const handleReset = () => {
         setDateStart('');
         setDateEnd('');
+        setFilterPoli('');
     };
 
     const submitPrint = () => {
@@ -130,35 +132,51 @@ const LaporanAntrian = () => {
         end.value = dateEnd;
         form.appendChild(end);
 
+        const poli = document.createElement('input');
+        poli.type = 'hidden';
+        poli.name = 'poli';
+        poli.value = filterPoli;
+        form.appendChild(poli);
+
+        // Tambahkan nomor urut sesuai tampilan
+        const printData = filteredData.map((item, idx) => ({ no: idx + 1, ...item }));
+
         const dataField = document.createElement('input');
         dataField.type = 'hidden';
         dataField.name = 'data';
-        dataField.value = JSON.stringify(filteredData);
+        dataField.value = JSON.stringify(printData);
         form.appendChild(dataField);
 
         document.body.appendChild(form);
         form.submit();
         document.body.removeChild(form);
     };
+
     const handlePrint = () => {
         if (!filteredData.length) return;
         setShowConfirm(true);
     };
 
+    // Tidak ada print detail untuk kasir
+
+    // No row detail popup for kasir
+
     const breadcrumbsLap: BreadcrumbItem[] = [
         { title: 'Laporan', href: '' },
-        { title: 'Antrian', href: '' },
+        { title: 'Kasir', href: '' },
     ];
+
+    // Tidak ada aggregate detail pada halaman kasir ini
 
     return (
         <AppLayout breadcrumbs={breadcrumbsLap}>
             <div className="px-4 py-6 sm:px-6 lg:px-8">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Laporan Antrian</CardTitle>
+                        <CardTitle>Laporan Faktur Lunas Kasir</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
                                 <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
@@ -167,8 +185,22 @@ const LaporanAntrian = () => {
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
                                 <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
                             </div>
-                            <div className="md:col-span-1" />
-                            <div className="flex items-end justify-end gap-2">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium">Poli</label>
+                                <select
+                                    className="w-full rounded border p-2 text-sm"
+                                    value={filterPoli}
+                                    onChange={(e) => setFilterPoli(e.target.value)}
+                                >
+                                    <option value="">-- Semua Poli --</option>
+                                    {poliOptions.map((p) => (
+                                        <option key={p} value={p}>
+                                            {p}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex items-end justify-end gap-2 md:col-span-3">
                                 <Button variant="outline" onClick={handleReset}>
                                     Reset
                                 </Button>
@@ -186,39 +218,80 @@ const LaporanAntrian = () => {
                                 <thead>
                                     <tr className="bg-muted">
                                         <th className="p-2 text-center text-sm font-semibold">No</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Invoice</th>
                                         <th className="p-2 text-center text-sm font-semibold">No RM</th>
-                                        <th className="p-2 text-center text-sm font-semibold">NIK</th>
+                                        <th className="p-2 text-center text-sm font-semibold">No Rawat</th>
                                         <th className="p-2 text-center text-sm font-semibold">Nama</th>
-                                        <th className="p-2 text-center text-sm font-semibold">Jenis Kelamin</th>
-                                        <th className="p-2 text-center text-sm font-semibold">Nomor Antrian</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Poli</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Dokter</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Penjamin</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Sub Total</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Tambahan</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Total</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Pembayaran</th>
                                         <th className="p-2 text-center text-sm font-semibold">Tanggal</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                                            <td colSpan={14} className="p-6 text-center text-muted-foreground">
                                                 Memuat data...
                                             </td>
                                         </tr>
                                     ) : filteredData.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                                                Tidak ada data untuk rentang tanggal ini
+                                            <td colSpan={14} className="p-6 text-center text-muted-foreground">
+                                                Tidak ada data untuk pilihan ini
                                             </td>
                                         </tr>
                                     ) : (
                                         currentPageData.map((row, idx) => (
                                             <tr key={idx} className="border-b">
                                                 <td className="p-2 text-center text-sm">{(page - 1) * pageSize + idx + 1}</td>
-                                                <td className="p-2 text-center text-sm">{row.pasien?.no_rm || '-'}</td>
-                                                <td className="p-2 text-center text-sm">{row.pasien?.nik || '-'}</td>
-                                                <td className="p-2 text-center text-sm">{row.pasien?.nama || '-'}</td>
-                                                <td className="p-2 text-center text-sm">{formatSeks(row.pasien?.seks)}</td>
+                                                <td className="p-2 text-center text-sm">{row.kode_faktur || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.no_rm || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.no_rawat || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.nama || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.poli || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.dokter || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.penjamin || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{row.sub_total ?? '-'}</td>
                                                 <td className="p-2 text-center text-sm">
-                                                    <Badge className="bg-blue-100 text-blue-800">{row.nomor_antrian || '-'}</Badge>
+                                                    {(() => {
+                                                        const extras: string[] = [];
+                                                        if (row.potongan_harga && Number(row.potongan_harga) !== 0)
+                                                            extras.push(`Diskon: ${row.potongan_harga}`);
+                                                        if (row.administrasi && Number(row.administrasi) !== 0)
+                                                            extras.push(`Administrasi: ${row.administrasi}`);
+                                                        if (row.materai && Number(row.materai) !== 0) extras.push(`Materai: ${row.materai}`);
+                                                        return extras.length ? (
+                                                            <span dangerouslySetInnerHTML={{ __html: extras.join('<br/>') }} />
+                                                        ) : (
+                                                            '-'
+                                                        );
+                                                    })()}
                                                 </td>
-                                                <td className="p-2 text-center text-sm">{row.tanggal || formatYMD(row.created_at)}</td>
+                                                <td className="p-2 text-center text-sm">{row.total ?? '-'}</td>
+                                                <td className="p-2 text-center text-sm">
+                                                    {(() => {
+                                                        const payments: string[] = [];
+                                                        for (let i = 1; i <= 3; i++) {
+                                                            const method = (row as any)[`payment_method_${i}`];
+                                                            const nominal = (row as any)[`payment_nominal_${i}`];
+                                                            if (method && nominal) {
+                                                                const label = String(method);
+                                                                payments.push(`${label.charAt(0).toUpperCase() + label.slice(1)}: ${nominal}`);
+                                                            }
+                                                        }
+                                                        return payments.length ? (
+                                                            <span dangerouslySetInnerHTML={{ __html: payments.join('<br/>') }} />
+                                                        ) : (
+                                                            '-'
+                                                        );
+                                                    })()}
+                                                </td>
+                                                <td className="p-2 text-center text-sm">{formatDatePart(row.tanggal) || '-'}</td>
                                             </tr>
                                         ))
                                     )}
@@ -251,6 +324,9 @@ const LaporanAntrian = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Tidak ada dialog detail untuk kasir */}
+
             <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
@@ -264,6 +340,8 @@ const LaporanAntrian = () => {
                                 <div className="font-medium">{dateStart || '-'}</div>
                                 <div className="text-muted-foreground">Tanggal Akhir</div>
                                 <div className="font-medium">{dateEnd || '-'}</div>
+                                <div className="text-muted-foreground">Poli</div>
+                                <div className="font-medium">{filterPoli || '-'}</div>
                                 <div className="text-muted-foreground">Jumlah Data</div>
                                 <div className="font-medium">{filteredData.length}</div>
                             </div>
@@ -288,4 +366,4 @@ const LaporanAntrian = () => {
     );
 };
 
-export default LaporanAntrian;
+export default LaporanApotek;

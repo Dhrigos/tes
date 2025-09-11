@@ -58,16 +58,24 @@ const extractDoctorName = (it: any): string => {
     return it?.dokter?.namauser?.name || it?.dokter?.nama || it?.dokter?.name || it?.dokter_nama || it?.soap_dokter?.dokter?.namauser?.name || '';
 };
 
-const formatDatePart = (iso?: string) => {
-    if (!iso) return '';
-    const parts = String(iso).split('T');
+const formatDatePart = (value?: string) => {
+    if (!value) return '';
+    const raw = String(value).trim();
+    const parts = raw.includes('T') ? raw.split('T') : raw.split(' ');
     return parts[0] || '';
 };
 
-const formatTimePart = (iso?: string) => {
-    if (!iso) return '';
-    const parts = String(iso).split('T');
-    return (parts[1] || '').slice(0, 5);
+const formatTimePart = (value?: string) => {
+    if (!value) return '';
+    const raw = String(value).trim();
+    const parts = raw.includes('T') ? raw.split('T') : raw.split(' ');
+    let time = parts[1] || '';
+    if (!time && parts[0] && parts[0].includes(' ')) {
+        const sub = parts[0].split(' ');
+        time = sub[1] || '';
+    }
+    time = time.replace('Z', '').split('+')[0].split('.')[0];
+    return time.slice(0, 5);
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -451,7 +459,7 @@ const LaporanDokter = () => {
                             variant="outline"
                             onClick={() => {
                                 if (!detailRow) return;
-                                const csrf = (document.querySelector('meta[name=\"csrf-token\"]') as HTMLMetaElement)?.content || '';
+                                const csrf = getCsrf();
                                 const form = document.createElement('form');
                                 form.method = 'POST';
                                 form.action = '/laporan/dokter/print-detail';

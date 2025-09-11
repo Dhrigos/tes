@@ -126,6 +126,19 @@ const LaporanPerawat = () => {
         });
     }, [rawData, dateStart, dateEnd, filterPoli, filterPerawat]);
 
+    // Pagination 10 items per page
+    const [page, setPage] = useState(1);
+    const pageSize = 10;
+    const totalItems = filteredData.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const currentPageData = useMemo(() => {
+        const startIdx = (page - 1) * pageSize;
+        return filteredData.slice(startIdx, startIdx + pageSize);
+    }, [filteredData, page]);
+    useEffect(() => {
+        setPage(1);
+    }, [dateStart, dateEnd, filterPoli, filterPerawat]);
+
     const handleFilter = () => {
         // reactive via memo
     };
@@ -174,10 +187,23 @@ const LaporanPerawat = () => {
         perawat.value = filterPerawat;
         form.appendChild(perawat);
 
+        // Build payload using original backend structure to match Blade expectations
+        const originalItems: any[] = Array.isArray(props?.data) ? (props.data as any[]) : [];
+        const filteredOriginal = originalItems.filter((item: any) => {
+            const raw = String(item?.tanggal_kujungan || item?.created_at || '');
+            const dateOnly = raw.includes('T') ? raw.split('T')[0] : raw.includes(' ') ? raw.split(' ')[0] : raw.slice(0, 10);
+            if (dateStart && dateOnly && dateOnly < dateStart) return false;
+            if (dateEnd && dateOnly && dateOnly > dateEnd) return false;
+            if (filterPoli && (item?.poli?.nama || '') !== filterPoli) return false;
+            const perawatName = item?.so_perawat?.user_input_name || item?.soap_perawat?.user_input_name || '';
+            if (filterPerawat && perawatName !== filterPerawat) return false;
+            return true;
+        });
+
         const dataField = document.createElement('input');
         dataField.type = 'hidden';
         dataField.name = 'data';
-        dataField.value = JSON.stringify(filteredData);
+        dataField.value = JSON.stringify(filteredOriginal);
         form.appendChild(dataField);
 
         document.body.appendChild(form);
@@ -294,11 +320,11 @@ const LaporanPerawat = () => {
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredData.map((row, idx) => {
+                                        currentPageData.map((row, idx) => {
                                             const { date, time } = splitDateTime(row.tanggal_kujungan);
                                             return (
                                                 <tr key={idx} className="border-b">
-                                                    <td className="p-2 text-center text-sm">{idx + 1}</td>
+                                                    <td className="p-2 text-center text-sm">{(page - 1) * pageSize + idx + 1}</td>
                                                     <td className="p-2 text-center text-sm">{row.nomor_rm || '-'}</td>
                                                     <td className="p-2 text-center text-sm">{row.pasien_nama || '-'}</td>
                                                     <td className="p-2 text-center text-sm">{row.nomor_register || '-'}</td>
@@ -319,6 +345,29 @@ const LaporanPerawat = () => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                        <div className="mt-4 flex items-center justify-between text-sm">
+                            <div>
+                                Menampilkan {totalItems === 0 ? 0 : (page - 1) * pageSize + 1}
+                                {' - '}
+                                {Math.min(page * pageSize, totalItems)} dari {totalItems} data
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                                    Prev
+                                </Button>
+                                <span>
+                                    Halaman {page} / {totalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={page >= totalPages}
+                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                >
+                                    Next
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -429,7 +478,7 @@ const LaporanPerawat = () => {
                             variant="outline"
                             onClick={() => {
                                 if (!detailRow) return;
-                                const csrf = (document.querySelector('meta[name=\"csrf-token\"]') as HTMLMetaElement)?.content || '';
+                                const csrf = getCsrf();
                                 const form = document.createElement('form');
                                 form.method = 'POST';
                                 form.action = '/laporan/perawat/print-detail';
