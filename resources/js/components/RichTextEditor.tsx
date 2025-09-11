@@ -228,7 +228,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, p
                 // ignore
             }
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, []);
 
     // Sync external value changes into the editor

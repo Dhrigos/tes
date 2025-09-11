@@ -21,7 +21,7 @@ export interface PageProps {
     };
 }
 
-export interface SharedData extends PageProps {}
+export type SharedData = PageProps;
 
 // Additional commonly used app types
 export type StatItem = {

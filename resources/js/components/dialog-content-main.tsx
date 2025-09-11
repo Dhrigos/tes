@@ -60,7 +60,7 @@ function ConfigSatuSehat() {
         if (typeof isActive !== 'undefined') {
             setEnabledSS(Boolean(isActive));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [props?.web_setting?.is_satusehat_active]);
 
     const handleToggleChangeSS = async (checked: boolean) => {
@@ -225,7 +225,7 @@ function ConfigBPJS() {
                 PASSWORD: bpjs.PASSWORD || '',
             });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [props?.set_bpjs]);
 
     // Prefill toggle BPJS dari web_setting props
@@ -234,7 +234,7 @@ function ConfigBPJS() {
         if (typeof isActive !== 'undefined') {
             setEnabled(Boolean(isActive));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [props?.web_setting?.is_bpjs_active]);
 
     const handleToggleChange = async (checked: boolean) => {
@@ -746,10 +746,10 @@ function HargaJual() {
                                     <div className="relative">
                                         <Input
                                             placeholder="10"
-                                            value={Boolean(isGudangUtama) ? hargaJualUtama1 : ''}
+                                            value={isGudangUtama ? hargaJualUtama1 : ''}
                                             onChange={(e) => setHargaJualUtama1(e.target.value)}
                                             type="number"
-                                            disabled={loading || !Boolean(isGudangUtama)}
+                                            disabled={loading || !isGudangUtama}
                                             min="0"
                                             max="1000"
                                             step="0.01"
@@ -763,10 +763,10 @@ function HargaJual() {
                                     <div className="relative">
                                         <Input
                                             placeholder="15"
-                                            value={Boolean(isGudangUtama) ? hargaJualUtama2 : ''}
+                                            value={isGudangUtama ? hargaJualUtama2 : ''}
                                             onChange={(e) => setHargaJualUtama2(e.target.value)}
                                             type="number"
-                                            disabled={loading || !Boolean(isGudangUtama)}
+                                            disabled={loading || !isGudangUtama}
                                             min="0"
                                             max="1000"
                                             step="0.01"
@@ -780,10 +780,10 @@ function HargaJual() {
                                     <div className="relative">
                                         <Input
                                             placeholder="20"
-                                            value={Boolean(isGudangUtama) ? hargaJualUtama3 : ''}
+                                            value={isGudangUtama ? hargaJualUtama3 : ''}
                                             onChange={(e) => setHargaJualUtama3(e.target.value)}
                                             type="number"
-                                            disabled={loading || !Boolean(isGudangUtama)}
+                                            disabled={loading || !isGudangUtama}
                                             min="0"
                                             max="1000"
                                             step="0.01"
@@ -807,7 +807,7 @@ function HargaJual() {
             <Card>
                 <CardContent className="p-4">
                     <h3 className="mb-4 text-lg font-semibold">Setting Harga Jual</h3>
-                    {Boolean(isGudangUtama) ? (
+                    {isGudangUtama ? (
                         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
                             Sebagai Gudang Utama, persentase harga jual sudah diatur di atas. Embalase (biaya tambahan) diatur per klinik di sini.
                         </p>
@@ -818,7 +818,7 @@ function HargaJual() {
                         </p>
                     )}
 
-                    {!Boolean(isGudangUtama) && !hargaJual1 && !hargaJual2 && !hargaJual3 && (
+                    {!isGudangUtama && !hargaJual1 && !hargaJual2 && !hargaJual3 && (
                         <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-800 dark:bg-orange-900/20">
                             <div className="flex items-center">
                                 <svg className="mr-3 h-5 w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -839,7 +839,7 @@ function HargaJual() {
                         </div>
                     )}
 
-                    {!Boolean(isGudangUtama) && (hargaJual1 || hargaJual2 || hargaJual3) && (
+                    {!isGudangUtama && (hargaJual1 || hargaJual2 || hargaJual3) && (
                         <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
                             <div className="flex items-center">
                                 <svg className="mr-3 h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1049,7 +1049,7 @@ function Advanced() {
                 setPreview(`/setting/${setting.profile_image}`);
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [props?.web_setting]);
 
     const handleLogoClick = () => {

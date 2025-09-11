@@ -35,7 +35,7 @@ const splitDateTime = (value?: string) => {
     if (!value) return { date: '-', time: '-' };
     const raw = String(value).trim();
     const parts = raw.includes('T') ? raw.split('T') : raw.split(' ');
-    let date = parts[0] || '-';
+    const date = parts[0] || '-';
     let time = parts[1] || '';
     if (!time && parts[0] && parts[0].includes(' ')) {
         const sub = parts[0].split(' ');

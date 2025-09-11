@@ -250,7 +250,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
         }
 
         setItems((prev) => {
-            let updatedItems = [...prev];
+            const updatedItems = [...prev];
 
             for (const newItem of newItems) {
                 const existingItemIndex = updatedItems.findIndex((item) => item.kode === newItem.kode);

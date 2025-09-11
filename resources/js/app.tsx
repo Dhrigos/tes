@@ -12,20 +12,12 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 // Configure CSRF token for Inertia
 const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 if (token) {
-    // Set CSRF token for all requests
-    (window as any).axios = (window as any).axios || {};
-    (window as any).axios.defaults = (window as any).axios.defaults || {};
-    (window as any).axios.defaults.headers = (window as any).axios.defaults.headers || {};
-    (window as any).axios.defaults.headers.common = (window as any).axios.defaults.headers.common || {};
-    (window as any).axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
-
-    // Configure axios defaults
-    axios.defaults.headers.common = axios.defaults.headers.common || {} as any;
-    (axios.defaults.headers.common as any)['X-CSRF-TOKEN'] = token;
-    (axios.defaults.headers.common as any)['X-Requested-With'] = 'XMLHttpRequest';
+    // Configure axios defaults (no window any casting)
+    axios.defaults.headers.common = axios.defaults.headers.common || ({} as Record<string, string>);
+    (axios.defaults.headers.common as Record<string, string>)['X-CSRF-TOKEN'] = token;
+    (axios.defaults.headers.common as Record<string, string>)['X-Requested-With'] = 'XMLHttpRequest';
     axios.defaults.withCredentials = true;
 }
-
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

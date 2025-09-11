@@ -590,7 +590,11 @@ export default function PendaftaranPasien() {
                             className="space-y-4 p-4"
                             onSubmit={(e) => {
                                 e.preventDefault();
-                                isEdit ? handleSubmitEdit() : handleSubmitLengkapi();
+                                if (isEdit) {
+                                    handleSubmitEdit();
+                                } else {
+                                    handleSubmitLengkapi();
+                                }
                             }}
                         >
                             {currentStep === 1 && (

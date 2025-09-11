@@ -31,7 +31,7 @@ const splitDateTime = (value?: string) => {
     if (!value) return { date: '-', time: '-' };
     const raw = String(value).trim();
     const parts = raw.includes('T') ? raw.split('T') : raw.split(' ');
-    let date = parts[0] || '-';
+    const date = parts[0] || '-';
     let time = parts[1] || '';
     time = time.replace('Z', '').split('+')[0].split('.')[0];
     if (time.length >= 5) time = time.slice(0, 5);
