@@ -29,7 +29,11 @@ return [
     |
     */
 
-    'connections' => [  
+    'connections' => [
+        'array' => [
+            'driver' => 'array',
+        ],
+
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
