@@ -498,7 +498,6 @@ Route::middleware(['auth', 'verified'])->prefix('laporan')->as('laporan.')->grou
 
     Route::get('/kasir-detail', [Laporan_Controller::class, 'kasir_detail'])->name('kasir-detail');
     Route::post('/kasir-detail/print', [Laporan_Controller::class, 'kasir_detail_print'])->name('kasir-detail.print');
-    Route::post('/kasir-diskon/print', [Laporan_Controller::class, 'datakasir_diskon_print'])->name('kasir-diskon.print');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

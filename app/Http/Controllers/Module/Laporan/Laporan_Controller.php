@@ -374,15 +374,11 @@ class Laporan_Controller extends Controller
     // Data Lunas Detail
     public function kasir_detail()
     {
-        $title = "Kasir Detail Lunas & Diskon";
+        $title = "Kasir Detail";
 
-        $header = Kasir::with(['detail_lunas', 'diskon'])
-            ->where(function ($q) {
-                $q->has('detail_lunas')->orHas('diskon');
-            })
-            ->get();
+        $header = \App\Models\Module\Kasir\Kasir_Detail::with('kasir')->get();
 
-        return Inertia::render('module/laporan/kasir_detail/index', [
+        return Inertia::render('module/laporan/kasir-detail/index', [
             'title' => $title,
             'header' => $header,
         ]);

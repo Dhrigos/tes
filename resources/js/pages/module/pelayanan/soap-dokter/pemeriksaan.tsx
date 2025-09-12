@@ -12,15 +12,18 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { FileText } from 'lucide-react';
+import { Check, ChevronsUpDown, FileText } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -63,8 +66,8 @@ interface SoapDokterData {
     lingkar_perut?: string;
     nilai_bmi?: string;
     status_bmi?: string;
-    jenis_alergi?: string;
-    alergi?: string;
+    jenis_alergi: string[];
+    alergi: string[];
     eye?: string;
     verbal?: string;
     motorik?: string;
@@ -321,8 +324,16 @@ export default function PemeriksaanSoapDokter() {
             lingkar_perut: soap_dokter?.lingkar_perut || (p?.lingkar_perut ? String(p.lingkar_perut) : ''),
             nilai_bmi: soap_dokter?.nilai_bmi || (p?.nilai_bmi ? String(p.nilai_bmi) : ''),
             status_bmi: soap_dokter?.status_bmi || (p?.status_bmi ? String(p.status_bmi) : ''),
-            jenis_alergi: soap_dokter?.jenis_alergi || p?.jenis_alergi || '',
-            alergi: soap_dokter?.alergi || p?.alergi || '',
+            jenis_alergi: Array.isArray((soap_dokter as any)?.jenis_alergi)
+                ? ((soap_dokter as any).jenis_alergi as string[])
+                : Array.isArray(p?.jenis_alergi)
+                  ? (p?.jenis_alergi as string[])
+                  : [],
+            alergi: Array.isArray((soap_dokter as any)?.alergi)
+                ? ((soap_dokter as any).alergi as string[])
+                : Array.isArray(p?.alergi)
+                  ? (p?.alergi as string[])
+                  : [],
             eye: soap_dokter?.eye || (p?.eye !== undefined && p?.eye !== null ? String(p.eye) : ''),
             verbal: soap_dokter?.verbal || (p?.verbal !== undefined && p?.verbal !== null ? String(p.verbal) : ''),
             motorik: soap_dokter?.motorik || (p?.motorik !== undefined && p?.motorik !== null ? String(p.motorik) : ''),
@@ -360,9 +371,9 @@ export default function PemeriksaanSoapDokter() {
 
     const detailAlergiOptions: AlergiData[] = useMemo(() => {
         if (!Array.isArray(alergi_data)) return [] as AlergiData[];
-        const jenis = (formData.jenis_alergi || '').trim();
-        if (!jenis) return [] as AlergiData[];
-        return alergi_data.filter((item) => (item?.jenis_alergi || '').trim() === jenis);
+        const jenisList = Array.isArray(formData.jenis_alergi) ? formData.jenis_alergi : [];
+        if (jenisList.length === 0) return [] as AlergiData[];
+        return alergi_data.filter((item) => jenisList.includes((item?.jenis_alergi || '').trim()));
     }, [alergi_data, formData.jenis_alergi]);
 
     // Confirm dialog state & helpers (mirror perawat)
@@ -846,7 +857,7 @@ export default function PemeriksaanSoapDokter() {
         }));
     };
 
-    const handleSelectChange = (name: string, value: string) => {
+    const handleSelectChange = (name: string, value: string | string[]) => {
         setFormData((prev) => ({
             ...prev,
             [name]: value,
@@ -1358,8 +1369,8 @@ export default function PemeriksaanSoapDokter() {
             tinggi: formData.tinggi ? String(formData.tinggi) : '',
             berat: formData.berat ? String(formData.berat) : '',
             spo2: formData.spo2 ? String(formData.spo2) : '',
-            jenis_alergi: formData.jenis_alergi || '',
-            alergi: formData.alergi || '',
+            jenis_alergi: Array.isArray(formData.jenis_alergi) ? formData.jenis_alergi.join(',') : String(formData.jenis_alergi || ''),
+            alergi: Array.isArray(formData.alergi) ? formData.alergi.join(',') : String(formData.alergi || ''),
             lingkar_perut: formData.lingkar_perut ? String(formData.lingkar_perut) : '',
             nilai_bmi: formData.nilai_bmi ? String(formData.nilai_bmi) : '',
             status_bmi: formData.status_bmi || '',
@@ -1900,72 +1911,148 @@ export default function PemeriksaanSoapDokter() {
                                                     <div>
                                                         <h3 className="text-md mb-3 font-medium">Alergi</h3>
                                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                            {/* Jenis Alergi */}
                                                             <div>
                                                                 <Label htmlFor="jenis_alergi">Jenis Alergi</Label>
-                                                                <Select
-                                                                    value={formData.jenis_alergi}
-                                                                    onValueChange={(value) => {
-                                                                        handleSelectChange('jenis_alergi', value);
-                                                                        // Sinkronkan detail dengan jenis: jika "00" maka detail juga "00", selain itu reset
-                                                                        if (value === '00') {
-                                                                            handleSelectChange('alergi', '00');
-                                                                        } else {
-                                                                            handleSelectChange('alergi', '');
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <SelectTrigger ref={jenisAlergiTriggerRef as any}>
-                                                                        <SelectValue placeholder="Pilih jenis alergi" />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {/* Opsi universal: Tidak ada */}
-                                                                        <SelectItem value="00">Tidak ada</SelectItem>
-                                                                        {jenisAlergiOptions.length === 0 ? (
-                                                                            <SelectItem value="no-data-jenis" disabled>
-                                                                                Tidak ada data
-                                                                            </SelectItem>
-                                                                        ) : (
-                                                                            jenisAlergiOptions.map((opt: string) => (
-                                                                                <SelectItem key={opt} value={opt}>
-                                                                                    {opt}
-                                                                                </SelectItem>
-                                                                            ))
-                                                                        )}
-                                                                    </SelectContent>
-                                                                </Select>
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <Button variant="outline" className="w-full justify-between">
+                                                                            {formData.jenis_alergi.length > 0
+                                                                                ? formData.jenis_alergi.join(', ')
+                                                                                : 'Pilih jenis alergi'}
+                                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                        </Button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-[300px] p-0">
+                                                                        <Command>
+                                                                            <CommandList>
+                                                                                <CommandEmpty>Tidak ada data</CommandEmpty>
+                                                                                <CommandGroup>
+                                                                                    <CommandItem
+                                                                                        value="00"
+                                                                                        onSelect={() => {
+                                                                                            const selected = formData.jenis_alergi.includes('00')
+                                                                                                ? formData.jenis_alergi.filter((v) => v !== '00')
+                                                                                                : [...formData.jenis_alergi, '00'];
+                                                                                            handleSelectChange('jenis_alergi', selected);
+
+                                                                                            // Jika "00" dipilih, set alergi = ["00"]
+                                                                                            if (selected.includes('00')) {
+                                                                                                handleSelectChange('alergi', ['00']);
+                                                                                            } else {
+                                                                                                handleSelectChange('alergi', []);
+                                                                                            }
+                                                                                        }}
+                                                                                    >
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mr-2 h-4 w-4',
+                                                                                                formData.jenis_alergi.includes('00')
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        Tidak ada
+                                                                                    </CommandItem>
+                                                                                    {jenisAlergiOptions.map((opt: string) => (
+                                                                                        <CommandItem
+                                                                                            key={opt}
+                                                                                            value={opt}
+                                                                                            onSelect={() => {
+                                                                                                const selected = formData.jenis_alergi.includes(opt)
+                                                                                                    ? formData.jenis_alergi.filter((v) => v !== opt)
+                                                                                                    : [...formData.jenis_alergi, opt];
+                                                                                                handleSelectChange('jenis_alergi', selected);
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mr-2 h-4 w-4',
+                                                                                                    formData.jenis_alergi.includes(opt)
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            {opt}
+                                                                                        </CommandItem>
+                                                                                    ))}
+                                                                                </CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </PopoverContent>
+                                                                </Popover>
                                                             </div>
+
+                                                            {/* Detail Alergi */}
                                                             <div>
                                                                 <Label htmlFor="alergi">Detail Alergi</Label>
-                                                                <Select
-                                                                    value={formData.alergi}
-                                                                    onValueChange={(value) => handleSelectChange('alergi', value)}
-                                                                    disabled={!formData.jenis_alergi}
-                                                                >
-                                                                    <SelectTrigger>
-                                                                        <SelectValue
-                                                                            placeholder={
-                                                                                !formData.jenis_alergi
-                                                                                    ? 'Pilih jenis terlebih dahulu'
-                                                                                    : 'Pilih detail alergi'
-                                                                            }
-                                                                        />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {/* Opsi universal: Tidak ada */}
-                                                                        <SelectItem value="00">Tidak ada</SelectItem>
-                                                                        {detailAlergiOptions.length === 0 ? (
-                                                                            <SelectItem value="no-data-detail" disabled>
-                                                                                Tidak ada data
-                                                                            </SelectItem>
-                                                                        ) : (
-                                                                            detailAlergiOptions.map((item: AlergiData) => (
-                                                                                <SelectItem key={item.id} value={(item.nama || '').trim()}>
-                                                                                    {(item.nama || '').trim()}
-                                                                                </SelectItem>
-                                                                            ))
-                                                                        )}
-                                                                    </SelectContent>
-                                                                </Select>
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            disabled={formData.jenis_alergi.length === 0}
+                                                                            className="w-full justify-between"
+                                                                        >
+                                                                            {formData.alergi.length > 0
+                                                                                ? formData.alergi.join(', ')
+                                                                                : formData.jenis_alergi.length === 0
+                                                                                  ? 'Pilih jenis terlebih dahulu'
+                                                                                  : 'Pilih detail alergi'}
+                                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                        </Button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-[300px] p-0">
+                                                                        <Command>
+                                                                            <CommandList>
+                                                                                <CommandEmpty>Tidak ada data</CommandEmpty>
+                                                                                <CommandGroup>
+                                                                                    <CommandItem
+                                                                                        value="00"
+                                                                                        onSelect={() => {
+                                                                                            const selected = formData.alergi.includes('00')
+                                                                                                ? formData.alergi.filter((v) => v !== '00')
+                                                                                                : [...formData.alergi, '00'];
+                                                                                            handleSelectChange('alergi', selected);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mr-2 h-4 w-4',
+                                                                                                formData.alergi.includes('00')
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        Tidak ada
+                                                                                    </CommandItem>
+                                                                                    {detailAlergiOptions.map((item: AlergiData) => (
+                                                                                        <CommandItem
+                                                                                            key={item.id}
+                                                                                            value={(item.nama || '').trim()}
+                                                                                            onSelect={() => {
+                                                                                                const value = (item.nama || '').trim();
+                                                                                                const selected = formData.alergi.includes(value)
+                                                                                                    ? formData.alergi.filter((v) => v !== value)
+                                                                                                    : [...formData.alergi, value];
+                                                                                                handleSelectChange('alergi', selected);
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mr-2 h-4 w-4',
+                                                                                                    formData.alergi.includes((item.nama || '').trim())
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            {(item.nama || '').trim()}
+                                                                                        </CommandItem>
+                                                                                    ))}
+                                                                                </CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </PopoverContent>
+                                                                </Popover>
                                                             </div>
                                                         </div>
                                                     </div>
