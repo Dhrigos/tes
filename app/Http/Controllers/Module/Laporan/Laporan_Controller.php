@@ -481,39 +481,6 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-    public function datakasir_diskon_print(Request $request)
-    {
-        $data = json_decode($request->input('data'), true);
-        $tanggal_awal = $request->input('tanggal_awal');
-        $tanggal_akhir = $request->input('tanggal_akhir');
-        $poli = $request->input('poli');
-
-        $total_invoice = 0;
-        foreach ($data as $item) {
-            if (isset($item['is_detail']) && $item['is_detail'] == false) {
-                $total_invoice++;
-            }
-        }
-
-        $pendapatan = 0;
-        foreach ($data as $item) {
-            $pendapatan += isset($item['total_sementara']) ? (int) str_replace(['Rp', ' ', '.'], '', (string) $item['total_sementara']) : 0;
-        }
-
-        $pendapatanFormatted = $this->formatRupiah($pendapatan);
-
-        $namaKlinik = Web_Setting::value('nama');
-        $alamatKlinik = Web_Setting::value('alamat');
-
-        $pdf = Pdf::loadView('pdf.data_lunas_kasir_diskon', compact('data', 'tanggal_awal', 'tanggal_akhir', 'poli', 'total_invoice', 'pendapatanFormatted', 'namaKlinik', 'alamatKlinik'))
-            ->setPaper('a4', 'landscape');
-
-        $filename = 'kasir_diskon_' . now()->format('Ymd_His') . '.pdf';
-
-        return $pdf->stream($filename);
-    }
-
-
 
     private function formatRupiah($amount)
     {

@@ -164,6 +164,7 @@ const mainNavItems: MenuItem[] = [
         children: [
             { title: 'Apotek', href: '/laporan/apotek', roles: ['Admin', 'Manajemen'] },
             { title: 'Kasir', href: '/laporan/kasir', roles: ['Admin', 'Manajemen'] },
+            { title: 'Kasir Detail', href: '/laporan/kasir-detail', roles: ['Admin', 'Manajemen'] },
             { title: 'Antrian', href: '/laporan/antrian', roles: ['Admin', 'Manajemen'] },
             { title: 'Pendaftaran', href: '/laporan/pendaftaran', roles: ['Admin', 'Manajemen'] },
             { title: 'Trend Pendaftaran', href: '/laporan/trend-pendaftaran', roles: ['Admin', 'Manajemen'] },
