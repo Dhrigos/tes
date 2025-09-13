@@ -23,6 +23,7 @@ use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
 use App\Http\Controllers\Module\Kasir\Kasir_Controller;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Bidan_Controller;
 use Illuminate\Http\Request;
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
@@ -33,6 +34,11 @@ Route::get('/get_spesialis', [Pcare_Controller::class, 'get_spesialis']);
 Route::get('/get_sub_spesialis/{kode}', [Pcare_Controller::class, 'get_sub_spesialis']);
 Route::get('/get_peserta/{no}', [Pcare_Controller::class, 'get_peserta']);
 Route::get('/get_dokter', [Pcare_Controller::class, 'get_dokter']);
+Route::get('/get_kesadaran', [Pcare_Controller::class, 'get_kesadaran']);
+Route::get('/get_riwayat_rujukan/{data}', [Pcare_Controller::class, 'get_riwayat_rujukan']);
+Route::post('/add_rujukan', [Pcare_Controller::class, 'add_rujukan']);
+Route::put('/update_rujukan', [Pcare_Controller::class, 'update_rujukan']);
+Route::delete('/delete_rujukan/{data}', [Pcare_Controller::class, 'delete_rujukan']);
 
 Route::get('/get_dokter_ws/{kode_poli}/{tanggal}', [Ws_Pcare_Controller::class, 'get_dokter']);
 // Pelayanan utility

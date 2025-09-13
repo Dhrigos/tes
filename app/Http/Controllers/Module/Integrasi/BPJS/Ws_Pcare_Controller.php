@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use LZCompressor\LZString;
 use Illuminate\Support\Facades\Log;
+use App\Models\Settings\Set_Bpjs;
+
 
 class Ws_Pcare_Controller extends Controller
 {
@@ -14,13 +16,13 @@ class Ws_Pcare_Controller extends Controller
      * Ambil token BPJS
      */
     private function token(): array
-    {         
+    {
         $bpjsConfig = Set_Bpjs::first();
-        
+
         if (!$bpjsConfig) {
             throw new \Exception('Konfigurasi BPJS tidak ditemukan di database');
         }
- 
+
         $cons_id = $bpjsConfig->CONSID;
         $secret_key = $bpjsConfig->SECRET_KEY;
         $username = $bpjsConfig->USERNAME;
@@ -28,7 +30,7 @@ class Ws_Pcare_Controller extends Controller
         $user_key = $bpjsConfig->USER_KEY;
         // APP_CODE sekarang diambil dari .env (kolom di DB sudah dihapus)
         $app_code = env('BPJS_App_code', '095');
-        
+
         date_default_timezone_set('UTC');
         $timestamp = strval(time());
 
@@ -113,8 +115,10 @@ class Ws_Pcare_Controller extends Controller
             $responseTime = microtime(true) - $startTime;
 
             // // Jika error metadata atau response kosong
-            if (!is_array($body)               
-                || empty($body['response'])) {
+            if (
+                !is_array($body)
+                || empty($body['response'])
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
@@ -136,9 +140,9 @@ class Ws_Pcare_Controller extends Controller
 
             $transformed = array_map(fn($p) => [
                 'kode'  => $p['kodepoli'],
-                'nama'  => $p['namapoli'],                
-                'kode_sub' => $p['kdsubspesialis'],                
-                'nama_sub' => $p['nmsubspesialis'],                
+                'nama'  => $p['namapoli'],
+                'kode_sub' => $p['kdsubspesialis'],
+                'nama_sub' => $p['nmsubspesialis'],
             ], $data);
 
 
@@ -155,7 +159,7 @@ class Ws_Pcare_Controller extends Controller
             ], 500);
         }
     }
-    
+
     public function get_dokter($kode_poli, $tanggal)
     {
         $BASE_URL = env('BPJS_BaseUrl');
@@ -176,8 +180,10 @@ class Ws_Pcare_Controller extends Controller
             $responseTime = microtime(true) - $startTime;
 
             // // Jika error metadata atau response kosong
-            if (!is_array($body)               
-                || empty($body['response'])) {
+            if (
+                !is_array($body)
+                || empty($body['response'])
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
@@ -199,9 +205,9 @@ class Ws_Pcare_Controller extends Controller
 
             $transformed = array_map(fn($p) => [
                 'kode'  => $p['kodedokter'],
-                'nama'  => $p['namadokter'],                
-                'jadwal' => $p['jampraktek'],                
-                'kuota' => $p['kapasitas'],                
+                'nama'  => $p['namadokter'],
+                'jadwal' => $p['jampraktek'],
+                'kuota' => $p['kapasitas'],
             ], $data);
 
 
@@ -233,14 +239,16 @@ class Ws_Pcare_Controller extends Controller
             $response = Http::withHeaders(array_merge(
                 ['Content-Type' => 'application/json; charset=utf-8'],
                 $token['headers']
-            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}", $data);
 
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;
 
             // // Jika error metadata atau response kosong
-            if (!is_array($body)               
-                || empty($body['response'])) {
+            if (
+                !is_array($body)
+                || empty($body['response'])
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
@@ -276,14 +284,16 @@ class Ws_Pcare_Controller extends Controller
             $response = Http::withHeaders(array_merge(
                 ['Content-Type' => 'application/json; charset=utf-8'],
                 $token['headers']
-            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}", $data);
 
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;
 
             // // Jika error metadata atau response kosong
-            if (!is_array($body)               
-                || empty($body['response'])) {
+            if (
+                !is_array($body)
+                || empty($body['response'])
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
@@ -319,14 +329,16 @@ class Ws_Pcare_Controller extends Controller
             $response = Http::withHeaders(array_merge(
                 ['Content-Type' => 'application/json; charset=utf-8'],
                 $token['headers']
-            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}",$data);
+            ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}", $data);
 
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;
 
             // // Jika error metadata atau response kosong
-            if (!is_array($body)               
-                || empty($body['response'])) {
+            if (
+                !is_array($body)
+                || empty($body['response'])
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
@@ -347,6 +359,4 @@ class Ws_Pcare_Controller extends Controller
             ], 500);
         }
     }
-
-
 }
