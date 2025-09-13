@@ -197,7 +197,7 @@ interface AlergiData {
 
 interface PageProps {
     pelayanan: PatientData;
-    soap_dokter?: SoapDokterData;
+    soap_bidan?: SoapDokterData;
     so_perawat?: any;
     existing_diet_data: ExistingDietData[];
     alergi_data: AlergiData[];
@@ -225,15 +225,15 @@ interface PageProps {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Pelayanan', href: '/pelayanan/so-dokter' },
-    { title: 'SOAP Dokter', href: '/pelayanan/so-dokter' },
+    { title: 'Pelayanan', href: '/pelayanan/soap-bidan' },
+    { title: 'SOAP Bidan', href: '/pelayanan/soap-bidan' },
     { title: 'Pemeriksaan', href: '' },
 ];
 
-export default function PemeriksaanSoapDokter() {
+export default function PemeriksaanSoapBidan() {
     const {
         pelayanan,
-        soap_dokter,
+        soap_bidan: soap_dokter,
         so_perawat,
         existing_diet_data,
         alergi_data,
@@ -311,19 +311,19 @@ export default function PemeriksaanSoapDokter() {
             return '';
         };
         return {
-            no_rawat: soap_dokter?.no_rawat || pelayanan?.nomor_register || '',
-            sistol: soap_dokter?.sistol || (p?.sistol ? String(p.sistol) : ''),
-            distol: soap_dokter?.distol || (p?.distol ? String(p.distol) : ''),
-            tensi: soap_dokter?.tensi || composeTensi(p?.sistol || '', p?.distol || '', p?.tensi || ''),
-            suhu: soap_dokter?.suhu || (p?.suhu ? String(p.suhu) : ''),
-            nadi: soap_dokter?.nadi || (p?.nadi ? String(p.nadi) : ''),
-            rr: soap_dokter?.rr || (p?.rr ? String(p.rr) : ''),
-            tinggi: soap_dokter?.tinggi || (p?.tinggi ? String(p.tinggi) : ''),
-            berat: soap_dokter?.berat || (p?.berat ? String(p.berat) : ''),
-            spo2: soap_dokter?.spo2 || (p?.spo2 ? String(p.spo2) : ''),
-            lingkar_perut: soap_dokter?.lingkar_perut || (p?.lingkar_perut ? String(p.lingkar_perut) : ''),
-            nilai_bmi: soap_dokter?.nilai_bmi || (p?.nilai_bmi ? String(p.nilai_bmi) : ''),
-            status_bmi: soap_dokter?.status_bmi || (p?.status_bmi ? String(p.status_bmi) : ''),
+            no_rawat: (soap_dokter as any)?.no_rawat || pelayanan?.nomor_register || '',
+            sistol: (soap_dokter as any)?.sistol || (p?.sistol ? String(p.sistol) : ''),
+            distol: (soap_dokter as any)?.distol || (p?.distol ? String(p.distol) : ''),
+            tensi: (soap_dokter as any)?.tensi || composeTensi(p?.sistol || '', p?.distol || '', p?.tensi || ''),
+            suhu: (soap_dokter as any)?.suhu || (p?.suhu ? String(p.suhu) : ''),
+            nadi: (soap_dokter as any)?.nadi || (p?.nadi ? String(p.nadi) : ''),
+            rr: (soap_dokter as any)?.rr || (p?.rr ? String(p.rr) : ''),
+            tinggi: (soap_dokter as any)?.tinggi || (p?.tinggi ? String(p.tinggi) : ''),
+            berat: (soap_dokter as any)?.berat || (p?.berat ? String(p.berat) : ''),
+            spo2: (soap_dokter as any)?.spo2 || (p?.spo2 ? String(p.spo2) : ''),
+            lingkar_perut: (soap_dokter as any)?.lingkar_perut || (p?.lingkar_perut ? String(p.lingkar_perut) : ''),
+            nilai_bmi: (soap_dokter as any)?.nilai_bmi || (p?.nilai_bmi ? String(p.nilai_bmi) : ''),
+            status_bmi: (soap_dokter as any)?.status_bmi || (p?.status_bmi ? String(p.status_bmi) : ''),
             jenis_alergi: Array.isArray((soap_dokter as any)?.jenis_alergi)
                 ? ((soap_dokter as any).jenis_alergi as string[])
                 : Array.isArray(p?.jenis_alergi)
@@ -334,25 +334,27 @@ export default function PemeriksaanSoapDokter() {
                 : Array.isArray(p?.alergi)
                   ? (p?.alergi as string[])
                   : [],
-            eye: soap_dokter?.eye || (p?.eye !== undefined && p?.eye !== null ? String(p.eye) : ''),
-            verbal: soap_dokter?.verbal || (p?.verbal !== undefined && p?.verbal !== null ? String(p.verbal) : ''),
-            motorik: soap_dokter?.motorik || (p?.motorik !== undefined && p?.motorik !== null ? String(p.motorik) : ''),
-            kesadaran: soap_dokter?.kesadaran || p?.kesadaran || '',
-            htt: soap_dokter?.htt || '',
-            anamnesa: soap_dokter?.anamnesa || '',
-            assesmen: soap_dokter?.assesmen || '',
-            plan: soap_dokter?.plan || '',
-            odontogram: soap_dokter?.odontogram || '',
-            Decayed: soap_dokter?.Decayed || '',
-            Missing: soap_dokter?.Missing || '',
-            Filled: soap_dokter?.Filled || '',
-            Oclusi: soap_dokter?.Oclusi || '',
-            Palatinus: soap_dokter?.Palatinus || '',
-            Mandibularis: soap_dokter?.Mandibularis || '',
-            Platum: soap_dokter?.Platum || '',
-            Diastema: soap_dokter?.Diastema || '',
-            Anomali: soap_dokter?.Anomali || '',
-            tableData: (soap_dokter?.tableData && Array.isArray(soap_dokter.tableData) ? soap_dokter.tableData : p?.tableData || []) as any[],
+            eye: (soap_dokter as any)?.eye || (p?.eye !== undefined && p?.eye !== null ? String(p.eye) : ''),
+            verbal: (soap_dokter as any)?.verbal || (p?.verbal !== undefined && p?.verbal !== null ? String(p.verbal) : ''),
+            motorik: (soap_dokter as any)?.motorik || (p?.motorik !== undefined && p?.motorik !== null ? String(p.motorik) : ''),
+            kesadaran: (soap_dokter as any)?.kesadaran || p?.kesadaran || '',
+            htt: (soap_dokter as any)?.htt || '',
+            anamnesa: (soap_dokter as any)?.anamnesa || '',
+            assesmen: (soap_dokter as any)?.assesmen || '',
+            plan: (soap_dokter as any)?.plan || '',
+            odontogram: (soap_dokter as any)?.odontogram || '',
+            Decayed: (soap_dokter as any)?.Decayed || '',
+            Missing: (soap_dokter as any)?.Missing || '',
+            Filled: (soap_dokter as any)?.Filled || '',
+            Oclusi: (soap_dokter as any)?.Oclusi || '',
+            Palatinus: (soap_dokter as any)?.Palatinus || '',
+            Mandibularis: (soap_dokter as any)?.Mandibularis || '',
+            Platum: (soap_dokter as any)?.Platum || '',
+            Diastema: (soap_dokter as any)?.Diastema || '',
+            Anomali: (soap_dokter as any)?.Anomali || '',
+            tableData: ((soap_dokter as any)?.tableData && Array.isArray((soap_dokter as any).tableData)
+                ? (soap_dokter as any).tableData
+                : p?.tableData || []) as any[],
         };
     });
 
@@ -1347,7 +1349,7 @@ export default function PemeriksaanSoapDokter() {
 
         try {
             if (isEditMode && norawat) {
-                router.put(`/pelayanan/soap-dokter/${norawat}`, payload, {
+                router.put(`/pelayanan/soap-bidan/${norawat}`, payload, {
                     onSuccess: () => {
                         toast.success('Pemeriksaan berhasil diperbarui');
                     },
@@ -1356,7 +1358,7 @@ export default function PemeriksaanSoapDokter() {
                     },
                 });
             } else {
-                router.post('/pelayanan/soap-dokter', payload, {
+                router.post('/pelayanan/soap-bidan', payload, {
                     onSuccess: () => {
                         toast.success('Pemeriksaan berhasil disimpan');
                     },
@@ -1371,7 +1373,7 @@ export default function PemeriksaanSoapDokter() {
     };
 
     const handleBack = () => {
-        router.visit('/pelayanan/so-dokter');
+        router.visit('/pelayanan/soap-bidan');
     };
 
     // State to track selected tooth and its condition
@@ -1468,8 +1470,8 @@ export default function PemeriksaanSoapDokter() {
     };
 
     // Determine if this is edit mode
-    const isEditMode = soap_dokter && Object.keys(soap_dokter).length > 0;
-    const pageTitle = isEditMode ? 'Edit SOAP Dokter' : 'Pemeriksaan SOAP Dokter';
+    const isEditMode = soap_dokter && Object.keys(soap_dokter as any).length > 0;
+    const pageTitle = isEditMode ? 'Edit SOAP Bidan' : 'Pemeriksaan SOAP Bidan';
     const submitButtonText = isEditMode ? 'Update Pemeriksaan' : 'Simpan Pemeriksaan';
 
     useEffect(() => {
@@ -1552,7 +1554,7 @@ export default function PemeriksaanSoapDokter() {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="SOAP Dokter - Pemeriksaan" />
+            <Head title="SOAP Bidan - Pemeriksaan" />
 
             <div className="space-y-6 p-6">
                 <Card>

@@ -74,6 +74,11 @@ const mainNavItems: MenuItem[] = [
                 roles: ['Admin', 'Dokter'],
             },
             {
+                title: 'Bidan',
+                href: '/pelayanan/soap-bidan',
+                roles: ['Admin', 'Dokter', 'Perawat'],
+            },
+            {
                 title: 'Perawat',
                 href: '/pelayanan/so-perawat',
                 roles: ['Admin', 'Perawat'],
@@ -164,7 +169,6 @@ const mainNavItems: MenuItem[] = [
         children: [
             { title: 'Apotek', href: '/laporan/apotek', roles: ['Admin', 'Manajemen'] },
             { title: 'Kasir', href: '/laporan/kasir', roles: ['Admin', 'Manajemen'] },
-            { title: 'Kasir Detail', href: '/laporan/kasir-detail', roles: ['Admin', 'Manajemen'] },
             { title: 'Antrian', href: '/laporan/antrian', roles: ['Admin', 'Manajemen'] },
             { title: 'Pendaftaran', href: '/laporan/pendaftaran', roles: ['Admin', 'Manajemen'] },
             { title: 'Trend Pendaftaran', href: '/laporan/trend-pendaftaran', roles: ['Admin', 'Manajemen'] },
@@ -172,6 +176,7 @@ const mainNavItems: MenuItem[] = [
             { title: 'Dokter', href: '/laporan/dokter', roles: ['Admin', 'Manajemen'] },
             { title: 'Perawat', href: '/laporan/perawat', roles: ['Admin', 'Manajemen'] },
             { title: 'Stok Penyesuaian', href: '/laporan/stok-penyesuaian', roles: ['Admin', 'Manajemen'] },
+            { title: 'Pembelian', href: '/laporan/pembelian', roles: ['Admin', 'Manajemen'] },
         ],
     },
     {

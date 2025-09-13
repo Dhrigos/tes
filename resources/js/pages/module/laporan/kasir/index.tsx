@@ -52,7 +52,10 @@ const formatRupiah = (amount: number) => {
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/kasir/print';
+// removed print URL
+const EXPORT_URL = '/laporan/kasir/export';
+const DETAIL_API = '/laporan/kasir-detail/data';
+// removed print detail URL
 
 type PageProps = { title: string; header: KasirRow[] };
 
@@ -63,7 +66,11 @@ const LaporanApotek = () => {
     const [dateEnd, setDateEnd] = useState('');
     const [filterPoli, setFilterPoli] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
+    // removed print confirm state
+    const [showDetail, setShowDetail] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailRows, setDetailRows] = useState<any[]>([]);
+    const [selectedInvoice, setSelectedInvoice] = useState<string>('');
 
     useEffect(() => {
         setLoading(true);
@@ -107,12 +114,15 @@ const LaporanApotek = () => {
         setFilterPoli('');
     };
 
-    const submitPrint = () => {
+    // removed submitPrint
+
+    // removed handlePrint
+
+    const submitExport = () => {
         const csrf = getCsrf();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+        form.action = EXPORT_URL;
 
         const token = document.createElement('input');
         token.type = 'hidden';
@@ -138,24 +148,42 @@ const LaporanApotek = () => {
         poli.value = filterPoli;
         form.appendChild(poli);
 
-        // Tambahkan nomor urut sesuai tampilan
-        const printData = filteredData.map((item, idx) => ({ no: idx + 1, ...item }));
-
+        const exportData = filteredData.map((item, idx) => ({ no: idx + 1, ...item }));
         const dataField = document.createElement('input');
         dataField.type = 'hidden';
         dataField.name = 'data';
-        dataField.value = JSON.stringify(printData);
+        dataField.value = JSON.stringify(exportData);
         form.appendChild(dataField);
 
         document.body.appendChild(form);
         form.submit();
         document.body.removeChild(form);
     };
-
-    const handlePrint = () => {
+    const handleExport = () => {
         if (!filteredData.length) return;
-        setShowConfirm(true);
+        submitExport();
     };
+
+    const loadDetail = async (kode_faktur: string) => {
+        if (!kode_faktur) return;
+        setDetailLoading(true);
+        setSelectedInvoice(kode_faktur);
+        try {
+            const res = await fetch(DETAIL_API + '?kode_faktur=' + encodeURIComponent(kode_faktur), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const json = await res.json();
+            setDetailRows(Array.isArray(json?.data) ? json.data : []);
+            setShowDetail(true);
+        } catch (e) {
+            setDetailRows([]);
+            setShowDetail(true);
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
+    // removed submitPrintDetail
 
     // Tidak ada print detail untuk kasir
 
@@ -207,9 +235,10 @@ const LaporanApotek = () => {
                                 <Button variant="outline" onClick={handleFilter} disabled={loading}>
                                     Filter
                                 </Button>
-                                <Button onClick={handlePrint} disabled={loading || filteredData.length === 0}>
-                                    Save &amp; Print
+                                <Button variant="outline" onClick={handleExport} disabled={loading || filteredData.length === 0}>
+                                    Export Excel
                                 </Button>
+                                {/* print removed */}
                             </div>
                         </div>
 
@@ -230,6 +259,7 @@ const LaporanApotek = () => {
                                         <th className="p-2 text-center text-sm font-semibold">Total</th>
                                         <th className="p-2 text-center text-sm font-semibold">Pembayaran</th>
                                         <th className="p-2 text-center text-sm font-semibold">Tanggal</th>
+                                        <th className="p-2 text-center text-sm font-semibold">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -292,6 +322,11 @@ const LaporanApotek = () => {
                                                     })()}
                                                 </td>
                                                 <td className="p-2 text-center text-sm">{formatDatePart(row.tanggal) || '-'}</td>
+                                                <td className="p-2 text-center text-sm">
+                                                    <Button size="sm" onClick={() => loadDetail(row.kode_faktur || '')}>
+                                                        Detail
+                                                    </Button>
+                                                </td>
                                             </tr>
                                         ))
                                     )}
@@ -326,42 +361,54 @@ const LaporanApotek = () => {
             </div>
 
             {/* Tidak ada dialog detail untuk kasir */}
-
-            <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
-                <DialogContent className="max-w-md">
+            <Dialog open={showDetail} onOpenChange={(open) => setShowDetail(open)}>
+                <DialogContent className="sm:max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>Konfirmasi Cetak</DialogTitle>
+                        <DialogTitle>Detail Kasir {selectedInvoice || ''}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3 text-sm">
-                        <div>Apakah Anda yakin ingin mencetak data yang sudah difilter?</div>
-                        <div className="rounded-md border p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="text-muted-foreground">Tanggal Awal</div>
-                                <div className="font-medium">{dateStart || '-'}</div>
-                                <div className="text-muted-foreground">Tanggal Akhir</div>
-                                <div className="font-medium">{dateEnd || '-'}</div>
-                                <div className="text-muted-foreground">Poli</div>
-                                <div className="font-medium">{filterPoli || '-'}</div>
-                                <div className="text-muted-foreground">Jumlah Data</div>
-                                <div className="font-medium">{filteredData.length}</div>
+                        {detailLoading ? (
+                            <div className="p-6 text-center text-muted-foreground">Memuat detail...</div>
+                        ) : detailRows.length === 0 ? (
+                            <div className="p-6 text-center text-muted-foreground">Tidak ada detail</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr className="bg-muted">
+                                            <th className="p-2 text-center text-sm font-semibold">No</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Tindakan/Obat</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Harga</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Qty/Pelaksana</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Subtotal</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {detailRows.map((d, i) => (
+                                            <tr key={i} className="border-b">
+                                                <td className="p-2 text-center text-sm">{i + 1}</td>
+                                                <td className="p-2 text-center text-sm">{d.nama_obat_tindakan || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{d.harga_obat_tindakan ?? '-'}</td>
+                                                <td className="p-2 text-center text-sm">{d.pelaksana || d.qty || '-'}</td>
+                                                <td className="p-2 text-center text-sm">{d.subtotal ?? '-'}</td>
+                                                <td className="p-2 text-center text-sm">{d.total ?? '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        </div>
+                        )}
                         <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowConfirm(false)}>
-                                Batal
+                            <Button variant="outline" onClick={() => setShowDetail(false)}>
+                                Tutup
                             </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    submitPrint();
-                                }}
-                            >
-                                Cetak
-                            </Button>
+                            {/* print detail removed */}
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
+            {/* print dialog removed */}
         </AppLayout>
     );
 };

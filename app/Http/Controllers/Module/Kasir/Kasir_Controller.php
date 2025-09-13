@@ -15,11 +15,12 @@ use App\Models\Module\Pelayanan\Pelayanan;
 use App\Models\Module\Master\Data\Medis\Tindakan;
 use App\Models\Module\Master\Data\Medis\Kategori_Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
-use App\Models\Module\Setting\Web_Setting;
+use App\Models\Settings\Web_Setting;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class Kasir_Controller extends Controller
 {
@@ -291,5 +292,32 @@ class Kasir_Controller extends Controller
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function generatePdf($kode_faktur)
+    {
+        $kasir = Kasir::with('details')->where('kode_faktur', $kode_faktur)->firstOrFail();
+
+        // Normalisasi detail untuk kompatibilitas dengan blade (detail_lunas)
+        $detailLunas = $kasir->details->map(function ($detail) {
+            $nama = $detail->nama_obat_tindakan ?? $detail->nama_diskon ?? '-';
+            $harga = $detail->harga_obat_tindakan ?? $detail->harga_diskon ?? 0;
+            $qtyPelaksana = $detail->pelaksana ?? $detail->qty ?? 1;
+            $total = $detail->total ?? ($detail->subtotal ?? 0);
+
+            return (object) [
+                'nama_obat_tindakan' => $nama,
+                'harga_obat_tindakan' => $harga,
+                'qty_pelaksana' => $qtyPelaksana,
+                'total' => $total,
+            ];
+        });
+        $kasir->setRelation('detail_lunas', $detailLunas);
+
+        $namaKlinik = Web_Setting::value('nama');
+        $alamatKlinik = Web_Setting::value('alamat');
+
+        $pdf = Pdf::loadView('pdf.kasir_bill', compact('kasir', 'namaKlinik', 'alamatKlinik'))->setPaper('a5', 'landscape');
+        return $pdf->stream('kasir_' . $kode_faktur . '.pdf');
     }
 }

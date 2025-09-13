@@ -15,12 +15,13 @@ class Pelayanan_status extends Model
         'status_daftar',
         'status_perawat',
         'status_dokter',
+        'status_bidan',
         'waktu_panggil_dokter',
+        'waktu_panggil_bidan',
     ];
 
     protected $casts = [
         'waktu_panggil_dokter' => 'datetime',
+        'waktu_panggil_bidan' => 'datetime',
     ];
 }
-
-

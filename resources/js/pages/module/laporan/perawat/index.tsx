@@ -60,7 +60,8 @@ const splitDateTime = (value?: string) => {
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/perawat/print';
+// removed print URL
+const EXPORT_URL = '/laporan/perawat/export';
 
 type PageProps = { title: string; data: PendaftaranPerawatRaw[] };
 
@@ -78,7 +79,7 @@ const LaporanPerawat = () => {
     const [loading, setLoading] = useState(false);
     const [showDetail, setShowDetail] = useState(false);
     const [detailRow, setDetailRow] = useState<PendaftaranPerawatItem | null>(null);
-    const [showConfirm, setShowConfirm] = useState(false);
+    // removed print confirm state
 
     useEffect(() => {
         setLoading(true);
@@ -150,12 +151,12 @@ const LaporanPerawat = () => {
         setFilterPerawat('');
     };
 
-    const submitPrint = () => {
+    // removed submitPrint
+    const submitExport = () => {
         const csrf = getCsrf();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+        form.action = EXPORT_URL;
 
         const token = document.createElement('input');
         token.type = 'hidden';
@@ -183,11 +184,10 @@ const LaporanPerawat = () => {
 
         const perawat = document.createElement('input');
         perawat.type = 'hidden';
-        perawat.name = 'dokter';
+        perawat.name = 'perawat';
         perawat.value = filterPerawat;
         form.appendChild(perawat);
 
-        // Build payload using original backend structure to match Blade expectations
         const originalItems: any[] = Array.isArray(props?.data) ? (props.data as any[]) : [];
         const filteredOriginal = originalItems.filter((item: any) => {
             const raw = String(item?.tanggal_kujungan || item?.created_at || '');
@@ -210,10 +210,11 @@ const LaporanPerawat = () => {
         form.submit();
         document.body.removeChild(form);
     };
-    const handlePrint = () => {
+    const handleExport = () => {
         if (!filteredData.length) return;
-        setShowConfirm(true);
+        submitExport();
     };
+    // removed handlePrint
 
     const openDetail = (row: PendaftaranPerawatItem) => {
         setDetailRow(row);
@@ -283,9 +284,10 @@ const LaporanPerawat = () => {
                                 <Button variant="outline" onClick={handleFilter} disabled={loading}>
                                     Filter
                                 </Button>
-                                <Button onClick={handlePrint} disabled={loading || filteredData.length === 0}>
-                                    Save &amp; Print
+                                <Button variant="outline" onClick={handleExport} disabled={loading || filteredData.length === 0}>
+                                    Export Excel
                                 </Button>
+                                {/* print removed */}
                             </div>
                         </div>
 
@@ -473,74 +475,12 @@ const LaporanPerawat = () => {
                         </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                                if (!detailRow) return;
-                                const csrf = getCsrf();
-                                const form = document.createElement('form');
-                                form.method = 'POST';
-                                form.action = '/laporan/perawat/print-detail';
-                                form.target = '_blank';
-                                const token = document.createElement('input');
-                                token.type = 'hidden';
-                                token.name = '_token';
-                                token.value = csrf;
-                                form.appendChild(token);
-                                const itemField = document.createElement('input');
-                                itemField.type = 'hidden';
-                                itemField.name = 'item';
-                                itemField.value = JSON.stringify(detailRow);
-                                form.appendChild(itemField);
-                                document.body.appendChild(form);
-                                form.submit();
-                                document.body.removeChild(form);
-                            }}
-                        >
-                            Print Detail
-                        </Button>
+                        {/* print detail removed */}
                         <Button onClick={closeDetail}>Tutup</Button>
                     </div>
                 </DialogContent>
             </Dialog>
-            <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Konfirmasi Cetak</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-3 text-sm">
-                        <div>Apakah Anda yakin ingin mencetak data yang sudah difilter?</div>
-                        <div className="rounded-md border p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="text-muted-foreground">Tanggal Awal</div>
-                                <div className="font-medium">{dateStart || '-'}</div>
-                                <div className="text-muted-foreground">Tanggal Akhir</div>
-                                <div className="font-medium">{dateEnd || '-'}</div>
-                                <div className="text-muted-foreground">Poli</div>
-                                <div className="font-medium">{filterPoli || '-'}</div>
-                                <div className="text-muted-foreground">Perawat</div>
-                                <div className="font-medium">{filterPerawat || '-'}</div>
-                                <div className="text-muted-foreground">Jumlah Data</div>
-                                <div className="font-medium">{filteredData.length}</div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowConfirm(false)}>
-                                Batal
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    submitPrint();
-                                }}
-                            >
-                                Cetak
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* print dialog removed */}
         </AppLayout>
     );
 };

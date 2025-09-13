@@ -537,42 +537,76 @@ class Pendaftaran_Controller extends Controller
             // Rekap dokter (kompatibel dengan item array hasil map di atas)
             $rekapDokter = $pendaftaran
                 ->groupBy('dokter_id')
-                ->map(function ($group) {
-                    $jumlahMenunggu = $group->filter(function ($item) {
-                        $status = $item['status'] ?? null;
-                        return $status && in_array((int)($status['status_panggil'] ?? 0), [0, 1]) && (int)($status['status_pendaftaran'] ?? 0) === 2;
+                ->map(function ($group) use ($statusMap) {
+                    // Hitung dengan status_dokter: 0=menunggu, 3/4=dilayani (selesai)
+                    $jumlahMenunggu = $group->filter(function ($item) use ($statusMap) {
+                        $nr = $item['nomor_register'] ?? null;
+                        $ps = $nr ? optional($statusMap->get($nr)) : null;
+                        $sd = (int)optional($ps)->status_dokter ?? 0;
+                        $status = $item['status'] ?? null; // berisi status_pendaftaran (1/2)
+                        return $status && (int)($status['status_pendaftaran'] ?? 0) === 2 && $sd === 0;
                     })->count();
 
-                    $jumlahDilayani = $group->filter(function ($item) {
-                        $status = $item['status'] ?? null;
-                        return $status && (int)($status['status_panggil'] ?? 0) === 3;
+                    $jumlahDilayani = $group->filter(function ($item) use ($statusMap) {
+                        $nr = $item['nomor_register'] ?? null;
+                        $ps = $nr ? optional($statusMap->get($nr)) : null;
+                        $sd = (int)optional($ps)->status_dokter ?? 0;
+                        return in_array($sd, [3, 4], true);
                     })->count();
 
-                    $pasienAktif = $group->filter(function ($item) {
+                    // Pasien aktif berdasarkan logika antrian lama (status_panggil == 2)
+                    $pasienAktifQueue = $group->filter(function ($item) {
                         $status = $item['status'] ?? null;
                         return $status && (int)($status['status_panggil'] ?? 0) === 2;
                     })->sortBy('antrian')->first();
 
-                    $noAntrian = $pasienAktif ? ($pasienAktif['antrian'] ?? '-') : '-';
+                    // Fallback: jika tidak terdeteksi dari antrian lama, gunakan status_dokter 1/2
+                    $pasienAktifDokter = null;
+                    if (!$pasienAktifQueue) {
+                        $pasienAktifDokter = $group->filter(function ($item) use ($statusMap) {
+                            $nr = $item['nomor_register'] ?? null;
+                            $ps = $nr ? optional($statusMap->get($nr)) : null;
+                            $sd = (int)optional($ps)->status_dokter ?? 0;
+                            return in_array($sd, [1, 2], true);
+                        })->sortBy('antrian')->first();
+                    }
+
+                    $aktif = $pasienAktifQueue ?: $pasienAktifDokter;
+                    $noAntrian = $aktif ? ($aktif['antrian'] ?? '-') : '-';
                     $latest = $group->first();
 
                     $statusPeriksa = '-';
                     if ($latest && isset($latest['status'])) {
-                        $hasMenunggu = $group->contains(function ($item) {
+                        // Deteksi berdasarkan status lama (antrian)
+                        $hasMenungguQueue = $group->contains(function ($item) {
                             $status = $item['status'] ?? null;
                             return $status && in_array((int)($status['status_panggil'] ?? 0), [0, 1]) && (int)($status['status_pendaftaran'] ?? 0) === 2;
                         });
-                        $hasPeriksa = $group->contains(function ($item) {
-                            $status = $item['status'] ?? null;
-                            return $status && (int)($status['status_panggil'] ?? 0) === 2;
+
+                        // Sinkronkan dengan pelayanan_statuses.status_dokter
+                        $hasDokterMelayani = $group->contains(function ($item) use ($statusMap) {
+                            $nr = $item['nomor_register'] ?? null;
+                            $ps = $nr ? optional($statusMap->get($nr)) : null;
+                            $sd = (int)optional($ps)->status_dokter ?? 0;
+                            return in_array($sd, [1, 2], true); // 1/2 = sedang melayani
+                        });
+                        $hasDokterMenunggu = !$hasDokterMelayani && $group->contains(function ($item) use ($statusMap) {
+                            $nr = $item['nomor_register'] ?? null;
+                            $ps = $nr ? optional($statusMap->get($nr)) : null;
+                            $sd = (int)optional($ps)->status_dokter ?? 0;
+                            return $sd === 0; // 0 = menunggu
                         });
 
-                        if ($hasMenunggu) {
-                            $statusPeriksa = 1; // menunggu
-                        } elseif ($hasPeriksa) {
-                            $statusPeriksa = 2; // periksa
+                        // Prioritas penentuan:
+                        // 1) Jika ada status_dokter 1/2 -> periksa (2)
+                        // 2) Else jika ada yang menunggu (dari status_dokter=0 ATAU dari antrian lama) -> menunggu (1)
+                        // 3) Else -> kosong (3) [status_dokter 3/4]
+                        if ($hasDokterMelayani) {
+                            $statusPeriksa = 2;
+                        } elseif ($hasDokterMenunggu || $hasMenungguQueue) {
+                            $statusPeriksa = 1;
                         } else {
-                            $statusPeriksa = 3; // kosong
+                            $statusPeriksa = 3;
                         }
                     }
 

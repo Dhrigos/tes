@@ -16,6 +16,7 @@ class PelayananStatusService
             'status_daftar'  => (int)($ps->status_daftar ?? 0),
             'status_perawat' => (int)($ps->status_perawat ?? 0),
             'status_dokter'  => (int)($ps->status_dokter ?? 0),
+            'status_bidan'   => (int)($ps->status_bidan ?? 0),
         ];
     }
 
@@ -90,6 +91,47 @@ class PelayananStatusService
             'waktu_panggil_dokter' => now(),
         ]);
     }
+
+    // ===== BIDAN METHODS =====
+
+    public function setStatusBidan(string $nomorRegister, int $status): Pelayanan_status
+    {
+        return $this->perbaruiStatus($nomorRegister, ['status_bidan' => $status]);
+    }
+
+    public function tandaiBidanBerjalan(string $nomorRegister): Pelayanan_status
+    {
+        return $this->setStatusBidan($nomorRegister, 1);
+    }
+
+    public function tandaiBidanSelesai(string $nomorRegister): Pelayanan_status
+    {
+        return $this->setStatusBidan($nomorRegister, 2);
+    }
+
+    /**
+     * Mark bidan butuh konfirmasi (ada permintaan radiologi/lab) - status 3
+     */
+    public function tandaiBidanPelayananSelesai(string $nomorRegister): Pelayanan_status
+    {
+        return $this->setStatusBidan($nomorRegister, 3);
+    }
+
+    /**
+     * Mark bidan selesai penuh (tanpa permintaan lanjutan) - status 4
+     */
+    public function tandaiBidanSelesaiPenuh(string $nomorRegister): Pelayanan_status
+    {
+        return $this->setStatusBidan($nomorRegister, 4);
+    }
+
+    /**
+     * Set timestamp when patient is called to bidan.
+     */
+    public function setWaktuPanggilBidan(string $nomorRegister): Pelayanan_status
+    {
+        return $this->perbaruiStatus($nomorRegister, [
+            'waktu_panggil_bidan' => now(),
+        ]);
+    }
 }
-
-

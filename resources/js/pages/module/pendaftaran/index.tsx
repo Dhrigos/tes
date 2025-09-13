@@ -639,14 +639,14 @@ const PendaftaranDashboard = () => {
                 return (
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                         <Stethoscope className="mr-1 h-4 w-4" />
-                        Diperiksa
+                        Sedang melayani
                     </Badge>
                 );
             case 3:
                 return (
                     <Badge variant="secondary" className="bg-gray-100 text-gray-800">
                         <X className="mr-1 h-4 w-4" />
-                        Kosong
+                        Sedang kosong
                     </Badge>
                 );
             default:
@@ -717,7 +717,7 @@ const PendaftaranDashboard = () => {
                     </Button>
                     <Button onClick={() => setShowAddModal(true)}>
                         <Plus className="mr-2 h-4 w-4" />
-                        Tambah Pasien
+                        Tambah Pendaftaran Pasien
                     </Button>
                 </div>
 

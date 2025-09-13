@@ -1,11 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 // Trend Pendaftaran — tampilan mirip Pendaftaran
 
@@ -49,7 +48,8 @@ const formatYMD = (isoDate?: string) => {
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/pendaftaran/print';
+// removed print URL
+const EXPORT_URL = '/laporan/trend-pendaftaran/export';
 
 type PageProps = { title: string; data: LAP_PendaftaranItem[] };
 
@@ -60,7 +60,178 @@ const TrendPendaftaran = () => {
     const [dateEnd, setDateEnd] = useState('');
     // Hanya filter tanggal awal/akhir
     const [loading, setLoading] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
+    // removed print confirm state
+
+    // Multi-series LineChart (canvas)
+    const MultiLineChart = ({ labels, series }: { labels: string[]; series: Array<{ name: string; color: string; values: number[] }> }) => {
+        const canvasRef = useRef<HTMLCanvasElement | null>(null);
+        const containerRef = useRef<HTMLDivElement | null>(null);
+        const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+        useEffect(() => {
+            const canvas = canvasRef.current;
+            const container = containerRef.current;
+            if (!canvas || !container) return;
+            const dpi = window.devicePixelRatio || 1;
+            const width = container.clientWidth;
+            const height = 220;
+            canvas.width = Math.floor(width * dpi);
+            canvas.height = Math.floor(height * dpi);
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            ctx.setTransform(dpi, 0, 0, dpi, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+
+            const allValues = (series || []).flatMap((s) => (s.values || []).map((v) => Number(v || 0)));
+            const maxVal = Math.max(1, ...allValues, 1);
+            const padding = { top: 12, right: 12, bottom: 30, left: 32 };
+            const plotW = width - padding.left - padding.right;
+            const plotH = height - padding.top - padding.bottom;
+            const n = Math.max(1, labels?.length || 0);
+
+            // grid lines
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (plotH * i) / 4 + 0.5;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+            }
+
+            // y labels
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('0', padding.left - 6, height - padding.bottom);
+            ctx.fillText(String(Math.round(maxVal)), padding.left - 6, padding.top);
+
+            const xFor = (i: number) => padding.left + (plotW * i) / Math.max(1, n - 1);
+            const yFor = (v: number) => height - padding.bottom - (Math.min(maxVal, Math.max(0, v)) / maxVal) * plotH;
+
+            // draw per series
+            (series || []).forEach((s) => {
+                ctx.strokeStyle = s.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                (s.values || []).forEach((val, i) => {
+                    const x = xFor(i);
+                    const y = yFor(Number(val || 0));
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+                // points
+                ctx.fillStyle = s.color;
+                (s.values || []).forEach((val, i) => {
+                    const x = xFor(i);
+                    const y = yFor(Number(val || 0));
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            });
+
+            // x labels
+            ctx.fillStyle = '#6b7280';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            (labels || []).forEach((lab, i) => {
+                const x = xFor(i);
+                ctx.fillText(String(lab || ''), x, height - padding.bottom + 6);
+            });
+
+            // hover guide
+            if (hoverIdx != null) {
+                const i = hoverIdx;
+                const x = xFor(i);
+                ctx.strokeStyle = '#9ca3af';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(x + 0.5, padding.top);
+                ctx.lineTo(x + 0.5, height - padding.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }, [labels, series, hoverIdx]);
+
+        useEffect(() => {
+            const canvas = canvasRef.current;
+            const container = containerRef.current;
+            if (!canvas || !container) return;
+            const handler = (ev: MouseEvent) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = ev.clientX - rect.left;
+                const width = rect.width;
+                const paddingLeft = 32;
+                const paddingRight = 12;
+                const plotW = width - paddingLeft - paddingRight;
+                const n = Math.max(1, labels?.length || 0);
+                const xFor = (i: number) => paddingLeft + (plotW * i) / Math.max(1, n - 1);
+                let nearest = 0;
+                let best = Number.POSITIVE_INFINITY;
+                for (let i = 0; i < n; i++) {
+                    const xi = xFor(i);
+                    const dist = Math.abs(x - xi);
+                    if (dist < best) {
+                        best = dist;
+                        nearest = i;
+                    }
+                }
+                setHoverIdx(nearest);
+                const label = labels[nearest] ?? '';
+                const lines = (series || []).map((s) => `${s.name}: ${Number(s.values?.[nearest] || 0).toLocaleString('id-ID')}`);
+                container.title = [label, ...lines].join('\n');
+            };
+            const leave = () => setHoverIdx(null);
+            canvas.addEventListener('mousemove', handler);
+            canvas.addEventListener('mouseleave', leave);
+            return () => {
+                canvas.removeEventListener('mousemove', handler);
+                canvas.removeEventListener('mouseleave', leave);
+            };
+        }, [labels, series]);
+
+        const tooltip = (() => {
+            if (hoverIdx == null || !containerRef.current) return null;
+            const i = hoverIdx;
+            return (
+                <div className="pointer-events-none absolute inset-x-0 -mt-6 text-center text-xs">
+                    <div className="mx-auto inline-block rounded bg-black/70 px-2 py-1 text-left text-white">
+                        <div className="font-medium">{labels[i] || ''}</div>
+                        {(series || []).map((s, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <span className="inline-block size-2 rounded" style={{ background: s.color }} />
+                                <span>
+                                    {s.name}: {Number(s.values?.[i] || 0).toLocaleString('id-ID')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        })();
+
+        return (
+            <div ref={containerRef} className="relative w-full">
+                {tooltip}
+                <canvas ref={canvasRef} />
+                {/* Legend */}
+                <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                    {(series || []).map((s, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                            <span className="inline-block size-2 rounded" style={{ background: s.color }} />
+                            <span className="text-muted-foreground">{s.name}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
 
     useEffect(() => {
         setLoading(true);
@@ -93,12 +264,12 @@ const TrendPendaftaran = () => {
         setDateEnd('');
     };
 
-    const submitPrint = () => {
+    // removed submitPrint
+    const submitExport = () => {
         const csrf = getCsrf();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+        form.action = EXPORT_URL;
 
         const token = document.createElement('input');
         token.type = 'hidden';
@@ -121,10 +292,8 @@ const TrendPendaftaran = () => {
         const dataField = document.createElement('input');
         dataField.type = 'hidden';
         dataField.name = 'data';
-        dataField.value = JSON.stringify(filteredData);
+        dataField.value = JSON.stringify(dailyRows);
         form.appendChild(dataField);
-
-        // Tidak ada filter poli/dokter
 
         document.body.appendChild(form);
         form.submit();
@@ -184,6 +353,18 @@ const TrendPendaftaran = () => {
         return rows;
     }, [filteredData]);
 
+    const chartLabels = useMemo(() => dailyRows.map((d) => d.tanggal), [dailyRows]);
+    const chartSeries = useMemo(() => {
+        return [
+            { name: 'BPJS', color: '#3b82f6', values: dailyRows.map((d) => d.bpjs) },
+            { name: 'Umum', color: '#10b981', values: dailyRows.map((d) => d.umum) },
+            { name: 'Asuransi Lain', color: '#f59e0b', values: dailyRows.map((d) => d.asuransiLain) },
+            { name: 'Total Kunjungan', color: '#ef4444', values: dailyRows.map((d) => d.totalKunjungan) },
+            { name: 'Jumlah Pasien', color: '#8b5cf6', values: dailyRows.map((d) => d.jumlahPasien) },
+            { name: 'Pasien berkunjung lebih dari 1 kali', color: '#06b6d4', values: dailyRows.map((d) => d.pasienSatuKali) },
+        ];
+    }, [dailyRows]);
+
     // Pagination untuk tabel ringkasan harian
     const [page, setPage] = useState(1);
     const pageSize = 10;
@@ -207,6 +388,16 @@ const TrendPendaftaran = () => {
             <div className="px-4 py-6 sm:px-6 lg:px-8">
                 <Card>
                     <CardHeader>
+                        <CardTitle>Grafik Tren Pendaftaran</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="mt-2">
+                            <MultiLineChart labels={chartLabels} series={chartSeries} />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
                         <CardTitle>Trend Pendaftaran</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -226,9 +417,10 @@ const TrendPendaftaran = () => {
                                 <Button variant="outline" disabled={loading}>
                                     Filter
                                 </Button>
-                                <Button onClick={() => setShowConfirm(true)} disabled={loading || filteredData.length === 0}>
-                                    Save &amp; Print
+                                <Button variant="outline" onClick={submitExport} disabled={loading || filteredData.length === 0}>
+                                    Export Excel
                                 </Button>
+                                {/* print removed */}
                             </div>
                         </div>
 
@@ -242,7 +434,7 @@ const TrendPendaftaran = () => {
                                         <th className="border p-2 text-center text-sm font-semibold">Asuransi Lain</th>
                                         <th className="border p-2 text-center text-sm font-semibold">Total Kunjungan</th>
                                         <th className="border p-2 text-center text-sm font-semibold">Jumlah Pasien</th>
-                                        <th className="border p-2 text-center text-sm font-semibold">Jumlah Pasien 1 Kali</th>
+                                        <th className="border p-2 text-center text-sm font-semibold">Pasien berkunjung lebih dari 1 kali</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -300,40 +492,7 @@ const TrendPendaftaran = () => {
                 </Card>
             </div>
 
-            <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Konfirmasi Cetak</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-3 text-sm">
-                        <div>Apakah Anda yakin ingin mencetak data yang sudah difilter?</div>
-                        <div className="rounded-md border p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="text-muted-foreground">Tanggal Awal</div>
-                                <div className="font-medium">{dateStart || '-'}</div>
-                                <div className="text-muted-foreground">Tanggal Akhir</div>
-                                <div className="font-medium">{dateEnd || '-'}</div>
-                                {/* Filter Poli/Dokter dihapus */}
-                                <div className="text-muted-foreground">Jumlah Data</div>
-                                <div className="font-medium">{filteredData.length}</div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowConfirm(false)}>
-                                Batal
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    submitPrint();
-                                }}
-                            >
-                                Cetak
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* print dialog removed */}
         </AppLayout>
     );
 };

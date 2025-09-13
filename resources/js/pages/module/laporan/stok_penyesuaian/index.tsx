@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -54,7 +53,8 @@ const splitDateTime = (value?: string) => {
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/stok-penyesuaian/print';
+// removed print URL
+const EXPORT_URL = '/laporan/stok-penyesuaian/export';
 
 type PageProps = { title: string; data: StokPenyesuaianItemRaw[] };
 
@@ -67,7 +67,7 @@ const LaporanStokPenyesuaian = () => {
     const [filterJenis, setFilterJenis] = useState('');
     const [loading, setLoading] = useState(false);
     const [filterTipe, setFilterTipe] = useState('');
-    const [showConfirm, setShowConfirm] = useState(false);
+    // removed print confirm state
 
     useEffect(() => {
         setLoading(true);
@@ -158,12 +158,12 @@ const LaporanStokPenyesuaian = () => {
         setFilterTipe('');
     };
 
-    const submitPrint = () => {
+    // removed submitPrint
+    const submitExport = () => {
         const csrf = getCsrf();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+        form.action = EXPORT_URL;
 
         const token = document.createElement('input');
         token.type = 'hidden';
@@ -195,7 +195,6 @@ const LaporanStokPenyesuaian = () => {
         jenis.value = filterJenis;
         form.appendChild(jenis);
 
-        // Build payload using original backend structure to match Blade expectations
         const originalItems: any[] = Array.isArray(props?.data) ? (props.data as any[]) : [];
         const filteredOriginal = originalItems.filter((item: any) => {
             const source = item?.tanggal || item?.created_at || '';
@@ -212,7 +211,6 @@ const LaporanStokPenyesuaian = () => {
             return true;
         });
 
-        // Ensure each item includes tanggal and jam for PDF template
         const payload = filteredOriginal.map((item: any) => {
             const source = item?.tanggal || item?.created_at || '';
             const s = String(source || '');
@@ -249,10 +247,11 @@ const LaporanStokPenyesuaian = () => {
         form.submit();
         document.body.removeChild(form);
     };
-    const handlePrint = () => {
+    const handleExport = () => {
         if (!filteredData.length) return;
-        setShowConfirm(true);
+        submitExport();
     };
+    // removed handlePrint
 
     const breadcrumbsLap: BreadcrumbItem[] = [
         { title: 'Laporan', href: '' },
@@ -328,9 +327,10 @@ const LaporanStokPenyesuaian = () => {
                                 <Button variant="outline" onClick={handleFilter} disabled={loading}>
                                     Filter
                                 </Button>
-                                <Button onClick={handlePrint} disabled={loading || filteredData.length === 0}>
-                                    Save &amp; Print
+                                <Button variant="outline" onClick={handleExport} disabled={loading || filteredData.length === 0}>
+                                    Export Excel
                                 </Button>
+                                {/* print removed */}
                             </div>
                         </div>
 
@@ -414,43 +414,7 @@ const LaporanStokPenyesuaian = () => {
                     </CardContent>
                 </Card>
             </div>
-            <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Konfirmasi Cetak</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-3 text-sm">
-                        <div>Apakah Anda yakin ingin mencetak data yang sudah difilter?</div>
-                        <div className="rounded-md border p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="text-muted-foreground">Tanggal Awal</div>
-                                <div className="font-medium">{dateStart || '-'}</div>
-                                <div className="text-muted-foreground">Tanggal Akhir</div>
-                                <div className="font-medium">{dateEnd || '-'}</div>
-                                <div className="text-muted-foreground">Obat</div>
-                                <div className="font-medium">{filterObat || '-'}</div>
-                                <div className="text-muted-foreground">Jenis</div>
-                                <div className="font-medium">{filterJenis || '-'}</div>
-                                <div className="text-muted-foreground">Jumlah Data</div>
-                                <div className="font-medium">{filteredData.length}</div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowConfirm(false)}>
-                                Batal
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    submitPrint();
-                                }}
-                            >
-                                Cetak
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* print dialog removed */}
         </AppLayout>
     );
 };

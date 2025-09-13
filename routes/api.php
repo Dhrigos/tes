@@ -22,6 +22,7 @@ use App\Http\Controllers\Module\Gudang\Stok_Obat_Klinik_Controller;
 use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
+use App\Http\Controllers\Module\Kasir\Kasir_Controller;
 use Illuminate\Http\Request;
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
@@ -77,6 +78,11 @@ Route::prefix('pelayanan')->group(function () {
     Route::get('/hadir-dokter/{norawat}', [PelayananController::class, 'hadirDokter']);
     Route::post('/selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'selesaiPasien']);
     Route::post('/setengah-selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'setengahSelesaiPasien']);
+
+    // Hadir bidan dan selesai bidan
+    Route::get('/hadir-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'hadirBidan']);
+    Route::post('/selesai-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'selesaiPasien']);
+    Route::post('/setengah-selesai-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'setengahSelesaiPasien']);
     // Batalkan pelayanan dan hapus data terkait
     Route::delete('/batal/{norawat}', [PelayananController::class, 'batalPelayanan']);
 });
@@ -85,6 +91,11 @@ Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generat
 Route::post('/pembelian/generate-inventaris', [Pembelian_Controller::class, 'generatePembelianInventaris']);
 
 Route::get('/barang/list', [Daftar_Barang_Controller::class, 'list']);
+
+// Kasir API Routes
+Route::prefix('kasir')->group(function () {
+    Route::get('/pdf/{kode_faktur}', [Kasir_Controller::class, 'generatePdf']);
+});
 
 // Daftar Barang Sync Routes
 Route::prefix('daftar-barang-sync')->group(function () {

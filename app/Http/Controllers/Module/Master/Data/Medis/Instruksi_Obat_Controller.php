@@ -27,11 +27,13 @@ class Instruksi_Obat_Controller extends Controller
         return redirect()->back()->with('success', 'Instruksi obat berhasil ditambahkan');
     }
 
-    public function update(Request $request, Instruksi_Obat $instruksi_obat)
+    public function update(Request $request, $id)
     {
         $request->validate([
             'nama' => 'required|string|max:255',
         ]);
+
+        $instruksi_obat = Instruksi_Obat::findOrFail($id);
 
         $instruksi_obat->update([
             'nama' => $request->nama,
@@ -39,9 +41,10 @@ class Instruksi_Obat_Controller extends Controller
         return redirect()->back()->with('success', 'Instruksi obat berhasil diubah');
     }
 
-    public function destroy(Instruksi_Obat $instruksi_obat)
+    public function destroy($id)
     {
+        $instruksi_obat = Instruksi_Obat::findOrFail($id);
         $instruksi_obat->delete();
         return redirect()->back()->with('success', 'Instruksi obat berhasil dihapus');
-    }   
+    }
 }

@@ -81,7 +81,6 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
         const pj = row?.penjamin || '';
         setPenjaminValue(pj);
         setResep('RESEP');
-        // auto-generate faktur untuk resep
         generateFaktur();
 
         try {
@@ -100,7 +99,6 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
 
             setResepData(cleaned);
 
-            // Clear form resep items - user needs to manually move from Informasi Resep
             setItems([]);
         } catch {
             setResepData([]);
@@ -213,7 +211,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
 
     const handleResepItemSelect = (index: number, checked: boolean) => {
         if (checked) {
-            setSelectedResepItems((prev) => [...prev, index]);
+            setSelectedResepItems((prev) => Array.from(new Set([...prev, index])));
         } else {
             setSelectedResepItems((prev) => prev.filter((i) => i !== index));
         }
@@ -222,55 +220,86 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
     const handlePindahkanResep = async () => {
         if (selectedResepItems.length === 0) return;
 
-        const selectedResep = selectedResepItems.map((index) => resepData[index]);
-        const newItems: Array<{ nama: string; kode: string; harga: number; qty: number; total: number }> = [];
+        const selectedResep = selectedResepItems
+            .slice()
+            .sort((a, b) => a - b)
+            .map((index) => resepData[index])
+            .filter((r) => !!r);
+
+        const sequentialItems: Array<{
+            nama: string;
+            kode: string;
+            harga: number;
+            qty: number;
+            total: number;
+        }> = [];
 
         for (const resep of selectedResep) {
             try {
+                const normalizedPenjamin = String(penjaminValue || '')
+                    .trim()
+                    .toUpperCase();
                 const res = await fetch('/api/apotek/kodeObat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                    body: JSON.stringify({ nama: resep.nama_obat, penjamin: penjaminValue }),
+                    body: JSON.stringify({ nama: resep.nama_obat, penjamin: normalizedPenjamin }),
                 });
                 const data = await res.json();
-                const kode = data?.kode || '';
-                const harga = Number(data?.harga || 0);
-                if (kode && harga > 0) {
-                    const qty = (resep as any)?.jumlah != null ? Number((resep as any).jumlah) : 1;
-                    const totalItem = qty * harga;
-                    newItems.push({
-                        nama: resep.nama_obat,
-                        kode,
-                        harga,
-                        qty,
-                        total: totalItem,
+                let kode = data?.kode || '';
+                let harga = Number(data?.harga ?? 0);
+                if (!kode) {
+                    const namaLower = String(resep.nama_obat || '')
+                        .trim()
+                        .toLowerCase();
+                    const found = (stok || []).find((s: AnyRecord) => {
+                        const nm = String(s?.nama_obat_alkes || s?.nama_barang || '')
+                            .trim()
+                            .toLowerCase();
+                        return nm === namaLower;
                     });
+                    if (found) {
+                        kode = String(found?.kode_obat_alkes || found?.kode_barang || '');
+                    } else {
+                        console.warn('[Apotek] skip add: missing kode and no stok match for', { nama_obat: resep.nama_obat, data });
+                        continue;
+                    }
                 }
-            } catch {}
+                if (!(harga > 0)) {
+                    try {
+                        const hargaRes = await fetch('/api/apotek/hargaBebas', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                            body: JSON.stringify({ kode, penjamin: normalizedPenjamin }),
+                        });
+                        const hargaJson = await hargaRes.json();
+                        if (hargaJson?.harga != null) {
+                            harga = Number(hargaJson.harga);
+                        }
+                    } catch (err) {
+                        console.warn('[Apotek] hargaBebas fetch failed', err);
+                    }
+                }
+                const qty = (resep as any)?.jumlah != null ? Number((resep as any).jumlah) : 1;
+                const totalItem = qty * harga;
+                sequentialItems.push({
+                    nama: resep.nama_obat,
+                    kode,
+                    harga,
+                    qty,
+                    total: totalItem,
+                });
+            } catch (err) {
+                console.warn('[Apotek] kodeObat fetch failed', err);
+            }
+        }
+
+        if (!sequentialItems.length) {
+            return;
         }
 
         setItems((prev) => {
-            const updatedItems = [...prev];
-
-            for (const newItem of newItems) {
-                const existingItemIndex = updatedItems.findIndex((item) => item.kode === newItem.kode);
-                if (existingItemIndex !== -1) {
-                    // If item exists, add quantities and recalculate total
-                    const existingItem = updatedItems[existingItemIndex];
-                    const newQty = existingItem.qty + newItem.qty;
-                    const newTotal = newQty * newItem.harga;
-                    updatedItems[existingItemIndex] = {
-                        ...existingItem,
-                        qty: newQty,
-                        total: newTotal,
-                    };
-                } else {
-                    // If item doesn't exist, add new item
-                    updatedItems.push(newItem);
-                }
-            }
-
-            return updatedItems;
+            const next = [...prev, ...sequentialItems];
+            return next;
         });
 
         setSelectedResepItems([]);
@@ -499,7 +528,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                                                             <TableRow
                                                                 key={idx}
                                                                 onClick={() => setSelectedRowIndex(idx)}
-                                                                className={selectedRowIndex === idx ? '' : ''}
+                                                                className={selectedRowIndex === idx ? 'bg-blue-200' : ''}
                                                             >
                                                                 <TableCell>{idx + 1}</TableCell>
                                                                 <TableCell>{it.nama}</TableCell>
@@ -653,7 +682,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                                                 onClick={handlePindahkanResep}
                                                 disabled={selectedResepItems.length === 0}
                                             >
-                                                Pindahkan ke Form ({selectedResepItems.length})
+                                                Pindahkan Resep ({selectedResepItems.length})
                                             </Button>
                                         </div>
 

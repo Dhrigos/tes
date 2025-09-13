@@ -18,10 +18,14 @@ class Pelayanan_Soap_Dokter_Obat extends Model
         'tanggal_lahir',
         'penanda',
         'nama_obat',
+        'jumlah_diberikan',
         'instruksi',
         'signa',
         'satuan_gudang',
+        'satuan_signa',
         'penggunaan',
+        'dtd',
+        'dtd_mode',
     ];
 
     public function pelayanan()

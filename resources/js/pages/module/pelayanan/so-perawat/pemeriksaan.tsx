@@ -10,16 +10,19 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle, ChevronsUpDown, XCircle } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -46,11 +49,7 @@ interface PasienData {
     };
 }
 
-interface HttSubpemeriksaan {
-    id: string;
-    nama: string;
-    id_htt_pemeriksaan: string;
-}
+// HTT dihilangkan pada SO Perawat
 
 interface PemeriksaanPageProps {
     pelayanan: PasienData;
@@ -68,8 +67,8 @@ interface PemeriksaanPageProps {
         lingkar_perut: string;
         nilai_bmi: string;
         status_bmi: string;
-        jenis_alergi: string;
-        alergi: string;
+        jenis_alergi: string | string[];
+        alergi: string | string[];
         eye: string;
         verbal: string;
         motorik: string;
@@ -81,7 +80,6 @@ interface PemeriksaanPageProps {
     gcs_verbal: { skor: string; nama: string }[];
     gcs_motorik: { skor: string; nama: string }[];
     gcs_kesadaran: { skor: string; nama: string }[];
-    htt_pemeriksaan: { id: string; nama_pemeriksaan: string; htt_subpemeriksaans?: HttSubpemeriksaan[] }[];
     alergi_data: { id: number; kode: string; jenis_alergi: string; nama: string }[];
     norawat?: string;
     mode?: string;
@@ -201,7 +199,7 @@ export default function PemeriksaanPerawat() {
         gcs_verbal = [],
         gcs_motorik = [],
         gcs_kesadaran = [],
-        htt_pemeriksaan = [],
+        // htt_pemeriksaan dihilangkan
         alergi_data = [],
         norawat,
         mode: backendMode,
@@ -256,8 +254,26 @@ export default function PemeriksaanPerawat() {
     const [tinggi, setTinggi] = useState(so_perawat.tinggi || '');
     const [berat, setBerat] = useState(so_perawat.berat || '');
     const [spo2, setSpo2] = useState(so_perawat.spo2 || '');
-    const [jenisAlergi, setJenisAlergi] = useState(so_perawat.jenis_alergi || '');
-    const [alergi, setAlergi] = useState(so_perawat.alergi || '');
+    const [jenisAlergi, setJenisAlergi] = useState<string[]>(() => {
+        const v = so_perawat.jenis_alergi as any;
+        if (Array.isArray(v)) return v as string[];
+        if (typeof v === 'string' && v.trim() !== '')
+            return v
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+        return [] as string[];
+    });
+    const [alergi, setAlergi] = useState<string[]>(() => {
+        const v = so_perawat.alergi as any;
+        if (Array.isArray(v)) return v as string[];
+        if (typeof v === 'string' && v.trim() !== '')
+            return v
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+        return [] as string[];
+    });
     const [lingkarPerut, setLingkarPerut] = useState(so_perawat.lingkar_perut || '');
     const [nilaiBmi, setNilaiBmi] = useState(so_perawat.nilai_bmi || '');
     const [statusBmi, setStatusBmi] = useState(so_perawat.status_bmi || '');
@@ -282,7 +298,7 @@ export default function PemeriksaanPerawat() {
     useEffect(() => {
         const td = parseTableData((so_perawat as any)?.tableData);
         setKeluhanList(td?.keluhanList || []);
-        setHttItems(td?.httItems || []);
+        // HTT dihilangkan
 
         setSistol(so_perawat.sistol || '');
         setDistol(so_perawat.distol || '');
@@ -293,8 +309,28 @@ export default function PemeriksaanPerawat() {
         setTinggi(so_perawat.tinggi || '');
         setBerat(so_perawat.berat || '');
         setSpo2(so_perawat.spo2 || '');
-        setJenisAlergi(so_perawat.jenis_alergi || '');
-        setAlergi(so_perawat.alergi || '');
+        const ja = (so_perawat as any).jenis_alergi;
+        const al = (so_perawat as any).alergi;
+        setJenisAlergi(
+            Array.isArray(ja)
+                ? ja
+                : typeof ja === 'string' && ja
+                  ? ja
+                        .split(',')
+                        .map((s: string) => s.trim())
+                        .filter(Boolean)
+                  : [],
+        );
+        setAlergi(
+            Array.isArray(al)
+                ? al
+                : typeof al === 'string' && al
+                  ? al
+                        .split(',')
+                        .map((s: string) => s.trim())
+                        .filter(Boolean)
+                  : [],
+        );
         setLingkarPerut(so_perawat.lingkar_perut || '');
         setNilaiBmi(so_perawat.nilai_bmi || '');
         setStatusBmi(so_perawat.status_bmi || '');
@@ -332,13 +368,9 @@ export default function PemeriksaanPerawat() {
         return Array.from(set);
     }, [alergi_data]);
 
-    // Form state for Head To Toe
-    const [selectedHtt, setSelectedHtt] = useState('');
-    const [selectedSubPemeriksaan, setSelectedSubPemeriksaan] = useState('');
-    const [httOptions, setHttOptions] = useState<typeof htt_pemeriksaan>(htt_pemeriksaan || []);
-    const [subOptions, setSubOptions] = useState<HttSubpemeriksaan[]>([]);
-    const [httDetailText, setHttDetailText] = useState('');
-    const [httItems, setHttItems] = useState<Array<{ pemeriksaan: string; subPemeriksaan: string; detail: string }>>(tableData?.httItems || []);
+    // HTT dihilangkan
+    // HTT dihilangkan
+    // HTT dihilangkan: opsi, subopsi, detail, dan daftar item
 
     // Tab navigation state
     const [activeTab, setActiveTab] = useState('subyektif');
@@ -985,46 +1017,7 @@ export default function PemeriksaanPerawat() {
         }
     };
 
-    // Fetch HTT options from API (source of truth controller master)
-    useEffect(() => {
-        const loadHtt = async () => {
-            try {
-                const res = await fetch('/api/master/htt/pemeriksaan', { headers: { Accept: 'application/json' } });
-                if (res.ok) {
-                    const data = await res.json();
-                    setHttOptions(Array.isArray(data) ? data : []);
-                } else {
-                    setHttOptions(htt_pemeriksaan || []);
-                }
-            } catch {
-                setHttOptions(htt_pemeriksaan || []);
-            }
-        };
-        loadHtt();
-    }, []);
-
-    useEffect(() => {
-        const loadSub = async () => {
-            if (!selectedHtt) {
-                setSubOptions([]);
-                return;
-            }
-            try {
-                const res = await fetch(`/api/master/htt/subpemeriksaan/${selectedHtt}`, { headers: { Accept: 'application/json' } });
-                if (res.ok) {
-                    const data = await res.json();
-                    setSubOptions(Array.isArray(data) ? data : []);
-                } else {
-                    const local = httOptions.find((p) => String(p.id) === selectedHtt)?.htt_subpemeriksaans || [];
-                    setSubOptions(local as HttSubpemeriksaan[]);
-                }
-            } catch {
-                const local = httOptions.find((p) => String(p.id) === selectedHtt)?.htt_subpemeriksaans || [];
-                setSubOptions(local as HttSubpemeriksaan[]);
-            }
-        };
-        loadSub();
-    }, [selectedHtt, httOptions]);
+    // HTT dihilangkan: efek pemuatan data HTT dihapus
 
     // Calculate BMI when tinggi or berat changes
     useEffect(() => {
@@ -1169,8 +1162,8 @@ export default function PemeriksaanPerawat() {
                 lingkar_perut: lingkarPerut,
                 nilai_bmi: nilaiBmi,
                 status_bmi: statusBmi,
-                jenis_alergi: jenisAlergi,
-                alergi,
+                jenis_alergi: Array.isArray(jenisAlergi) ? jenisAlergi.join(',') : String(jenisAlergi || ''),
+                alergi: Array.isArray(alergi) ? alergi.join(',') : String(alergi || ''),
                 eye: gcsEye,
                 verbal: gcsVerbal,
                 motorik: gcsMotorik,
@@ -1178,7 +1171,6 @@ export default function PemeriksaanPerawat() {
                 summernote: catatan,
                 tableData: JSON.stringify({
                     keluhanList,
-                    httItems,
                 }),
                 files: undefined,
             };
@@ -1318,10 +1310,9 @@ export default function PemeriksaanPerawat() {
                     <Card>
                         <CardContent className="p-6">
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                <TabsList className="grid w-full grid-cols-3">
+                                <TabsList className="grid w-full grid-cols-2">
                                     <TabsTrigger value="subyektif">1. Subyektif</TabsTrigger>
-                                    <TabsTrigger value="obyektif">2. Obyektif</TabsTrigger>
-                                    <TabsTrigger value="htt">3. Head To Toe</TabsTrigger>
+                                    <TabsTrigger value="obyektif">2. Tanda Tanda Vital</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="subyektif" className="mt-4">
@@ -1362,11 +1353,11 @@ export default function PemeriksaanPerawat() {
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    <SelectItem value="Menit">Menit</SelectItem>
                                                                     <SelectItem value="Jam">Jam</SelectItem>
                                                                     <SelectItem value="Hari">Hari</SelectItem>
                                                                     <SelectItem value="Minggu">Minggu</SelectItem>
                                                                     <SelectItem value="Bulan">Bulan</SelectItem>
+                                                                    <SelectItem value="Tahun">Tahun</SelectItem>
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
@@ -1578,78 +1569,140 @@ export default function PemeriksaanPerawat() {
                                                     <div className="col-span-2">
                                                         <Label className="text-sm font-semibold">Alergi dan jenis</Label>
                                                         <div className="mt-1 grid grid-cols-2 gap-2">
-                                                            <Select
-                                                                value={jenisAlergi}
-                                                                onValueChange={(value) => {
-                                                                    setJenisAlergi(value);
-                                                                    if (value === '00') {
-                                                                        setAlergi('00'); // Auto-set alergi to "00" when jenis is "Tidak ada"
-                                                                    } else {
-                                                                        setAlergi(''); // Reset alergi when jenis changes
-                                                                    }
-                                                                }}
-                                                                disabled={!alergi_data || alergi_data.length === 0}
-                                                            >
-                                                                <SelectTrigger className="text-sm">
-                                                                    <SelectValue
-                                                                        placeholder={
-                                                                            !alergi_data || alergi_data.length === 0
-                                                                                ? 'Tidak ada data'
-                                                                                : '-- Pilih --'
-                                                                        }
-                                                                    />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem key="00" value="00">
-                                                                        Tidak ada
-                                                                    </SelectItem>
-                                                                    {jenisAlergiOptions.map((jenis) => (
-                                                                        <SelectItem key={jenis} value={jenis}>
-                                                                            {jenis}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                            <Select value={alergi} onValueChange={setAlergi} disabled={!jenisAlergi}>
-                                                                <SelectTrigger className="text-sm">
-                                                                    <SelectValue placeholder={!jenisAlergi ? 'Pilih jenis dulu' : '-- Pilih --'} />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {jenisAlergi === '00' ? (
-                                                                        <SelectItem key="00" value="00">
-                                                                            Tidak ada
-                                                                        </SelectItem>
-                                                                    ) : jenisAlergi && alergi_data && alergi_data.length > 0 ? (
-                                                                        <>
-                                                                            <SelectItem key="00" value="00">
-                                                                                Tidak ada
-                                                                            </SelectItem>
-                                                                            {alergi_data
-                                                                                .filter((item) => item.jenis_alergi?.trim() === jenisAlergi?.trim())
-                                                                                .map((item) => (
-                                                                                    <SelectItem key={item.id} value={item.nama}>
-                                                                                        {item.nama}
-                                                                                    </SelectItem>
+                                                            {/* Jenis Alergi (multi-select) */}
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <Button variant="outline" className="w-full justify-between text-sm">
+                                                                        {jenisAlergi.length > 0 ? jenisAlergi.join(', ') : 'Pilih jenis alergi'}
+                                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                    </Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-[300px] p-0">
+                                                                    <Command>
+                                                                        <CommandList>
+                                                                            <CommandEmpty>Tidak ada data</CommandEmpty>
+                                                                            <CommandGroup>
+                                                                                <CommandItem
+                                                                                    value="00"
+                                                                                    onSelect={() => {
+                                                                                        const selected = jenisAlergi.includes('00')
+                                                                                            ? jenisAlergi.filter((v) => v !== '00')
+                                                                                            : [...jenisAlergi, '00'];
+                                                                                        setJenisAlergi(selected);
+                                                                                        if (selected.includes('00')) {
+                                                                                            setAlergi(['00']);
+                                                                                        } else {
+                                                                                            setAlergi([]);
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    <Check
+                                                                                        className={cn(
+                                                                                            'mr-2 h-4 w-4',
+                                                                                            jenisAlergi.includes('00') ? 'opacity-100' : 'opacity-0',
+                                                                                        )}
+                                                                                    />
+                                                                                    Tidak ada
+                                                                                </CommandItem>
+                                                                                {jenisAlergiOptions.map((opt) => (
+                                                                                    <CommandItem
+                                                                                        key={opt}
+                                                                                        value={opt}
+                                                                                        onSelect={() => {
+                                                                                            const selected = jenisAlergi.includes(opt)
+                                                                                                ? jenisAlergi.filter((v) => v !== opt)
+                                                                                                : [...jenisAlergi, opt];
+                                                                                            setJenisAlergi(selected);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mr-2 h-4 w-4',
+                                                                                                jenisAlergi.includes(opt)
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        {opt}
+                                                                                    </CommandItem>
                                                                                 ))}
-                                                                        </>
-                                                                    ) : jenisAlergi ? (
-                                                                        <>
-                                                                            <SelectItem key="00" value="00">
-                                                                                Tidak ada
-                                                                            </SelectItem>
-                                                                            <SelectItem value="no-data" disabled>
-                                                                                Tidak ada data untuk jenis ini
-                                                                            </SelectItem>
-                                                                        </>
-                                                                    ) : (
-                                                                        <SelectItem value="select-first" disabled>
-                                                                            Pilih jenis alergi dulu
-                                                                        </SelectItem>
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
+                                                                            </CommandGroup>
+                                                                        </CommandList>
+                                                                    </Command>
+                                                                </PopoverContent>
+                                                            </Popover>
+
+                                                            {/* Detail Alergi (multi-select) */}
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        disabled={jenisAlergi.length === 0}
+                                                                        className="w-full justify-between text-sm"
+                                                                    >
+                                                                        {alergi.length > 0
+                                                                            ? alergi.join(', ')
+                                                                            : jenisAlergi.length === 0
+                                                                              ? 'Pilih jenis terlebih dahulu'
+                                                                              : 'Pilih detail alergi'}
+                                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                    </Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-[300px] p-0">
+                                                                    <Command>
+                                                                        <CommandList>
+                                                                            <CommandEmpty>Tidak ada data</CommandEmpty>
+                                                                            <CommandGroup>
+                                                                                <CommandItem
+                                                                                    value="00"
+                                                                                    onSelect={() => {
+                                                                                        const selected = alergi.includes('00')
+                                                                                            ? alergi.filter((v) => v !== '00')
+                                                                                            : [...alergi, '00'];
+                                                                                        setAlergi(selected);
+                                                                                    }}
+                                                                                >
+                                                                                    <Check
+                                                                                        className={cn(
+                                                                                            'mr-2 h-4 w-4',
+                                                                                            alergi.includes('00') ? 'opacity-100' : 'opacity-0',
+                                                                                        )}
+                                                                                    />
+                                                                                    Tidak ada
+                                                                                </CommandItem>
+                                                                                {alergi_data
+                                                                                    .filter((item) =>
+                                                                                        jenisAlergi.includes((item.jenis_alergi || '').trim()),
+                                                                                    )
+                                                                                    .map((item) => (
+                                                                                        <CommandItem
+                                                                                            key={item.id}
+                                                                                            value={(item.nama || '').trim()}
+                                                                                            onSelect={() => {
+                                                                                                const value = (item.nama || '').trim();
+                                                                                                const selected = alergi.includes(value)
+                                                                                                    ? alergi.filter((v) => v !== value)
+                                                                                                    : [...alergi, value];
+                                                                                                setAlergi(selected);
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mr-2 h-4 w-4',
+                                                                                                    alergi.includes((item.nama || '').trim())
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            {(item.nama || '').trim()}
+                                                                                        </CommandItem>
+                                                                                    ))}
+                                                                            </CommandGroup>
+                                                                        </CommandList>
+                                                                    </Command>
+                                                                </PopoverContent>
+                                                            </Popover>
                                                         </div>
-                                                        {/* Debug info removed */}
                                                     </div>
 
                                                     <div>
@@ -1777,156 +1830,6 @@ export default function PemeriksaanPerawat() {
                                     </div>
                                     <div className="mt-4 flex justify-between">
                                         <Button type="button" variant="outline" onClick={() => setActiveTab('subyektif')}>
-                                            Previous
-                                        </Button>
-                                        <Button type="button" onClick={() => setActiveTab('htt')}>
-                                            Next
-                                        </Button>
-                                    </div>
-                                </TabsContent>
-
-                                <TabsContent value="htt" className="mt-4">
-                                    <div className="space-y-6">
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle>Head To Toe</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="space-y-4">
-                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                                        <div>
-                                                            <Label htmlFor="htt_pemeriksaan">Pemeriksaan</Label>
-                                                            <Select
-                                                                value={selectedHtt}
-                                                                onValueChange={(value) => {
-                                                                    setSelectedHtt(value);
-                                                                    setSelectedSubPemeriksaan(''); // Reset sub-pemeriksaan when main changes
-                                                                }}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="Pilih Jenis Pemeriksaan" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {httOptions.map((item) => (
-                                                                        <SelectItem key={item.id} value={String(item.id)}>
-                                                                            {item.nama_pemeriksaan}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        <div>
-                                                            <Label htmlFor="sub_pemeriksaan">Sub Pemeriksaan</Label>
-                                                            <Select
-                                                                value={selectedSubPemeriksaan}
-                                                                onValueChange={setSelectedSubPemeriksaan}
-                                                                disabled={!selectedHtt}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="Pilih Sub Pemeriksaan" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {subOptions.map((subItem) => (
-                                                                        <SelectItem key={subItem.id} value={String(subItem.id)}>
-                                                                            {subItem.nama}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        <div>
-                                                            <Label htmlFor="htt_pemeriksaan_detail">Detail</Label>
-                                                            <Input
-                                                                id="htt_pemeriksaan_detail"
-                                                                value={httDetailText}
-                                                                onChange={(e) => setHttDetailText(e.target.value)}
-                                                                placeholder="Masukkan detail..."
-                                                                disabled={!selectedSubPemeriksaan}
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex justify-end">
-                                                        <Button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                // Add validation
-                                                                if (!selectedHtt || !selectedSubPemeriksaan) {
-                                                                    toast.error('Harap pilih pemeriksaan dan sub pemeriksaan');
-                                                                    return;
-                                                                }
-
-                                                                // Get names for display
-                                                                const pemeriksaanName =
-                                                                    httOptions.find((p) => String(p.id) === selectedHtt)?.nama_pemeriksaan || '';
-                                                                const subPemeriksaanName =
-                                                                    subOptions.find((s) => String(s.id) === selectedSubPemeriksaan)?.nama || '';
-
-                                                                // Add to items list
-                                                                setHttItems([
-                                                                    ...httItems,
-                                                                    {
-                                                                        pemeriksaan: pemeriksaanName,
-                                                                        subPemeriksaan: subPemeriksaanName,
-                                                                        detail: httDetailText,
-                                                                    },
-                                                                ]);
-
-                                                                // Reset form
-                                                                setSelectedSubPemeriksaan('');
-                                                                setHttDetailText('');
-
-                                                                toast.success('Data berhasil ditambahkan');
-                                                            }}
-                                                        >
-                                                            Tambahkan
-                                                        </Button>
-                                                    </div>
-
-                                                    {/* Display added items */}
-                                                    {httItems.length > 0 && (
-                                                        <div className="mt-6">
-                                                            <Table>
-                                                                <TableHeader>
-                                                                    <TableRow>
-                                                                        <TableHead>Pemeriksaan</TableHead>
-                                                                        <TableHead>Sub Pemeriksaan</TableHead>
-                                                                        <TableHead>Detail</TableHead>
-                                                                        <TableHead className="text-right">Aksi</TableHead>
-                                                                    </TableRow>
-                                                                </TableHeader>
-                                                                <TableBody>
-                                                                    {httItems.map((item, index) => (
-                                                                        <TableRow key={index}>
-                                                                            <TableCell>{item.pemeriksaan}</TableCell>
-                                                                            <TableCell>{item.subPemeriksaan}</TableCell>
-                                                                            <TableCell>{item.detail}</TableCell>
-                                                                            <TableCell className="text-right">
-                                                                                <Button
-                                                                                    type="button"
-                                                                                    variant="destructive"
-                                                                                    size="sm"
-                                                                                    onClick={() => {
-                                                                                        setHttItems(httItems.filter((_, i) => i !== index));
-                                                                                    }}
-                                                                                >
-                                                                                    Hapus
-                                                                                </Button>
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                    ))}
-                                                                </TableBody>
-                                                            </Table>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-                                    <div className="mt-4 flex justify-between">
-                                        <Button type="button" variant="outline" onClick={() => setActiveTab('obyektif')}>
                                             Previous
                                         </Button>
                                         <Button type="submit">{submitButtonText}</Button>

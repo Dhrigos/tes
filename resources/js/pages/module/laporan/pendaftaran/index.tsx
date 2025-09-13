@@ -57,7 +57,8 @@ const formatYMD = (isoDate?: string) => {
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/pendaftaran/print';
+// removed print URL
+const EXPORT_URL = '/laporan/pendaftaran/export';
 
 type PageProps = { title: string; data: LAP_PendaftaranItem[] };
 
@@ -69,7 +70,7 @@ const LaporanPendaftaran = () => {
     const [filterPoli, setFilterPoli] = useState('');
     const [filterDokter, setFilterDokter] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
+    // removed print confirm state
     const [showDetail, setShowDetail] = useState(false);
     const [detailItem, setDetailItem] = useState<LAP_PendaftaranItem | null>(null);
     // We will render filteredData directly; no separate displayed list needed
@@ -141,12 +142,12 @@ const LaporanPendaftaran = () => {
         setFilterDokter('');
     };
 
-    const submitPrint = () => {
+    // removed submitPrint
+    const submitExport = () => {
         const csrf = getCsrf();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+        form.action = EXPORT_URL;
 
         const token = document.createElement('input');
         token.type = 'hidden';
@@ -188,59 +189,13 @@ const LaporanPendaftaran = () => {
         form.submit();
         document.body.removeChild(form);
     };
-    const handlePrint = () => {
+    const handleExport = () => {
         if (!filteredData.length) return;
-        setShowConfirm(true);
+        submitExport();
     };
+    // removed handlePrint
 
-    const submitPrintDetail = () => {
-        if (!detailItem) return;
-        const csrf = getCsrf();
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
-
-        const token = document.createElement('input');
-        token.type = 'hidden';
-        token.name = '_token';
-        token.value = csrf;
-        form.appendChild(token);
-
-        const start = document.createElement('input');
-        start.type = 'hidden';
-        start.name = 'tanggal_awal';
-        start.value = dateStart;
-        form.appendChild(start);
-
-        const end = document.createElement('input');
-        end.type = 'hidden';
-        end.name = 'tanggal_akhir';
-        end.value = dateEnd;
-        form.appendChild(end);
-
-        const poliField = document.createElement('input');
-        poliField.type = 'hidden';
-        poliField.name = 'poli';
-        poliField.value = filterPoli;
-        form.appendChild(poliField);
-
-        const dokterField = document.createElement('input');
-        dokterField.type = 'hidden';
-        dokterField.name = 'dokter';
-        dokterField.value = filterDokter;
-        form.appendChild(dokterField);
-
-        const dataField = document.createElement('input');
-        dataField.type = 'hidden';
-        dataField.name = 'data';
-        dataField.value = JSON.stringify([detailItem]);
-        form.appendChild(dataField);
-
-        document.body.appendChild(form);
-        form.submit();
-        document.body.removeChild(form);
-    };
+    // removed submitPrintDetail
 
     const openDetail = (item: LAP_PendaftaranItem) => {
         setDetailItem(item);
@@ -311,9 +266,10 @@ const LaporanPendaftaran = () => {
                                 <Button variant="outline" onClick={handleFilter} disabled={loading}>
                                     Filter
                                 </Button>
-                                <Button onClick={handlePrint} disabled={loading || filteredData.length === 0}>
-                                    Save &amp; Print
+                                <Button variant="outline" onClick={handleExport} disabled={loading || filteredData.length === 0}>
+                                    Export Excel
                                 </Button>
+                                {/* print removed */}
                             </div>
                         </div>
 
@@ -407,43 +363,7 @@ const LaporanPendaftaran = () => {
                     </CardContent>
                 </Card>
             </div>
-            <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Konfirmasi Cetak</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-3 text-sm">
-                        <div>Apakah Anda yakin ingin mencetak data yang sudah difilter?</div>
-                        <div className="rounded-md border p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="text-muted-foreground">Tanggal Awal</div>
-                                <div className="font-medium">{dateStart || '-'}</div>
-                                <div className="text-muted-foreground">Tanggal Akhir</div>
-                                <div className="font-medium">{dateEnd || '-'}</div>
-                                <div className="text-muted-foreground">Poli</div>
-                                <div className="font-medium">{filterPoli || '-'}</div>
-                                <div className="text-muted-foreground">Dokter</div>
-                                <div className="font-medium">{filterDokter || '-'}</div>
-                                <div className="text-muted-foreground">Jumlah Data</div>
-                                <div className="font-medium">{filteredData.length}</div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowConfirm(false)}>
-                                Batal
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    submitPrint();
-                                }}
-                            >
-                                Cetak
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* print dialog removed */}
 
             <Dialog open={showDetail} onOpenChange={(open) => (open ? setShowDetail(true) : closeDetail())}>
                 <DialogContent className="overflow-y-auto sm:max-w-5xl" style={{ maxHeight: '90vh' } as any}>
@@ -571,9 +491,6 @@ const LaporanPendaftaran = () => {
                         </div>
 
                         <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={submitPrintDetail}>
-                                Print Detail
-                            </Button>
                             <Button onClick={closeDetail}>Tutup</Button>
                         </div>
                     </div>

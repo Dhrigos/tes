@@ -56,6 +56,7 @@ use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use App\Http\Controllers\Module\Pelayanan\PelayananController;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_So_Perawat_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Bidan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Rujukan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Permintaan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
@@ -428,6 +429,16 @@ Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->
     Route::post('/soap-dokter', [Pelayanan_Soap_Dokter_Controller::class, 'store'])->name('soap-dokter.store');
     Route::put('/soap-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'update'])->name('soap-dokter.update');
 
+    // Soap Bidan (duplikat dari dokter namun render ke view bidan)
+    Route::get('/soap-bidan', [Pelayanan_Soap_Bidan_Controller::class, 'index'])->name('soap-bidan.index');
+    Route::get('/soap-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'show'])->name('soap-bidan.show');
+    Route::get('/soap-bidan/edit/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'edit'])->name('soap-bidan.edit');
+    Route::get('/soap-bidan/konfirmasi/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'konfirmasi'])->name('soap-bidan.konfirmasi');
+    Route::post('/soap-bidan/konfirmasi/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'storeKonfirmasi'])->name('soap-bidan.konfirmasi.store');
+    Route::get('/soap-bidan/files/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'getFiles'])->name('soap-bidan.files');
+    Route::post('/soap-bidan', [Pelayanan_Soap_Bidan_Controller::class, 'store'])->name('soap-bidan.store');
+    Route::put('/soap-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'update'])->name('soap-bidan.update');
+
     Route::get('/soap-dokter/rujukan/{norawat}', [Dokter_Rujukan_Controller::class, 'index'])->name('soap-dokter.rujukan.show');
     Route::post('/soap-dokter/rujukan', [Dokter_Rujukan_Controller::class, 'store'])->name('soap-dokter.rujukan.store');
 
@@ -471,33 +482,47 @@ Route::middleware(['auth', 'verified'])->prefix('kasir')->as('kasir.')->group(fu
 
 Route::middleware(['auth', 'verified'])->prefix('laporan')->as('laporan.')->group(function () {
     Route::get('/antrian', [Laporan_Controller::class, 'pendataan_antrian'])->name('antrian');
-    Route::post('/antrian/print', [Laporan_Controller::class, 'print_antrian'])->name('antrian.print');
+    // removed print_antrian
+    Route::post('/antrian/export', [Laporan_Controller::class, 'export_antrian'])->name('antrian.export');
 
     Route::get('/pendaftaran', [Laporan_Controller::class, 'pendataan_pendaftaran'])->name('pendaftaran');
-    Route::post('/pendaftaran/print', [Laporan_Controller::class, 'print_pendaftaran'])->name('pendaftaran.print');
+    // removed print_pendaftaran
+    Route::post('/pendaftaran/export', [Laporan_Controller::class, 'export_pendaftaran'])->name('pendaftaran.export');
 
     Route::get('/trend-pendaftaran', [Laporan_Controller::class, 'pendataan_trend_pendaftaran'])->name('trend-pendaftaran');
+    Route::post('/trend-pendaftaran/export', [Laporan_Controller::class, 'export_trend_pendaftaran'])->name('trend-pendaftaran.export');
     Route::get('/top-icd10', [Laporan_Controller::class, 'top_icd10'])->name('top-icd10');
+    Route::post('/top-icd10/export', [Laporan_Controller::class, 'export_top_icd10'])->name('top-icd10.export');
 
     Route::get('/dokter', [Laporan_Controller::class, 'pendataan_dokter'])->name('dokter');
-    Route::post('/dokter/print', [Laporan_Controller::class, 'print_dokter'])->name('dokter.print');
-    Route::post('/dokter/print-detail', [Laporan_Controller::class, 'print_dokter_detail'])->name('dokter.print-detail');
+    // removed print_dokter and print_dokter_detail
+    Route::post('/dokter/export', [Laporan_Controller::class, 'export_dokter'])->name('dokter.export');
 
     Route::get('/perawat', [Laporan_Controller::class, 'pendataan_perawat'])->name('perawat');
-    Route::post('/perawat/print', [Laporan_Controller::class, 'print_perawat'])->name('perawat.print');
-    Route::post('/perawat/print-detail', [Laporan_Controller::class, 'print_perawat_detail'])->name('perawat.print-detail');
+    // removed print_perawat and print_perawat_detail
+    Route::post('/perawat/export', [Laporan_Controller::class, 'export_perawat'])->name('perawat.export');
 
     Route::get('/apotek', [Laporan_Controller::class, 'apotek'])->name('apotek');
-    Route::post('/apotek/print', [Laporan_Controller::class, 'print_apotek'])->name('apotek.print');
+    // removed print_apotek
+    Route::post('/apotek/export', [Laporan_Controller::class, 'export_apotek'])->name('apotek.export');
 
     Route::get('/stok-penyesuaian', [Laporan_Controller::class, 'laporan_stok_penyesuaian'])->name('stok-penyesuaian');
-    Route::post('/stok-penyesuaian/print', [Laporan_Controller::class, 'print_stok_penyesuaian'])->name('stok-penyesuaian.print');
+    // removed print_stok_penyesuaian
+    Route::post('/stok-penyesuaian/export', [Laporan_Controller::class, 'export_stok_penyesuaian'])->name('stok-penyesuaian.export');
 
     Route::get('/kasir', [Laporan_Controller::class, 'kasir'])->name('kasir');
-    Route::post('/kasir/print', [Laporan_Controller::class, 'print_kasir'])->name('kasir.print');
+    // removed print_kasir
+    Route::post('/kasir/export', [Laporan_Controller::class, 'export_kasir'])->name('kasir.export');
 
-    Route::get('/kasir-detail', [Laporan_Controller::class, 'kasir_detail'])->name('kasir-detail');
-    Route::post('/kasir-detail/print', [Laporan_Controller::class, 'kasir_detail_print'])->name('kasir-detail.print');
+    // API untuk ambil detail kasir per invoice (tempatkan sebelum route parameter)
+    Route::get('/kasir-detail/data', [Laporan_Controller::class, 'kasir_detail_data'])->name('kasir-detail.data');
+    // Print detail: dukung tanpa parameter kode_faktur (data dikirim dari client)
+    // removed kasir_detail_print
+
+    // Pembelian
+    Route::get('/pembelian', [Laporan_Controller::class, 'pembelian'])->name('pembelian');
+    // removed print_pembelian
+    Route::post('/pembelian/export', [Laporan_Controller::class, 'export_pembelian'])->name('pembelian.export');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

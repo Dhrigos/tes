@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { usePage } from '@inertiajs/react';
+import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 // Layout imports
@@ -89,7 +90,8 @@ const formatRupiah = (amount: number) => {
 };
 
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-const PRINT_URL = '/laporan/apotek/print';
+// removed print URL
+const EXPORT_URL = '/laporan/apotek/export';
 
 type PageProps = {
     title: string;
@@ -103,11 +105,12 @@ const LaporanApotek = () => {
     const [dateStart, setDateStart] = useState('');
     const [dateEnd, setDateEnd] = useState('');
     const [filterPoli, setFilterPoli] = useState('');
-    const [filterObat, setFilterObat] = useState('');
+    const [filterObat, setFilterObat] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [showDetail, setShowDetail] = useState(false);
     const [detailItem, setDetailItem] = useState<KasirRaw | null>(null);
-    const [showConfirm, setShowConfirm] = useState(false);
+    // removed print confirm state
+    const [openObatDropdown, setOpenObatDropdown] = useState(false);
 
     useEffect(() => {
         setLoading(true);
@@ -126,9 +129,10 @@ const LaporanApotek = () => {
             if (dateStart && ymd && ymd < dateStart) return false;
             if (dateEnd && ymd && ymd > dateEnd) return false;
             if (filterPoli && (row.poli || '') !== filterPoli) return false;
-            if (filterObat) {
+            if (Array.isArray(filterObat) && filterObat.length > 0) {
                 const list = row.apotek_lunas || [];
-                const hasObat = list.some((obat) => obat.nama_obat_tindakan?.toLowerCase().includes(filterObat.toLowerCase()));
+                const targets = new Set(filterObat.map((o) => o.trim().toLowerCase()));
+                const hasObat = list.some((obat) => targets.has((obat.nama_obat_tindakan || '').trim().toLowerCase()));
                 if (!hasObat) return false;
             }
             return true;
@@ -202,23 +206,21 @@ const LaporanApotek = () => {
         setPage(1);
     }, [dateStart, dateEnd, filterPoli, filterObat]);
 
-    const handleFilter = () => {
-        // Filtering is reactive via filteredData
-    };
+    // Filtering is reactive via filteredData
 
     const handleReset = () => {
         setDateStart('');
         setDateEnd('');
         setFilterPoli('');
-        setFilterObat('');
+        setFilterObat([]);
     };
 
-    const submitPrint = () => {
+    // removed submitPrint
+    const submitExport = () => {
         const csrf = getCsrf();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+        form.action = EXPORT_URL;
 
         const token = document.createElement('input');
         token.type = 'hidden';
@@ -238,13 +240,6 @@ const LaporanApotek = () => {
         end.value = dateEnd;
         form.appendChild(end);
 
-        const poli = document.createElement('input');
-        poli.type = 'hidden';
-        poli.name = 'poli';
-        poli.value = filterPoli;
-        form.appendChild(poli);
-
-        // Kirim baris header + detail seperti Blade (lengkap termasuk is_detail)
         const printData = tableRows;
 
         const dataField = document.createElement('input');
@@ -253,99 +248,25 @@ const LaporanApotek = () => {
         dataField.value = JSON.stringify(printData);
         form.appendChild(dataField);
 
+        // also send flat rows (header+detail as is)
+        const flatField = document.createElement('input');
+        flatField.type = 'hidden';
+        flatField.name = 'flat_rows';
+        flatField.value = JSON.stringify(printData);
+        form.appendChild(flatField);
+
         document.body.appendChild(form);
         form.submit();
         document.body.removeChild(form);
     };
-
-    const handlePrint = () => {
+    const handleExport = () => {
         if (!filteredData.length) return;
-        setShowConfirm(true);
+        submitExport();
     };
 
-    const submitPrintDetail = () => {
-        if (!detailItem) return;
-        const csrf = getCsrf();
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = PRINT_URL;
-        form.target = '_blank';
+    // removed handlePrint
 
-        const token = document.createElement('input');
-        token.type = 'hidden';
-        token.name = '_token';
-        token.value = csrf;
-        form.appendChild(token);
-
-        // optional: include filters for context
-        const start = document.createElement('input');
-        start.type = 'hidden';
-        start.name = 'tanggal_awal';
-        start.value = dateStart;
-        form.appendChild(start);
-
-        const end = document.createElement('input');
-        end.type = 'hidden';
-        end.name = 'tanggal_akhir';
-        end.value = dateEnd;
-        form.appendChild(end);
-
-        const poli = document.createElement('input');
-        poli.type = 'hidden';
-        poli.name = 'poli';
-        poli.value = filterPoli;
-        form.appendChild(poli);
-
-        // Build rows for a single detail item (header row + following detail rows)
-        const detailList = detailItem.apotek_lunas || [];
-        const first = detailList[0] || {};
-        const rowsForPrint = [
-            {
-                is_detail: false,
-                no: 1,
-                kode_faktur: detailItem.kode_faktur || '-',
-                no_rm: detailItem.no_rm || '-',
-                no_rawat: detailItem.no_rawat || '-',
-                nama: detailItem.nama || '-',
-                nama_obat_tindakan: first.nama_obat_tindakan || '-',
-                harga_obat_tindakan: first.harga_obat_tindakan || '-',
-                qty: first.qty ?? '-',
-                total_sementara: first.total_sementara ?? '-',
-                poli: detailItem.poli || '-',
-                dokter: detailItem.dokter || '-',
-                penjamin: detailItem.penjamin || '-',
-                tanggal: detailItem.tanggal || '-',
-                user_input_name: detailItem.user_input_name || '-',
-            },
-            ...detailList.slice(1).map((d: any) => ({
-                is_detail: true,
-                no: '',
-                kode_faktur: '',
-                no_rm: '',
-                no_rawat: '',
-                nama: '',
-                nama_obat_tindakan: d.nama_obat_tindakan || '-',
-                harga_obat_tindakan: d.harga_obat_tindakan || '-',
-                qty: d.qty ?? '-',
-                total_sementara: d.total_sementara ?? '-',
-                poli: '',
-                dokter: '',
-                penjamin: '',
-                tanggal: '',
-                user_input_name: '',
-            })),
-        ];
-
-        const dataField = document.createElement('input');
-        dataField.type = 'hidden';
-        dataField.name = 'data';
-        dataField.value = JSON.stringify(rowsForPrint);
-        form.appendChild(dataField);
-
-        document.body.appendChild(form);
-        form.submit();
-        document.body.removeChild(form);
-    };
+    // removed submitPrintDetail
 
     const kodeFakturToItem = useMemo(() => {
         const map = new Map<string, KasirRaw>();
@@ -392,16 +313,16 @@ const LaporanApotek = () => {
                         <CardTitle>Laporan Data Lunas Apotek</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-6">
-                            <div>
+                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-12">
+                            <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
                                 <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
                             </div>
-                            <div>
+                            <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
                                 <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
                             </div>
-                            <div>
+                            <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium">Poli</label>
                                 <select
                                     className="w-full rounded border p-2 text-sm"
@@ -416,31 +337,71 @@ const LaporanApotek = () => {
                                     ))}
                                 </select>
                             </div>
-                            <div>
+                            <div className="relative md:col-span-4">
                                 <label className="mb-1 block text-sm font-medium">Nama Obat</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterObat}
-                                    onChange={(e) => setFilterObat(e.target.value)}
+                                <button
+                                    type="button"
+                                    className="w-full rounded border p-2 text-left text-sm"
+                                    onClick={() => setOpenObatDropdown((v) => !v)}
                                 >
-                                    <option value="">-- Semua Obat --</option>
-                                    {obatOptions.map((obat) => (
-                                        <option key={obat} value={obat}>
-                                            {obat}
-                                        </option>
-                                    ))}
-                                </select>
+                                    {(filterObat || []).length > 0 ? `${(filterObat || []).length} dipilih` : 'Pilih obat...'}
+                                </button>
+                                {openObatDropdown && (
+                                    <div className="absolute z-50 mt-1 w-full rounded border bg-white shadow">
+                                        <div className="flex items-center justify-between gap-2 border-b px-2 py-1 text-xs">
+                                            <button
+                                                type="button"
+                                                className="rounded border px-2 py-1"
+                                                onClick={() => setFilterObat(obatOptions.slice())}
+                                            >
+                                                Pilih semua
+                                            </button>
+                                            <button type="button" className="rounded border px-2 py-1" onClick={() => setFilterObat([])}>
+                                                Hapus semua
+                                            </button>
+                                        </div>
+                                        <div className="max-h-48 overflow-auto p-2 text-sm">
+                                            {obatOptions.map((obat) => {
+                                                const checked = (filterObat || []).includes(obat);
+                                                return (
+                                                    <label key={obat} className="flex cursor-pointer items-center gap-2 py-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-4 w-4"
+                                                            checked={checked}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setFilterObat((prev) => Array.from(new Set([...(prev || []), obat])));
+                                                                } else {
+                                                                    setFilterObat((prev) => (prev || []).filter((o) => o !== obat));
+                                                                }
+                                                            }}
+                                                        />
+                                                        <span>{obat}</span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="border-t p-2 text-right">
+                                            <button
+                                                type="button"
+                                                className="rounded border px-3 py-1 text-sm"
+                                                onClick={() => setOpenObatDropdown(false)}
+                                            >
+                                                Selesai
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="flex items-end justify-end gap-2 md:col-span-2 md:col-start-5">
-                                <Button variant="outline" onClick={handleReset}>
-                                    Reset
+                            <div className="flex items-end justify-end gap-2 md:col-span-2">
+                                <Button variant="outline" size="icon" onClick={handleReset} title="Reset">
+                                    <RotateCcw className="h-4 w-4" />
                                 </Button>
-                                <Button variant="outline" onClick={handleFilter} disabled={loading}>
-                                    Filter
+                                <Button variant="outline" onClick={handleExport} disabled={loading || filteredData.length === 0}>
+                                    Export Excel
                                 </Button>
-                                <Button onClick={handlePrint} disabled={loading || filteredData.length === 0}>
-                                    Save &amp; Print
-                                </Button>
+                                {/* print removed */}
                             </div>
                         </div>
 
@@ -596,49 +557,13 @@ const LaporanApotek = () => {
                         </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={submitPrintDetail}>
-                            Print Detail
-                        </Button>
+                        {/* print detail removed */}
                         <Button onClick={closeDetail}>Tutup</Button>
                     </div>
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={showConfirm} onOpenChange={(open) => setShowConfirm(open)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Konfirmasi Cetak</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-3 text-sm">
-                        <div>Apakah Anda yakin ingin mencetak data yang sudah difilter?</div>
-                        <div className="rounded-md border p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="text-muted-foreground">Tanggal Awal</div>
-                                <div className="font-medium">{dateStart || '-'}</div>
-                                <div className="text-muted-foreground">Tanggal Akhir</div>
-                                <div className="font-medium">{dateEnd || '-'}</div>
-                                <div className="text-muted-foreground">Nama Obat</div>
-                                <div className="font-medium">{filterObat || '-'}</div>
-                                <div className="text-muted-foreground">Jumlah Data</div>
-                                <div className="font-medium">{filteredData.length}</div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowConfirm(false)}>
-                                Batal
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowConfirm(false);
-                                    submitPrint();
-                                }}
-                            >
-                                Cetak
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* print dialog removed */}
         </AppLayout>
     );
 };

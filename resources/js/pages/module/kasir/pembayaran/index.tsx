@@ -111,36 +111,23 @@ export default function KasirIndex({
     const [penjaminValue, setPenjaminValue] = React.useState<string>(defaultPenjamin || '');
     const [administrasi, setAdministrasi] = React.useState<string>('0');
 
-    // Helper function untuk format currency input (mendukung koma sebagai desimal)
+    // Helper function untuk format currency input: hanya angka, auto titik ribuan, tanpa koma
     const formatCurrencyInput = (value: string): string => {
-        // Hapus semua karakter kecuali angka, koma, dan titik
-        const cleaned = value.replace(/[^\d,.]/g, '');
-        // Untuk format Indonesia, koma adalah pemisah desimal
-        // Ganti titik dengan koma jika ada titik (untuk konsistensi)
-        return cleaned.replace('.', ',');
+        if (!value) return '';
+        // Ambil hanya digit
+        const digitsOnly = value.replace(/\D/g, '');
+        if (digitsOnly === '') return '';
+        // Format dengan pemisah ribuan (id-ID akan memberi titik untuk ribuan)
+        const num = Number(digitsOnly);
+        return Number.isNaN(num) ? '' : num.toLocaleString('id-ID');
     };
 
-    // Helper function untuk parse currency value (mendukung format Indonesia)
+    // Helper function untuk parse currency value: hanya angka, abaikan titik, tanpa desimal
     const parseCurrencyValue = (value: string): number => {
         if (!value) return 0;
-        // Hapus semua karakter kecuali angka, koma, dan titik
-        const cleaned = value.replace(/[^\d,.]/g, '');
-        if (!cleaned) return 0;
-
-        // Untuk format Indonesia: 1.000,50 (titik = ribuan, koma = desimal)
-        // Jika ada koma, gunakan sebagai pemisah desimal
-        if (cleaned.includes(',')) {
-            const parts = cleaned.split(',');
-            if (parts.length === 2) {
-                // Bagian sebelum koma: hapus titik (ribuan), bagian setelah koma: desimal
-                const integerPart = parts[0].replace(/\./g, '');
-                const decimalPart = parts[1];
-                return parseFloat(integerPart + '.' + decimalPart) || 0;
-            }
-        }
-
-        // Jika tidak ada koma, hapus titik dan parse sebagai integer
-        return parseFloat(cleaned.replace(/\./g, '')) || 0;
+        const digitsOnly = value.replace(/\D/g, '');
+        if (!digitsOnly) return 0;
+        return parseInt(digitsOnly, 10) || 0;
     };
 
     const [materai, setMaterai] = React.useState<string>('0');
@@ -166,6 +153,10 @@ export default function KasirIndex({
     const [showInfoModal, setShowInfoModal] = React.useState(false);
     const [showTambahTindakan, setShowTambahTindakan] = React.useState(false);
     const [showSuccessDialog, setShowSuccessDialog] = React.useState(false);
+    const [showPotonganModal, setShowPotonganModal] = React.useState(false);
+    const [potonganJenis, setPotonganJenis] = React.useState<'discount' | 'voucher' | 'cashback' | 'promo'>('discount');
+    const [potonganNominal, setPotonganNominal] = React.useState<string>('');
+    const [potonganUraian, setPotonganUraian] = React.useState<string>('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [tindakanNama, setTindakanNama] = React.useState('');
     const [tindakanPetugas, setTindakanPetugas] = React.useState('');
@@ -202,7 +193,9 @@ export default function KasirIndex({
     // Detail modal dihapus pada versi detail; fungsi tak dibutuhkan lagi
 
     const subTotal = rows.reduce((s, r) => s + (r.jenis === 'diskon' ? 0 : r.total), 0);
-    const tagihan = subTotal - potongan + parseCurrencyValue(administrasi) + Number(materai || 0);
+    const totalPotonganFromRows = rows.filter((r) => r.jenis === 'diskon').reduce((s, r) => s + Math.abs(Number(r.total || 0)), 0);
+    const effectivePotongan = totalPotonganFromRows || potongan;
+    const tagihan = subTotal - effectivePotongan + parseCurrencyValue(administrasi) + Number(materai || 0);
     const total = tagihan;
 
     const sisaDibayar = Math.max(0, total - (parseCurrencyValue(pay1Nom) + parseCurrencyValue(pay2Nom) + parseCurrencyValue(pay3Nom)));
@@ -229,7 +222,7 @@ export default function KasirIndex({
                 jenis_perawatan: 'RAWAT JALAN',
                 penjamin: penjaminValue || 'UMUM',
                 sub_total: String(subTotal),
-                potongan_harga: String(potongan),
+                potongan_harga: String(effectivePotongan),
                 administrasi: administrasi,
                 materai: materai,
                 total: String(total),
@@ -276,6 +269,18 @@ export default function KasirIndex({
 
             if (response.ok && result.status === 'success') {
                 setShowSuccessDialog(true);
+                // Cetak PDF otomatis
+                try {
+                    const faktur =
+                        (result && result.data && (result.data.kode_faktur || result.data.kodeFaktur)) ||
+                        kode_faktur ||
+                        (apotek as AnyRecord | null)?.kode_faktur ||
+                        (tindakan as AnyRecord | null)?.kode_faktur ||
+                        payload.kode_faktur_hidden;
+                    if (faktur) {
+                        window.open(`/api/kasir/pdf/${encodeURIComponent(String(faktur))}`);
+                    }
+                } catch (_) {}
                 // Redirect setelah 2 detik
                 setTimeout(() => {
                     window.location.href = '/kasir';
@@ -386,8 +391,13 @@ export default function KasirIndex({
                                     <div className="space-y-2">
                                         <div className="grid grid-cols-12 items-center gap-2">
                                             <Label className="col-span-5">Potongan</Label>
-                                            <div className="col-span-7">
-                                                <Input value={Number(potongan).toLocaleString('id-ID')} readOnly />
+                                            <div className="col-span-5">
+                                                <Input value={Number(effectivePotongan).toLocaleString('id-ID')} readOnly />
+                                            </div>
+                                            <div className="col-span-2 flex justify-end">
+                                                <Button type="button" size="sm" variant="secondary" onClick={() => setShowPotonganModal(true)}>
+                                                    Tambah
+                                                </Button>
                                             </div>
                                         </div>
                                     </div>
@@ -460,12 +470,19 @@ export default function KasirIndex({
                                             </Select>
                                         </div>
                                         <div className="col-span-3">
-                                            <Input
-                                                placeholder="Nominal Rupiah"
-                                                type="number"
-                                                value={pay1Nom}
-                                                onChange={(e) => setPay1Nom(formatCurrencyInput(e.target.value))}
-                                            />
+                                            <div className="relative">
+                                                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                                                    Rp
+                                                </span>
+                                                <Input
+                                                    placeholder="Nominal Rupiah"
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    className="pl-9"
+                                                    value={pay1Nom}
+                                                    onChange={(e) => setPay1Nom(formatCurrencyInput(e.target.value))}
+                                                />
+                                            </div>
                                         </div>
                                         <div className="col-span-3">
                                             <Select value={pay1Type} onValueChange={setPay1Type} disabled={pay1Method === 'cash'}>
@@ -513,12 +530,19 @@ export default function KasirIndex({
                                                 </Select>
                                             </div>
                                             <div className="col-span-3">
-                                                <Input
-                                                    placeholder="Nominal Rupiah"
-                                                    type="number"
-                                                    value={pay2Nom}
-                                                    onChange={(e) => setPay2Nom(formatCurrencyInput(e.target.value))}
-                                                />
+                                                <div className="relative">
+                                                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                                                        Rp
+                                                    </span>
+                                                    <Input
+                                                        placeholder="Nominal Rupiah"
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        className="pl-9"
+                                                        value={pay2Nom}
+                                                        onChange={(e) => setPay2Nom(formatCurrencyInput(e.target.value))}
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="col-span-3">
                                                 <Select value={pay2Type} onValueChange={setPay2Type} disabled={pay2Method === 'cash'}>
@@ -564,12 +588,19 @@ export default function KasirIndex({
                                                 </Select>
                                             </div>
                                             <div className="col-span-3">
-                                                <Input
-                                                    placeholder="Nominal Rupiah"
-                                                    type="number"
-                                                    value={pay3Nom}
-                                                    onChange={(e) => setPay3Nom(formatCurrencyInput(e.target.value))}
-                                                />
+                                                <div className="relative">
+                                                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                                                        Rp
+                                                    </span>
+                                                    <Input
+                                                        placeholder="Nominal Rupiah"
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        className="pl-9"
+                                                        value={pay3Nom}
+                                                        onChange={(e) => setPay3Nom(formatCurrencyInput(e.target.value))}
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="col-span-3">
                                                 <Select value={pay3Type} onValueChange={setPay3Type} disabled={pay3Method === 'cash'}>
@@ -905,6 +936,93 @@ export default function KasirIndex({
                                     }}
                                 >
                                     Simpan Tindakan
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal Potongan */}
+                <Dialog open={showPotonganModal} onOpenChange={setShowPotonganModal}>
+                    <DialogContent className="max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Tambah Potongan</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-12 items-center gap-2">
+                                <Label className="col-span-4">Jenis Potongan</Label>
+                                <div className="col-span-8">
+                                    <Select value={potonganJenis} onValueChange={(v) => setPotonganJenis(v as any)}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="discount">Discount</SelectItem>
+                                            <SelectItem value="voucher">Voucher</SelectItem>
+                                            <SelectItem value="cashback">Cashback</SelectItem>
+                                            <SelectItem value="promo">Promo</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-12 items-center gap-2">
+                                <Label className="col-span-4">Besar Potongan</Label>
+                                <div className="col-span-8">
+                                    <div className="relative">
+                                        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                                            Rp
+                                        </span>
+                                        <Input
+                                            placeholder="0"
+                                            type="text"
+                                            inputMode="numeric"
+                                            className="pl-9"
+                                            value={potonganNominal}
+                                            onChange={(e) => setPotonganNominal(formatCurrencyInput(e.target.value))}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-12 items-center gap-2">
+                                <Label className="col-span-4">Uraian Potongan</Label>
+                                <div className="col-span-8">
+                                    <Input
+                                        placeholder="Masukkan uraian potongan"
+                                        value={potonganUraian}
+                                        onChange={(e) => setPotonganUraian(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                                <Button type="button" variant="secondary" onClick={() => setShowPotonganModal(false)}>
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        const nominal = parseCurrencyValue(potonganNominal);
+                                        if (!nominal) return;
+                                        const now = new Date().toISOString().slice(0, 10);
+                                        const nama = `${potonganUraian || 'Potongan'} (${potonganJenis})`;
+                                        setRows((prev) => [
+                                            ...prev,
+                                            {
+                                                jenis: 'diskon',
+                                                nama,
+                                                harga: -nominal,
+                                                qtyLabel: '1',
+                                                total: -nominal,
+                                                tanggal: now,
+                                            },
+                                        ]);
+                                        // Clear and close
+                                        setPotonganNominal('');
+                                        setPotonganUraian('');
+                                        setPotonganJenis('discount');
+                                        setShowPotonganModal(false);
+                                    }}
+                                >
+                                    Simpan
                                 </Button>
                             </div>
                         </div>
