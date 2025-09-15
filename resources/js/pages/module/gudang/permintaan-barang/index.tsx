@@ -748,7 +748,7 @@ export default function PermintaanBarangIndex({ title, dabar, request, data_kiri
                                                         Pilih Tujuan
                                                     </label>
                                                     <select
-                                                        className="form-control w-full rounded border p-2"
+                                                        className="form-control w-full rounded border p-2 dark:bg-background"
                                                         id="external_database"
                                                         name="external_database"
                                                         value={externalDatabase}

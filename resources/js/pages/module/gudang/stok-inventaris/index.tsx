@@ -256,7 +256,7 @@ export default function Index() {
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold text-gray-800">
+                        <DialogTitle className="text-xl font-bold text-gray-800 dark:text-white">
                             {selectedItem ? `${selectedItem.kode} - ${selectedItem.nama}` : ''}
                         </DialogTitle>
                     </DialogHeader>
@@ -310,7 +310,7 @@ export default function Index() {
             <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
                 <DialogContent className="max-h-[90vh] overflow-y-auto text-sm sm:max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold text-gray-800">
+                        <DialogTitle className="text-xl font-bold text-gray-800 dark:text-white">
                             {selectedItem ? `Penyesuaian: ${selectedItem.kode} - ${selectedItem.nama}` : 'Penyesuaian'}
                         </DialogTitle>
                     </DialogHeader>
@@ -320,7 +320,7 @@ export default function Index() {
                                 <label className="col-span-4">Aktivitas</label>
                                 <div className="col-span-8">
                                     <select
-                                        className="w-full rounded border px-3 py-2"
+                                        className="w-full rounded border px-3 py-2 dark:bg-background"
                                         value={aktifitas}
                                         onChange={(e) => setAktifitas(e.target.value)}
                                         required
@@ -337,7 +337,7 @@ export default function Index() {
                                 <label className="col-span-4">Jumlah</label>
                                 <div className="col-span-5">
                                     <select
-                                        className="w-full rounded border px-3 py-2"
+                                        className="w-full rounded border px-3 py-2 dark:bg-background"
                                         value={keteranganQty}
                                         onChange={(e) => setKeteranganQty(e.target.value)}
                                         required

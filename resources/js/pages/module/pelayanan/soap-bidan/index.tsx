@@ -207,12 +207,9 @@ export default function PelayananSoapBidan() {
                         size="xs"
                         className="border-blue-600 text-blue-600 hover:bg-blue-50"
                         onClick={() => {
-                            console.log('Button pemeriksaan clicked for:', row.nomor_register);
-                            console.log('Encoded norawat:', norawat);
                             try {
                                 router.visit(`/pelayanan/soap-bidan/${norawat}`);
                             } catch (error) {
-                                console.error('Error navigating to pemeriksaan:', error);
                                 toast.error('Gagal membuka halaman pemeriksaan');
                             }
                         }}

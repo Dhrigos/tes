@@ -1044,6 +1044,7 @@ export default function DokterIndex() {
                                                             value={formData.tanggal_lahir}
                                                             onChange={(e) => handleInputChange('tanggal_lahir', e.target.value)}
                                                             disabled={isReadOnly}
+                                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                         />
                                                     </div>
                                                 </div>
@@ -1123,6 +1124,7 @@ export default function DokterIndex() {
                                                             value={formData.exp_str}
                                                             onChange={(e) => handleInputChange('exp_str', e.target.value)}
                                                             disabled={isReadOnly}
+                                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                         />
                                                     </div>
                                                 </div>
@@ -1141,6 +1143,7 @@ export default function DokterIndex() {
                                                             value={formData.exp_spri}
                                                             onChange={(e) => handleInputChange('exp_spri', e.target.value)}
                                                             disabled={isReadOnly}
+                                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                         />
                                                     </div>
                                                 </div>
@@ -1322,6 +1325,7 @@ export default function DokterIndex() {
                                                         value={formData.tgl_masuk}
                                                         onChange={(e) => handleInputChange('tgl_masuk', e.target.value)}
                                                         disabled={isReadOnly}
+                                                        className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                     />
                                                 </div>
                                                 <div>

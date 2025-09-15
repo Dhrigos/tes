@@ -749,6 +749,7 @@ export default function PerawatIndex() {
                                                             value={formData.tanggal_lahir}
                                                             onChange={(e) => handleInputChange('tanggal_lahir', e.target.value)}
                                                             disabled={isReadOnly}
+                                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                         />
                                                     </div>
                                                 </div>
@@ -1028,6 +1029,7 @@ export default function PerawatIndex() {
                                                         value={formData.tgl_masuk}
                                                         onChange={(e) => handleInputChange('tgl_masuk', e.target.value)}
                                                         disabled={isReadOnly}
+                                                        className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                     />
                                                 </div>
                                                 <div>

@@ -197,7 +197,7 @@ interface AlergiData {
 
 interface PageProps {
     pelayanan: PatientData;
-    soap_bidan?: SoapDokterData;
+    soap_dokter?: SoapDokterData;
     so_perawat?: any;
     existing_diet_data: ExistingDietData[];
     alergi_data: AlergiData[];
@@ -231,9 +231,13 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function PemeriksaanSoapBidan() {
+    // Ambil props Inertia di top-level
+    const page = usePage();
+    const inertiaProps = page.props as unknown as PageProps;
+
     const {
         pelayanan,
-        soap_bidan: soap_dokter,
+        soap_dokter: soap_dokter,
         so_perawat,
         existing_diet_data,
         alergi_data,
@@ -254,7 +258,7 @@ export default function PemeriksaanSoapBidan() {
         tindakan_list_saved,
         obat_saved,
         errors,
-    } = usePage().props as unknown as PageProps;
+    } = inertiaProps;
 
     const [activeTab, setActiveTab] = useState('subyektif');
     const [cpptEntries, setCpptEntries] = useState<any[]>([]);
@@ -300,6 +304,24 @@ export default function PemeriksaanSoapBidan() {
             loadCpptData();
         }
     }, [activeTab, pelayanan?.nomor_rm]);
+
+    // Initialize penggunaanOptions from props
+    useEffect(() => {
+        if (Array.isArray((inertiaProps as any)?.penggunaan_obat)) {
+            setPenggunaanOptions((inertiaProps as any).penggunaan_obat as Array<{ id: number; nama: string }>);
+        } else {
+            // Fallback to any window-based bootstrap (if present)
+            try {
+                const arr = Array.isArray((window as any)?.__PENGGUNAAN_OBAT__)
+                    ? ((window as any).__PENGGUNAAN_OBAT__ as Array<{ id: number; nama: string }>)
+                    : [];
+                setPenggunaanOptions(arr);
+            } catch {
+                setPenggunaanOptions([]);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Opsi jenis alergi unik dan detail alergi terfilter (dideklarasikan setelah formData)
 
@@ -460,21 +482,7 @@ export default function PemeriksaanSoapBidan() {
     const [obatList, setObatList] = useState<Array<typeof obatData>>([]);
     const [obatTersedia, setObatTersedia] = useState<Array<{ kode_obat_alkes: string; nama_obat_alkes: string; total_stok: number }>>([]);
     const [instruksiObat, setInstruksiObat] = useState<Array<{ id: number; nama: string }>>([]);
-    const [penggunaanOptions, setPenggunaanOptions] = useState<Array<{ id: number; nama: string }>>(() => {
-        // Prefer from Inertia props model
-        if (Array.isArray((usePage().props as any)?.penggunaan_obat)) {
-            return (usePage().props as any).penggunaan_obat as Array<{ id: number; nama: string }>;
-        }
-        // Fallback to any window-based bootstrap (if present)
-        try {
-            const arr = Array.isArray((window as any)?.__PENGGUNAAN_OBAT__)
-                ? ((window as any).__PENGGUNAAN_OBAT__ as Array<{ id: number; nama: string }>)
-                : [];
-            return arr;
-        } catch {
-            return [];
-        }
-    });
+    const [penggunaanOptions, setPenggunaanOptions] = useState<Array<{ id: number; nama: string }>>([]);
     const [satuanBarang, setSatuanBarang] = useState<Array<{ id: number; nama: string }>>([]);
     const [loadingObat, setLoadingObat] = useState(false);
     const [editIndexObat, setEditIndexObat] = useState<number | null>(null);

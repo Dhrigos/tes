@@ -191,7 +191,6 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
         setManualItems(newManualItems);
         setSelectedRows([]);
         setSelectAll(false);
-        toast.success(`${selectedItems.length} barang berhasil dipindahkan ke form permintaan`);
 
         // Also confirm the request (change status to 1)
         try {
@@ -406,46 +405,6 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
         }
     };
 
-    // // Function to confirm permintaan
-    // const konfirmasiPermintaan = async (kodeRequest: string) => {
-    //     try {
-    //         setLoading(true);
-
-    //         // Get the tanggal_input from selectedPermintaan
-    //         const tanggalInput = selectedPermintaan?.tanggal_input || '';
-
-    //         const response = await axios.post('/gudang/daftar-permintaan-barang/konfirmasi', {
-    //             detail_kode_request: kodeRequest,
-    //             detail_tanggal: tanggalInput,
-    //         });
-
-    //         if (response.data.success) {
-    //             toast.success(response.data.message || 'Permintaan berhasil dikonfirmasi');
-
-    //             // Update the local state to reflect the confirmation
-    //             if (selectedPermintaan) {
-    //                 setSelectedPermintaan({
-    //                     ...selectedPermintaan,
-    //                     status: '1',
-    //                 });
-    //             }
-
-    //             // Also update the main permintaan list
-    //             const updatedPermintaan = permintaan.map((item) => (item.kode_request === kodeRequest ? { ...item, status: '1' } : item));
-
-    //             // Since we don't have access to setPermintaan here, we'll just close the modal
-    //             // In a real app, you might want to pass a setter function as a prop
-    //             // setShowDetailModal(false);
-    //         } else {
-    //             toast.error(response.data.message || 'Gagal mengkonfirmasi permintaan barang');
-    //         }
-    //     } catch (error) {
-    //         toast.error('Terjadi kesalahan saat mengkonfirmasi permintaan barang');
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
@@ -614,7 +573,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                     <div className="mt-4 flex justify-end">
                                                         <Button
                                                             variant="default"
-                                                            className="bg-blue-600 hover:bg-blue-700"
+                                                            className="bg-blue-600 hover:bg-blue-700 dark:text-white"
                                                             onClick={moveToRequestForm}
                                                         >
                                                             Pindahkan ke Form Permintaan

@@ -3,6 +3,7 @@ const EXPORT_URL = '/laporan/top-icd10/export';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { usePage } from '@inertiajs/react';
@@ -466,23 +467,34 @@ const TopIcd10 = () => {
                         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Periode</label>
-                                <select
-                                    className="h-10 w-full rounded-md border px-2 text-sm"
-                                    value={granularity}
-                                    onChange={(e) => setGranularity(e.target.value as any)}
-                                >
-                                    <option value="weekly">Mingguan</option>
-                                    <option value="monthly">Bulanan</option>
-                                    <option value="yearly">Tahunan</option>
-                                </select>
+                                <Select value={granularity} onValueChange={(value) => setGranularity(value as any)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih Periode" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="weekly">Mingguan</SelectItem>
+                                        <SelectItem value="monthly">Bulanan</SelectItem>
+                                        <SelectItem value="yearly">Tahunan</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
-                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateStart}
+                                    onChange={(e) => setDateStart(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
-                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateEnd}
+                                    onChange={(e) => setDateEnd(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div className="flex items-end justify-end gap-2 md:col-span-3">
                                 <Button

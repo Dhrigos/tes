@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Pencil, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner'; // ✅ pakai sonner
 
@@ -136,45 +136,6 @@ export default function Index() {
                     },
                 },
             );
-        } else {
-            router.post(
-                '/datamaster/gudang/daftar-harga-jual',
-                {
-                    kode_obat_alkes: kodeObatAlkes,
-                    nama_obat_alkes: nama,
-                    harga_dasar: hargaDasar,
-                    harga_jual_1: hargaJual1,
-                    harga_jual_2: hargaJual2,
-                    harga_jual_3: hargaJual3,
-                    diskon,
-                    ppn,
-                    tanggal_obat_masuk: tanggalObatMasuk,
-                },
-                {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        setOpen(false);
-
-                        setKodeObatAlkes('');
-                        setNama('');
-                        setHargaDasar('');
-                        setHargaJual1('');
-                        setHargaJual2('');
-                        setHargaJual3('');
-                        setDiskon('');
-                        setPpn('');
-                        setTanggalObatMasuk('');
-
-                        setPic('');
-                        setNoTelp('');
-                        setEditId(null);
-                    },
-                    onError: (e) => {
-                        console.error('Error saving Daftar Harga Jual', e);
-                        // modal tetap terbuka
-                    },
-                },
-            );
         }
     };
 
@@ -232,25 +193,6 @@ export default function Index() {
                                     className="w-48 pl-8"
                                 />
                             </div>
-                            <Button
-                                onClick={() => {
-                                    setEditId(null);
-                                    setKodeObatAlkes('');
-                                    setNama('');
-                                    setHargaDasar('');
-                                    setHargaJual1('');
-                                    setHargaJual2('');
-                                    setHargaJual3('');
-                                    setDiskon('');
-                                    setPpn('');
-                                    setTanggalObatMasuk('');
-                                    setPic('');
-                                    setNoTelp('');
-                                    setOpen(true);
-                                }}
-                            >
-                                <Plus className="mr-2 h-4 w-4" /> Tambah
-                            </Button>
                         </div>
                     </CardHeader>
 
@@ -280,8 +222,7 @@ export default function Index() {
                                             <TableCell>{item.harga_jual_1}</TableCell>
                                             <TableCell>{item.harga_jual_2}</TableCell>
                                             <TableCell>{item.harga_jual_3}</TableCell>
-                                            <TableCell>{item.diskon}</TableCell>
-                                            <TableCell>{item.ppn}</TableCell>
+                                            <TableCell>{item.tanggal_obat_masuk}</TableCell>
                                             <TableCell className="space-x-2 text-right">
                                                 <Button size="sm" variant="outline" onClick={() => handleOpenEdit(item)}>
                                                     <Pencil className="h-4 w-4" />
@@ -309,9 +250,10 @@ export default function Index() {
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{editId ? 'Edit Daftar Harga Jual' : 'Tambah Daftar Harga Jual'}</DialogTitle>
+                        <DialogTitle>Edit Daftar Harga Jual</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        <Input placeholder="Kode Obat/Alkes" value={kodeObatAlkes} onChange={(e) => setKodeObatAlkes(e.target.value)} required />
                         <Input placeholder="Nama Obat/Alkes" value={nama} onChange={(e) => setNama(e.target.value)} required />
                         <Input placeholder="Harga Dasar" value={hargaDasar} onChange={(e) => setHargaDasar(e.target.value)} required />
                         <Input placeholder="Harga Jual 1" value={hargaJual1} onChange={(e) => setHargaJual1(e.target.value)} required />
@@ -319,6 +261,14 @@ export default function Index() {
                         <Input placeholder="Harga Jual 3" value={hargaJual3} onChange={(e) => setHargaJual3(e.target.value)} required />
                         <Input placeholder="Diskon (%)" value={diskon} onChange={(e) => setDiskon(e.target.value)} required />
                         <Input placeholder="PPN (%)" value={ppn} onChange={(e) => setPpn(e.target.value)} required />
+                        <Input
+                            type="date"
+                            placeholder="Tanggal Obat Masuk"
+                            value={tanggalObatMasuk}
+                            onChange={(e) => setTanggalObatMasuk(e.target.value)}
+                            required
+                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                        />
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                 Batal

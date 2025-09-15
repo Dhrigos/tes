@@ -99,10 +99,20 @@ export default function Index() {
 
     const filteredAsuransis = asuransis.filter((a) => a.nama.toLowerCase().includes(search.toLowerCase()));
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // Mencegah auto-submit, hanya izinkan submit melalui tombol
+    };
 
-        // Pastikan hanya submit pada step 3
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && currentStep !== 3) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+
+    const handleSave = () => {
+        // Pastikan hanya bisa save pada step 3
         if (currentStep !== 3) return;
 
         const payload = {
@@ -167,11 +177,19 @@ export default function Index() {
         setNoRekening('');
     };
 
-    const handleNext = () => {
+    const handleNext = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         setCurrentStep(currentStep + 1);
     };
 
-    const handlePrev = () => {
+    const handlePrev = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         setCurrentStep(currentStep - 1);
     };
 
@@ -339,7 +357,7 @@ export default function Index() {
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4 p-4">
+                    <form onSubmit={handleFormSubmit} onKeyDown={handleKeyDown} className="space-y-4 p-4">
                         {/* Step 1: Informasi Dasar */}
                         {currentStep === 1 && (
                             <div className="flex min-h-[400px] gap-8">
@@ -405,6 +423,7 @@ export default function Index() {
                                                 value={berlakuMulai}
                                                 onChange={(e) => setBerlakuMulai(e.target.value)}
                                                 onFocus={(e) => e.target.showPicker && e.target.showPicker()}
+                                                className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -414,6 +433,7 @@ export default function Index() {
                                                 value={berlakuHingga}
                                                 onChange={(e) => setBerlakuHingga(e.target.value)}
                                                 onFocus={(e) => e.target.showPicker && e.target.showPicker()}
+                                                className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                             />
                                         </div>
                                     </div>
@@ -577,17 +597,19 @@ export default function Index() {
                             </Button>
 
                             {currentStep > 1 && (
-                                <Button type="button" variant="outline" onClick={handlePrev}>
+                                <Button type="button" variant="outline" onClick={(e) => handlePrev(e)}>
                                     Kembali
                                 </Button>
                             )}
 
-                            {currentStep <= 3 ? (
-                                <Button type="button" onClick={handleNext} disabled={!isStepValid(currentStep)}>
+                            {currentStep < 3 ? (
+                                <Button type="button" onClick={(e) => handleNext(e)} disabled={!isStepValid(currentStep)}>
                                     Lanjut
                                 </Button>
                             ) : (
-                                <Button type="submit">{editId ? 'Update' : 'Simpan'}</Button>
+                                <Button type="button" onClick={handleSave}>
+                                    {editId ? 'Update' : 'Simpan'}
+                                </Button>
                             )}
                         </DialogFooter>
                     </form>

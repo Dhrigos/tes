@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePage } from '@inertiajs/react';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -73,16 +74,25 @@ interface ApotekDetailRow {
 
 type ApotekRow = ApotekHeaderRow | ApotekDetailRow;
 
-const formatDatePart = (iso?: string) => {
-    if (!iso) return '';
-    const parts = String(iso).split('T');
-    return parts[0] || '';
+const formatDatePart = (raw?: string) => {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    // Support both ISO with 'T' and MySQL-like 'YYYY-MM-DD HH:MM:SS'
+    const hasT = s.includes('T');
+    const sep = hasT ? 'T' : ' ';
+    const parts = s.split(sep);
+    return (parts[0] || '').trim();
 };
 
-const formatTimePart = (iso?: string) => {
-    if (!iso) return '';
-    const parts = String(iso).split('T');
-    return (parts[1] || '').slice(0, 5);
+const formatTimePart = (raw?: string) => {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    const hasT = s.includes('T');
+    const sep = hasT ? 'T' : ' ';
+    const parts = s.split(sep);
+    const time = (parts[1] || '').trim();
+    // Expect HH:MM:SS or HH:MM
+    return time.slice(0, 5);
 };
 
 const formatRupiah = (amount: number) => {
@@ -316,26 +326,37 @@ const LaporanApotek = () => {
                         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-12">
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
-                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateStart}
+                                    onChange={(e) => setDateStart(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
-                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateEnd}
+                                    onChange={(e) => setDateEnd(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium">Poli</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterPoli}
-                                    onChange={(e) => setFilterPoli(e.target.value)}
-                                >
-                                    <option value="">-- Semua Poli --</option>
-                                    {poliOptions.map((p) => (
-                                        <option key={p} value={p}>
-                                            {p}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterPoli || 'all'} onValueChange={(value) => setFilterPoli(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Poli --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Poli --</SelectItem>
+                                        {poliOptions.map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {p}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="relative md:col-span-4">
                                 <label className="mb-1 block text-sm font-medium">Nama Obat</label>
@@ -347,7 +368,7 @@ const LaporanApotek = () => {
                                     {(filterObat || []).length > 0 ? `${(filterObat || []).length} dipilih` : 'Pilih obat...'}
                                 </button>
                                 {openObatDropdown && (
-                                    <div className="absolute z-50 mt-1 w-full rounded border bg-white shadow">
+                                    <div className="absolute z-50 mt-1 w-full rounded border bg-background shadow">
                                         <div className="flex items-center justify-between gap-2 border-b px-2 py-1 text-xs">
                                             <button
                                                 type="button"

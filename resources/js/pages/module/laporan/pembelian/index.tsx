@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -146,41 +147,53 @@ const LaporanPembelian = () => {
                         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
-                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateStart}
+                                    onChange={(e) => setDateStart(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
-                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateEnd}
+                                    onChange={(e) => setDateEnd(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Jenis</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterJenis}
-                                    onChange={(e) => setFilterJenis(e.target.value)}
-                                >
-                                    <option value="">-- Semua Jenis --</option>
-                                    {jenisOptions.map((j) => (
-                                        <option key={j} value={j}>
-                                            {j}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterJenis || 'all'} onValueChange={(value) => setFilterJenis(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Jenis --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Jenis --</SelectItem>
+                                        {jenisOptions.map((j) => (
+                                            <SelectItem key={j} value={j}>
+                                                {j}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Supplier</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterSupplier}
-                                    onChange={(e) => setFilterSupplier(e.target.value)}
-                                >
-                                    <option value="">-- Semua Supplier --</option>
-                                    {supplierOptions.map((s) => (
-                                        <option key={s} value={s}>
-                                            {s}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterSupplier || 'all'} onValueChange={(value) => setFilterSupplier(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Supplier --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Supplier --</SelectItem>
+                                        {supplierOptions.map((s) => (
+                                            <SelectItem key={s} value={s}>
+                                                {s}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-end justify-end gap-2 md:col-span-2">
                                 <Button

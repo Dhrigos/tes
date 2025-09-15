@@ -9,6 +9,7 @@ use App\Models\Module\Pemdaftaran\Pendaftaran;
 use App\Models\Settings\Web_Setting;
 use App\Models\Module\Kasir\Kasir;
 use App\Models\Module\Kasir\Kasir_Detail;
+use App\Models\Module\Apotek\Apotek;
 use App\Models\Module\Pembelian\Pembelian;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use Illuminate\Http\Request;
@@ -98,8 +99,6 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-    // removed print_pendaftaran
-
     public function export_pendaftaran(Request $request)
     {
         $data = json_decode($request->input('data'), true) ?: [];
@@ -170,8 +169,6 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-
-
     public function export_dokter(Request $request)
     {
         $data = json_decode($request->input('data'), true) ?: [];
@@ -241,8 +238,6 @@ class Laporan_Controller extends Controller
         return Excel::download(new GenericArrayExport($headers, $rows), $filename);
     }
 
-
-
     public function pendataan_perawat()
     {
         $title = "Data Pemeriksaan Perawat";
@@ -256,8 +251,6 @@ class Laporan_Controller extends Controller
             'data' => $data,
         ]);
     }
-
-
 
     public function export_perawat(Request $request)
     {
@@ -324,8 +317,6 @@ class Laporan_Controller extends Controller
         return Excel::download(new GenericArrayExport($headers, $rows), $filename);
     }
 
-
-
     public function laporan_stok_penyesuaian()
     {
         $title = "Laporan Selisih Mutasi & Penyesuaian";
@@ -335,8 +326,6 @@ class Laporan_Controller extends Controller
             'data' => $data,
         ]);
     }
-
-
 
     public function export_stok_penyesuaian(Request $request)
     {
@@ -407,15 +396,40 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-
-
     public function apotek()
     {
         $title = "Data Lunas Apotek";
 
-        $header = Kasir::has('apotek_lunas')->with('apotek_lunas')->get();
+        // Ambil dari model Apotek beserta detail obat
+        $apoteks = Apotek::with('detail_obat')->get();
 
-        $obatList = collect($header)->flatMap(function ($item) {
+        // Samakan struktur data dengan yang sebelumnya dipakai di frontend (berbasis Kasir)
+        $header = $apoteks->map(function ($a) {
+            return [
+                'id' => $a->id,
+                'kode_faktur' => $a->kode_faktur,
+                'no_rm' => $a->no_rm,
+                'no_rawat' => $a->no_rawat,
+                'nama' => $a->nama,
+                'tanggal' => $a->tanggal,
+                'poli' => $a->poli,
+                'dokter' => $a->dokter,
+                'penjamin' => $a->penjamin,
+                // tidak ada user_input_name pada tabel apoteks
+                'user_input_name' => '-',
+                // mapping detail_obat -> apotek_lunas (nama dan angka disamakan kunci-nya)
+                'apotek_lunas' => collect($a->detail_obat)->map(function ($d) {
+                    return [
+                        'nama_obat_tindakan' => $d->nama_obat_alkes ?? '-',
+                        'harga_obat_tindakan' => $d->harga ?? 0,
+                        'qty' => $d->qty ?? 0,
+                        'total_sementara' => $d->total ?? 0,
+                    ];
+                })->values()->all(),
+            ];
+        })->values();
+
+        $obatList = $header->flatMap(function ($item) {
             return collect($item['apotek_lunas'])->pluck('nama_obat_tindakan');
         })->unique()->sort()->values();
 
@@ -426,13 +440,12 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-
-
     public function export_apotek(Request $request)
     {
         $data = json_decode($request->input('data'), true) ?: [];
         $tanggal_awal = $request->input('tanggal_awal');
         $tanggal_akhir = $request->input('tanggal_akhir');
+        // Samakan header, namun sumber datanya sekarang dari Apotek (mapping tetap sama)
         $headers = ['No', 'Kode Faktur', 'No RM', 'No Rawat', 'Nama', 'Nama Obat/Alkes', 'Harga', 'Qty', 'Total', 'Poli', 'Dokter', 'Penjamin', 'Tanggal', 'Petugas'];
         $rows = array_map(function ($row) {
             return [
@@ -452,7 +465,7 @@ class Laporan_Controller extends Controller
                 $row['user_input_name'] ?? '-',
             ];
         }, $request->input('flat_rows') ? json_decode($request->input('flat_rows'), true) : $data);
-        $filename = 'kasir_apotek_lunas_' . now()->format('Ymd_His') . '.xlsx';
+        $filename = 'apotek_lunas_' . now()->format('Ymd_His') . '.xlsx';
         return Excel::download(new GenericArrayExport($headers, $rows), $filename);
     }
 

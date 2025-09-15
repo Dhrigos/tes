@@ -68,7 +68,6 @@ export default function Permintaan() {
     const { pelayanan, errors, flash, norawat, radiologiPemeriksaans } = usePage().props as unknown as PageProps;
 
     // Debug: Log data yang diterima dari backend
-    console.log('Data pelayanan:', pelayanan);
 
     // Helper function untuk format umur
     const formatUmur = (umur: string) => {

@@ -21,9 +21,8 @@ class PulseServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('viewPulse', function () {
-            // hanya bisa diakses di local
+            // hanya bisa diakses di local tanpa perlu login
             return app()->environment('local');
         });
-
     }
 }

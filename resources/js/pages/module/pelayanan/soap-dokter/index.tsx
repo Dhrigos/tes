@@ -207,8 +207,6 @@ export default function PelayananSoapDokter() {
                         size="xs"
                         className="border-blue-600 text-blue-600 hover:bg-blue-50"
                         onClick={() => {
-                            console.log('Button pemeriksaan clicked for:', row.nomor_register);
-                            console.log('Encoded norawat:', norawat);
                             try {
                                 router.visit(`/pelayanan/soap-dokter/${norawat}`);
                             } catch (error) {

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Pencil, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -85,27 +85,36 @@ export default function Index() {
         );
     });
 
-    const handleSubmit = () => {
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+
         if (editId) {
-            router.put(`/datamaster/gudang/daftar-harga-jual-klinik/${editId}`, {
-                nama_obat_alkes: nama,
-                harga_dasar: hargaDasar,
-                harga_jual_1: hargaJual1,
-                harga_jual_2: hargaJual2,
-                harga_jual_3: hargaJual3,
-                diskon: diskon,
-                ppn: ppn,
-            });
-        } else {
-            router.post('/datamaster/gudang/daftar-harga-jual-klinik', {
-                nama_obat_alkes: nama,
-                harga_dasar: hargaDasar,
-                harga_jual_1: hargaJual1,
-                harga_jual_2: hargaJual2,
-                harga_jual_3: hargaJual3,
-                diskon: diskon,
-                ppn: ppn,
-            });
+            router.put(
+                `/datamaster/gudang/daftar-harga-jual-klinik/${editId}`,
+                {
+                    nama_obat_alkes: nama,
+                    harga_dasar: hargaDasar,
+                    harga_jual_1: hargaJual1,
+                    harga_jual_2: hargaJual2,
+                    harga_jual_3: hargaJual3,
+                    diskon: diskon,
+                    ppn: ppn,
+                },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setOpen(false);
+                        setNama('');
+                        setHargaDasar('');
+                        setHargaJual1('');
+                        setHargaJual2('');
+                        setHargaJual3('');
+                        setDiskon('');
+                        setPpn('');
+                        setEditId(null);
+                    },
+                },
+            );
         }
     };
 
@@ -158,21 +167,6 @@ export default function Index() {
                                     className="w-48 pl-8"
                                 />
                             </div>
-                            <Button
-                                onClick={() => {
-                                    setEditId(null);
-                                    setNama('');
-                                    setHargaDasar('');
-                                    setHargaJual1('');
-                                    setHargaJual2('');
-                                    setHargaJual3('');
-                                    setDiskon('');
-                                    setPpn('');
-                                    setOpen(true);
-                                }}
-                            >
-                                <Plus className="mr-2 h-4 w-4" /> Tambah
-                            </Button>
                         </div>
                     </CardHeader>
 
@@ -228,7 +222,7 @@ export default function Index() {
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{editId ? 'Edit Daftar Harga Jual Klinik' : 'Tambah Daftar Harga Jual Klinik'}</DialogTitle>
+                        <DialogTitle>Edit Daftar Harga Jual Klinik</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <Input placeholder="Nama Obat/Alkes" value={nama} onChange={(e) => setNama(e.target.value)} required />

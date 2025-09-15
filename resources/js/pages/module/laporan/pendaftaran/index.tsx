@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -95,7 +96,11 @@ const LaporanPendaftaran = () => {
             if (start && ymd !== '-' && ymd < start) return false;
             if (end && ymd !== '-' && ymd > end) return false;
             if (filterPoli && (item.poli?.nama || '') !== filterPoli) return false;
-            if (filterDokter && (item.dokter?.namauser?.name || '') !== filterDokter) return false;
+            if (filterDokter) {
+                const dokterName =
+                    item.dokter?.namauser?.name || (item as any)?.dokter?.nama || (item as any)?.dokter?.name || (item as any)?.dokter_nama || '';
+                if (dokterName !== filterDokter) return false;
+            }
             return true;
         });
     }, [rawData, dateStart, dateEnd, filterPoli, filterDokter]);
@@ -125,7 +130,7 @@ const LaporanPendaftaran = () => {
     const dokterOptions = useMemo(() => {
         const set = new Set<string>();
         rawData.forEach((it) => {
-            const nama = it.dokter?.namauser?.name || '';
+            const nama = it.dokter?.namauser?.name || (it as any)?.dokter?.nama || (it as any)?.dokter?.name || (it as any)?.dokter_nama || '';
             if (nama) set.add(nama);
         });
         return Array.from(set).sort();
@@ -223,41 +228,53 @@ const LaporanPendaftaran = () => {
                         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
-                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateStart}
+                                    onChange={(e) => setDateStart(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
-                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateEnd}
+                                    onChange={(e) => setDateEnd(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Poli</label>
-                                <select
-                                    className="h-10 w-full rounded-md border px-2 text-sm"
-                                    value={filterPoli}
-                                    onChange={(e) => setFilterPoli(e.target.value)}
-                                >
-                                    <option value="">-- Semua Poli --</option>
-                                    {poliOptions.map((p) => (
-                                        <option key={p} value={p}>
-                                            {p}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterPoli || 'all'} onValueChange={(value) => setFilterPoli(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Poli --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Poli --</SelectItem>
+                                        {poliOptions.map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {p}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Dokter</label>
-                                <select
-                                    className="h-10 w-full rounded-md border px-2 text-sm"
-                                    value={filterDokter}
-                                    onChange={(e) => setFilterDokter(e.target.value)}
-                                >
-                                    <option value="">-- Semua Dokter --</option>
-                                    {dokterOptions.map((d) => (
-                                        <option key={d} value={d}>
-                                            {d}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterDokter || 'all'} onValueChange={(value) => setFilterDokter(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Dokter --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Dokter --</SelectItem>
+                                        {dokterOptions.map((d) => (
+                                            <SelectItem key={d} value={d}>
+                                                {d}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-end justify-end gap-2 md:col-span-2">
                                 <Button variant="outline" onClick={handleReset}>

@@ -24,6 +24,7 @@ use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
 use App\Http\Controllers\Module\Kasir\Kasir_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Bidan_Controller;
+use App\Http\Controllers\SystemMonitoringController;
 use Illuminate\Http\Request;
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
@@ -85,7 +86,7 @@ Route::prefix('pelayanan')->group(function () {
     Route::post('/selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'selesaiPasien']);
     Route::post('/setengah-selesai-dokter/{norawat}', [Pelayanan_Soap_Dokter_Controller::class, 'setengahSelesaiPasien']);
 
-    // Hadir bidan dan selesai bidan
+    // Hadir bidan dan selesai bidan (menggunakan controller bidan tapi dengan logika dokter)
     Route::get('/hadir-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'hadirBidan']);
     Route::post('/selesai-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'selesaiPasien']);
     Route::post('/setengah-selesai-bidan/{norawat}', [Pelayanan_Soap_Bidan_Controller::class, 'setengahSelesaiPasien']);
@@ -181,4 +182,18 @@ Route::prefix('m_jkn')->group(function () {
     Route::get('/sisa_antrian/{noka}/{kode_poli}/{tgl_periksa}', [MJKN_Controller::class, 'get_sisa_antrian'])->name('get_sisa_antrian.m_jkn');
     Route::put('/batalkan_antrian', [MJKN_Controller::class, 'batalkan_antrian'])->name('batalkan_antrian.m_jkn');
     Route::post('/set_pasien_baru', [MJKN_Controller::class, 'set_pasien_baru'])->name('pasien_baru.m_jkn');
+});
+
+// System Monitoring API Routes
+Route::prefix('system-monitoring')->group(function () {
+    Route::get('/test', [SystemMonitoringController::class, 'test']);
+    Route::get('/health', [SystemMonitoringController::class, 'health']);
+    Route::get('/telescope-data', [SystemMonitoringController::class, 'telescopeData']);
+    Route::get('/pulse-data', [SystemMonitoringController::class, 'pulseData']);
+    Route::post('/send-data', [SystemMonitoringController::class, 'sendData']);
+
+    // Auto-start routes
+    Route::post('/start-auto', [SystemMonitoringController::class, 'startAuto']);
+    Route::post('/force-execute', [SystemMonitoringController::class, 'forceExecute']);
+    Route::get('/auto-status', [SystemMonitoringController::class, 'autoStatus']);
 });

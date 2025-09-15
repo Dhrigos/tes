@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -269,56 +270,69 @@ const LaporanStokPenyesuaian = () => {
                         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-7">
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
-                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateStart}
+                                    onChange={(e) => setDateStart(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
-                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateEnd}
+                                    onChange={(e) => setDateEnd(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Obat</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterObat}
-                                    onChange={(e) => setFilterObat(e.target.value)}
-                                >
-                                    <option value="">-- Semua Obat --</option>
-                                    {obatOptions.map((o) => (
-                                        <option key={o} value={o}>
-                                            {o}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterObat || 'all'} onValueChange={(value) => setFilterObat(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Obat --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Obat --</SelectItem>
+                                        {obatOptions.map((o) => (
+                                            <SelectItem key={o} value={o}>
+                                                {o.length > 20 ? `${o.substring(0, 20)}...` : o}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Jenis Penyesuaian</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterJenis}
-                                    onChange={(e) => setFilterJenis(e.target.value)}
-                                >
-                                    <option value="">-- Semua Jenis --</option>
-                                    {jenisOptions.map((j) => (
-                                        <option key={j} value={j}>
-                                            {j}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterJenis || 'all'} onValueChange={(value) => setFilterJenis(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Jenis --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Jenis --</SelectItem>
+                                        {jenisOptions.map((j) => (
+                                            <SelectItem key={j} value={j}>
+                                                {j}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tipe</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterTipe}
-                                    onChange={(e) => setFilterTipe(e.target.value)}
-                                >
-                                    <option value="">-- Semua Tipe --</option>
-                                    {tipeOptions.map((t) => (
-                                        <option key={t} value={t}>
-                                            {t}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterTipe || 'all'} onValueChange={(value) => setFilterTipe(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Tipe --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Tipe --</SelectItem>
+                                        {tipeOptions.map((t) => (
+                                            <SelectItem key={t} value={t}>
+                                                {t}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-end justify-end gap-2 md:col-span-2">
                                 <Button variant="outline" onClick={handleReset}>

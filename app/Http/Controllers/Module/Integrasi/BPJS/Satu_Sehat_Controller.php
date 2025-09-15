@@ -17,29 +17,29 @@ class Satu_Sehat_Controller extends Controller
     private function get_token()
     {
         $configModel = Set_Sehat::first();
-    
+
         if (!$configModel) {
             throw new \Exception('Konfigurasi Satu Sehat tidak ditemukan di database');
         }
-    
+
         $baseUrl = env('SATUSEHAT_BASE_URL');
         $clientId = $configModel->client_id;
         $clientSecret = $configModel->client_secret;
         $organization = $configModel->org_id;
-    
+
         if (!$clientId || !$clientSecret) {
             throw new \Exception('Client ID/Secret Satu Sehat belum dikonfigurasi');
         }
-    
+
         $response = Http::asForm()->post("{$baseUrl}/oauth2/v1/accesstoken?grant_type=client_credentials", [
             'client_id' => $clientId,
             'client_secret' => $clientSecret,
         ]);
-    
+
         if (!$response->successful()) {
             throw new \Exception('Gagal mengambil token Satu Sehat: ' . ($response->json('error_description') ?? $response->body()));
         }
-    
+
         return [
             'access_token' => $response->json('access_token'),
             'expires_in'   => $response->json('expires_in'),
@@ -48,12 +48,7 @@ class Satu_Sehat_Controller extends Controller
 
         ];
     }
-    
 
-
-    /**
-     * Dekripsi dan dekompresi response BPJS
-     */
     public function get_kfa_obat($type, $nama)
     {
         $baseUrl = env('SATUSEHAT_BASE_URL');
@@ -123,7 +118,6 @@ class Satu_Sehat_Controller extends Controller
                 'data' => $transformed,
                 'response_time' => number_format($responseTime, 2)
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
@@ -195,7 +189,6 @@ class Satu_Sehat_Controller extends Controller
                 'data' => $patientId,
                 'response_time' => number_format($responseTime, 2)
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
@@ -204,7 +197,7 @@ class Satu_Sehat_Controller extends Controller
             ], 500);
         }
     }
-    
+
     public function get_practitioner($nik)
     {
         $baseUrl = env('SATUSEHAT_BASE_URL');
@@ -267,7 +260,6 @@ class Satu_Sehat_Controller extends Controller
                 'data' => $patientId,
                 'response_time' => number_format($responseTime, 2)
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
@@ -317,7 +309,6 @@ class Satu_Sehat_Controller extends Controller
                 'data' => $body,
                 'response_time' => number_format($responseTime, 2)
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
@@ -326,6 +317,4 @@ class Satu_Sehat_Controller extends Controller
             ], 500);
         }
     }
-
-
 }

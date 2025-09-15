@@ -30,15 +30,6 @@ class HandleCsrfToken extends Middleware
      */
     public function handle($request, Closure $next)
     {
-        // Log CSRF token for debugging
-        Log::info('CSRF Token Check', [
-            'url' => $request->url(),
-            'method' => $request->method(),
-            'token' => $request->header('X-CSRF-TOKEN'),
-            'session_token' => $request->session()->token(),
-            'has_token' => $request->hasHeader('X-CSRF-TOKEN'),
-        ]);
-
         // Add custom CSRF token validation logic here if needed
         return parent::handle($request, $next);
     }

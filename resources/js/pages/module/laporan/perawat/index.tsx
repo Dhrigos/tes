@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -241,41 +242,53 @@ const LaporanPerawat = () => {
                         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Awal</label>
-                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateStart}
+                                    onChange={(e) => setDateStart(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Tanggal Akhir</label>
-                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={dateEnd}
+                                    onChange={(e) => setDateEnd(e.target.value)}
+                                    className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Poli</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterPoli}
-                                    onChange={(e) => setFilterPoli(e.target.value)}
-                                >
-                                    <option value="">-- Semua Poli --</option>
-                                    {poliOptions.map((p) => (
-                                        <option key={p} value={p}>
-                                            {p}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterPoli || 'all'} onValueChange={(value) => setFilterPoli(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Poli --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Poli --</SelectItem>
+                                        {poliOptions.map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {p}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">Perawat</label>
-                                <select
-                                    className="w-full rounded border p-2 text-sm"
-                                    value={filterPerawat}
-                                    onChange={(e) => setFilterPerawat(e.target.value)}
-                                >
-                                    <option value="">-- Semua Perawat --</option>
-                                    {perawatOptions.map((d) => (
-                                        <option key={d} value={d}>
-                                            {d}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={filterPerawat || 'all'} onValueChange={(value) => setFilterPerawat(value === 'all' ? '' : value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="-- Semua Perawat --" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">-- Semua Perawat --</SelectItem>
+                                        {perawatOptions.map((d) => (
+                                            <SelectItem key={d} value={d}>
+                                                {d}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-end justify-end gap-2 md:col-span-2">
                                 <Button variant="outline" onClick={handleReset}>

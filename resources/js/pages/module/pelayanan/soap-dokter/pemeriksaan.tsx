@@ -231,6 +231,10 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function PemeriksaanSoapDokter() {
+    // Ambil props Inertia di top-level (hindari memanggil hooks di dalam effect/initializer)
+    const page = usePage();
+    const inertiaProps = page.props as any;
+
     const {
         pelayanan,
         soap_dokter,
@@ -300,6 +304,24 @@ export default function PemeriksaanSoapDokter() {
             loadCpptData();
         }
     }, [activeTab, pelayanan?.nomor_rm]);
+
+    // Initialize penggunaanOptions from props
+    useEffect(() => {
+        if (Array.isArray(inertiaProps?.penggunaan_obat)) {
+            setPenggunaanOptions(inertiaProps.penggunaan_obat as Array<{ id: number; nama: string }>);
+        } else {
+            // Fallback to any window-based bootstrap (if present)
+            try {
+                const arr = Array.isArray((window as any)?.__PENGGUNAAN_OBAT__)
+                    ? ((window as any).__PENGGUNAAN_OBAT__ as Array<{ id: number; nama: string }>)
+                    : [];
+                setPenggunaanOptions(arr);
+            } catch {
+                setPenggunaanOptions([]);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Opsi jenis alergi unik dan detail alergi terfilter (dideklarasikan setelah formData)
 
@@ -458,21 +480,7 @@ export default function PemeriksaanSoapDokter() {
     const [obatList, setObatList] = useState<Array<typeof obatData>>([]);
     const [obatTersedia, setObatTersedia] = useState<Array<{ kode_obat_alkes: string; nama_obat_alkes: string; total_stok: number }>>([]);
     const [instruksiObat, setInstruksiObat] = useState<Array<{ id: number; nama: string }>>([]);
-    const [penggunaanOptions, setPenggunaanOptions] = useState<Array<{ id: number; nama: string }>>(() => {
-        // Prefer from Inertia props model
-        if (Array.isArray((usePage().props as any)?.penggunaan_obat)) {
-            return (usePage().props as any).penggunaan_obat as Array<{ id: number; nama: string }>;
-        }
-        // Fallback to any window-based bootstrap (if present)
-        try {
-            const arr = Array.isArray((window as any)?.__PENGGUNAAN_OBAT__)
-                ? ((window as any).__PENGGUNAAN_OBAT__ as Array<{ id: number; nama: string }>)
-                : [];
-            return arr;
-        } catch {
-            return [];
-        }
-    });
+    const [penggunaanOptions, setPenggunaanOptions] = useState<Array<{ id: number; nama: string }>>([]);
     const [satuanBarang, setSatuanBarang] = useState<Array<{ id: number; nama: string }>>([]);
     const [loadingObat, setLoadingObat] = useState(false);
     const [editIndexObat, setEditIndexObat] = useState<number | null>(null);

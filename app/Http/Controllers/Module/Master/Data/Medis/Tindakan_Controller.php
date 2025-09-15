@@ -35,8 +35,8 @@ class Tindakan_Controller extends Controller
             // Cari ID kategori berdasarkan nama
             $kategoriTindakan = Kategori_Tindakan::where('nama', $request->kategori)->first();
             if (!$kategoriTindakan) {
-                return redirect()->back()->withErrors([
-                    'kategori' => 'Kategori tindakan tidak ditemukan!'
+                return redirect()->back()->with([
+                    'error' => 'Kategori tindakan tidak ditemukan!'
                 ])->withInput();
             }
 
@@ -51,14 +51,13 @@ class Tindakan_Controller extends Controller
             ]);
 
             return redirect()->back()->with([
-                'success' => true,
-                'message' => 'Data tindakan berhasil ditambahkan!'
+                'success' => 'Data tindakan berhasil ditambahkan!'
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()->withErrors($e->errors())->withInput();
         } catch (\Exception $e) {
-            return redirect()->back()->withErrors([
-                'nama' => 'Terjadi kesalahan saat menyimpan data tindakan!'
+            return redirect()->back()->with([
+                'error' => 'Terjadi kesalahan saat menyimpan data tindakan!'
             ])->withInput();
         }
     }
@@ -78,8 +77,8 @@ class Tindakan_Controller extends Controller
             // Cari ID kategori berdasarkan nama
             $kategoriTindakan = Kategori_Tindakan::where('nama', $request->kategori)->first();
             if (!$kategoriTindakan) {
-                return redirect()->back()->withErrors([
-                    'kategori' => 'Kategori tindakan tidak ditemukan!'
+                return redirect()->back()->with([
+                    'error' => 'Kategori tindakan tidak ditemukan!'
                 ])->withInput();
             }
 
@@ -94,14 +93,13 @@ class Tindakan_Controller extends Controller
             ]);
 
             return redirect()->back()->with([
-                'success' => true,
-                'message' => 'Data tindakan berhasil diperbarui!'
+                'success' => 'Data tindakan berhasil diperbarui!'
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()->withErrors($e->errors())->withInput();
         } catch (\Exception $e) {
-            return redirect()->back()->withErrors([
-                'nama' => 'Terjadi kesalahan saat memperbarui data tindakan!'
+            return redirect()->back()->with([
+                'error' => 'Terjadi kesalahan saat memperbarui data tindakan!'
             ])->withInput();
         }
     }
@@ -111,12 +109,11 @@ class Tindakan_Controller extends Controller
         try {
             $tindakan->delete();
             return redirect()->back()->with([
-                'success' => true,
-                'message' => 'Data tindakan berhasil dihapus!'
+                'success' => 'Data tindakan berhasil dihapus!'
             ]);
         } catch (\Exception $e) {
-            return redirect()->back()->withErrors([
-                'nama' => 'Terjadi kesalahan saat menghapus data tindakan!'
+            return redirect()->back()->with([
+                'error' => 'Terjadi kesalahan saat menghapus data tindakan!'
             ]);
         }
     }

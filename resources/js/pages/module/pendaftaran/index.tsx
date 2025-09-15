@@ -364,7 +364,7 @@ const PendaftaranDashboard = () => {
                 setDokterList(data.data || []);
             } else {
                 setDokterList([]);
-                console.log('No doctors available for this schedule');
+                console.error('No doctors available for this schedule');
             }
         } catch (error) {
             console.error('Error fetching doctors:', error);
@@ -1001,6 +1001,7 @@ const PendaftaranDashboard = () => {
                                             value={tanggalKujungan}
                                             onChange={(e) => setTanggalKujungan(e.target.value)}
                                             min={new Date().toISOString().split('T')[0]}
+                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                         />
                                         <p className="mt-1 text-xs text-muted-foreground">
                                             Hari: {hariKunjungan ? convertDayToIndonesian(hariKunjungan) : '-'}

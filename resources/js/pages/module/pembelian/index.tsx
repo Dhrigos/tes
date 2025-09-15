@@ -978,6 +978,7 @@ export default function PembelianIndex() {
                                             type="date"
                                             value={pembelianData.tanggal_terima_barang}
                                             onChange={(e) => handleDataAwalChange('tanggal_terima_barang', e.target.value)}
+                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -987,6 +988,7 @@ export default function PembelianIndex() {
                                             type="date"
                                             value={pembelianData.tanggal_faktur}
                                             onChange={(e) => handleDataAwalChange('tanggal_faktur', e.target.value)}
+                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -996,6 +998,7 @@ export default function PembelianIndex() {
                                             type="date"
                                             value={pembelianData.tanggal_jatuh_tempo}
                                             onChange={(e) => handleDataAwalChange('tanggal_jatuh_tempo', e.target.value)}
+                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -1263,6 +1266,7 @@ export default function PembelianIndex() {
                                                                 type="date"
                                                                 value={modalData.exp}
                                                                 onChange={(e) => updateModalData('exp', e.target.value)}
+                                                                className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                             />
                                                         </div>
                                                     </div>
@@ -1350,7 +1354,7 @@ export default function PembelianIndex() {
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Sub Total</Label>
-                                                            <Input type="number" value={modalData.sub_total} readOnly />
+                                                            <Input type="number" value={modalData.sub_total} readOnly className="dark:bg-black" />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1481,6 +1485,7 @@ export default function PembelianIndex() {
                                                             type="date"
                                                             value={modalData.exp}
                                                             onChange={(e) => updateModalData('exp', e.target.value)}
+                                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                         />
                                                         <p className="text-xs text-muted-foreground">Default 5 tahun dari hari ini</p>
                                                     </div>
@@ -1490,6 +1495,7 @@ export default function PembelianIndex() {
                                                             type="date"
                                                             value={modalData.tanggal_pembelian || pembelianData.tgl_pembelian}
                                                             onChange={(e) => updateModalData('tanggal_pembelian', e.target.value)}
+                                                            className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                         />
                                                     </div>
                                                     <div className="space-y-2 md:col-span-2">
@@ -1502,7 +1508,7 @@ export default function PembelianIndex() {
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Sub Total</Label>
-                                                        <Input type="number" value={modalData.sub_total} readOnly className="bg-gray-50" />
+                                                        <Input type="number" value={modalData.sub_total} readOnly className="dark:bg-black" />
                                                     </div>
                                                 </div>
                                             )}

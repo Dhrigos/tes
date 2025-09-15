@@ -44,8 +44,13 @@ class Htt_Pemeriksaan_Controller extends Controller
 
     public function destroy(Htt_Pemeriksaan $httPemeriksaan)
     {
+        // Delete all related sub-pemeriksaan first to avoid foreign key constraint violation
+        $httPemeriksaan->htt_subpemeriksaans()->delete();
+
+        // Then delete the parent pemeriksaan
         $httPemeriksaan->delete();
-        return redirect()->back()->with('success', 'Data Head To Toe Pemeriksaan berhasil dihapus');
+
+        return redirect()->back()->with('success', 'Data Head To Toe Pemeriksaan dan semua sub-pemeriksaan terkait berhasil dihapus');
     }
 
     public function getSubpemeriksaan($pemeriksaanId)
