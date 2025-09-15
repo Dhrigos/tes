@@ -194,7 +194,7 @@ export default function PelayananSoapBidan() {
                         size="xs"
                         className="border-yellow-600 text-yellow-600 hover:bg-yellow-50 disabled:opacity-50"
                         onClick={() => handlePanggilPasien(row.nomor_register)}
-                        disabled={!((row.status_daftar ?? 0) === 2 && (row.status_perawat ?? 0) === 2 && (row.status_bidan ?? 0) === 0)}
+                        disabled={!((row.status_daftar ?? 0) === 2 && (row.status_bidan ?? 0) === 0)}
                     >
                         <Bell className="mr-1 h-4 w-4" />
                         Panggil

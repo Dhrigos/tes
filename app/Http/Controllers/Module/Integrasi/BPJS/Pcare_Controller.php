@@ -1793,7 +1793,7 @@ class Pcare_Controller extends Controller
             $response = Http::withHeaders(array_merge(
                 ['Content-Type' => 'application/json; charset=utf-8'],
                 $token['headers']
-            ))->get("{$BASE_URL}/{$SERVICE_NAME}/{$feature}/{$khusus}/subspesialis/{$subspesialis}/noKartu/{$nokartu}/tglRujuk/{$tgl}");
+            ))->get("{$BASE_URL}/{$SERVICE_NAME}/{$feature}/{$khusus}/subspesialis/{$subspesialis}/noKartu/{$nokartu}/tglEstRujuk/{$tgl}");
 
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;

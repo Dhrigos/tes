@@ -1660,12 +1660,54 @@ export default function PemeriksaanSoapBidan() {
                                                 <CardTitle>Daftar Keluhan</CardTitle>
                                             </CardHeader>
                                             <CardContent>
+                                                {/* Form tambah keluhan */}
+                                                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+                                                    <div className="md:col-span-3">
+                                                        <Label htmlFor="input_keluhan">Keluhan</Label>
+                                                        <Input
+                                                            id="input_keluhan"
+                                                            value={keluhan}
+                                                            onChange={(e) => setKeluhan(e.target.value)}
+                                                            placeholder="Tulis keluhan utama pasien"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label htmlFor="input_durasi">Durasi</Label>
+                                                        <Input
+                                                            id="input_durasi"
+                                                            value={durasi}
+                                                            onChange={(e) => setDurasi(e.target.value.replace(/[^0-9.]/g, ''))}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label htmlFor="input_durasi_unit">Satuan</Label>
+                                                        <Select value={durasiUnit} onValueChange={(v) => setDurasiUnit(v)}>
+                                                            <SelectTrigger id="input_durasi_unit">
+                                                                <SelectValue placeholder="Pilih satuan" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="Jam">Jam</SelectItem>
+                                                                <SelectItem value="Hari">Hari</SelectItem>
+                                                                <SelectItem value="Minggu">Minggu</SelectItem>
+                                                                <SelectItem value="Bulan">Bulan</SelectItem>
+                                                                <SelectItem value="Tahun">Tahun</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+                                                <div className="mb-4 flex justify-end">
+                                                    <Button type="button" onClick={handleAddKeluhan} disabled={!keluhan.trim() || !durasi.trim()}>
+                                                        Tambah Keluhan
+                                                    </Button>
+                                                </div>
                                                 {keluhanList.length > 0 ? (
                                                     <Table>
                                                         <TableHeader>
                                                             <TableRow>
                                                                 <TableHead>Keluhan</TableHead>
                                                                 <TableHead>Durasi</TableHead>
+                                                                <TableHead className="text-right">Aksi</TableHead>
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
@@ -1673,6 +1715,26 @@ export default function PemeriksaanSoapBidan() {
                                                                 <TableRow key={index}>
                                                                     <TableCell>{item.keluhan}</TableCell>
                                                                     <TableCell>{item.durasi}</TableCell>
+                                                                    <TableCell className="text-right">
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                onClick={() => handleEditKeluhan(index)}
+                                                                            >
+                                                                                Edit
+                                                                            </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="destructive"
+                                                                                size="sm"
+                                                                                onClick={() => handleRemoveKeluhan(index)}
+                                                                            >
+                                                                                Hapus
+                                                                            </Button>
+                                                                        </div>
+                                                                    </TableCell>
                                                                 </TableRow>
                                                             ))}
                                                         </TableBody>

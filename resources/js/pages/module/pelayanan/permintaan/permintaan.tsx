@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -94,6 +95,117 @@ export default function Permintaan() {
     };
 
     const [activeTab, setActiveTab] = useState('sakit');
+
+    const jenisMap: Record<string, string> = {
+        sakit: 'surat_sakit',
+        sehat: 'surat_sehat',
+        kematian: 'surat_kematian',
+        skdp: 'skdp',
+        radiologi: 'radiologi',
+        laboratorium: 'laboratorium',
+    };
+
+    const buildDetailForTab = (tab: string) => {
+        switch (tab) {
+            case 'radiologi':
+                return {
+                    items: radItems,
+                    diagnosa: radForm.diagnosa,
+                    tanggal_periksa: radForm.tanggal_periksa,
+                    catatan: radForm.catatan,
+                };
+            case 'laboratorium':
+                return {
+                    items: labItems,
+                    bidang: labForm.bidang,
+                    diagnosa: labForm.diagnosa,
+                    tanggal_periksa: labForm.tanggal_periksa,
+                    catatan: labForm.catatan,
+                };
+            case 'skdp':
+                return skdp;
+            case 'sehat':
+                return suratSehat;
+            case 'kematian':
+                return suratKematian;
+            case 'sakit':
+            default:
+                return suratSakit;
+        }
+    };
+
+    const [judul, setJudul] = useState('');
+    const [keterangan, setKeterangan] = useState('');
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+    const handleSimpanPermintaan = async (onSuccess?: () => void) => {
+        try {
+            const jenis_permintaan = jenisMap[activeTab] || 'surat_sakit';
+            const detail_permintaan = buildDetailForTab(activeTab);
+
+            // Validasi ringan per jenis
+            if (jenis_permintaan === 'radiologi' && (radItems.length === 0 || !radForm.tanggal_periksa)) {
+                toast.warning('Lengkapi tabel pemeriksaan radiologi dan tanggal periksa.');
+                return;
+            }
+            if (jenis_permintaan === 'laboratorium' && (labItems.length === 0 || !labForm.tanggal_periksa)) {
+                toast.warning('Lengkapi tabel pemeriksaan laboratorium dan tanggal periksa.');
+                return;
+            }
+
+            const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+
+            // Buka tab cetak terlebih dahulu (popup blockers butuh sync user gesture)
+            const encodedNorawat = btoa(pelayanan.nomor_register);
+            const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
+            const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
+                jenis_permintaan,
+            )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
+            const printWin = window.open(cetakUrl, '_blank');
+            const res = await fetch('/pelayanan/permintaan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({
+                    nomor_register: pelayanan.nomor_register,
+                    jenis_permintaan,
+                    detail_permintaan,
+                    judul,
+                    keterangan,
+                }),
+            });
+
+            // Coba parse flash dari response HTML/redirect fallback
+            try {
+                const data = await res.json();
+                if (res.ok) {
+                    toast.success(data?.flash?.success || 'Permintaan tersimpan');
+                    onSuccess && onSuccess();
+                } else {
+                    toast.error(data?.message || 'Gagal menyimpan permintaan');
+                    // Tutup tab cetak bila gagal simpan
+                    try {
+                        printWin && printWin.close();
+                    } catch {}
+                }
+            } catch {
+                if (res.ok) {
+                    toast.success('Permintaan tersimpan');
+                    onSuccess && onSuccess();
+                } else {
+                    toast.error('Gagal menyimpan permintaan');
+                    try {
+                        printWin && printWin.close();
+                    } catch {}
+                }
+            }
+        } catch (e) {
+            toast.error('Terjadi kesalahan saat menyimpan permintaan');
+        }
+    };
 
     // Radiologi state
     const [radItems, setRadItems] = useState<Array<{ pemeriksaan: string; jenis_posisi: string; posisi: string; metode: string }>>([]);
@@ -255,6 +367,47 @@ export default function Permintaan() {
             return;
         }
         toast.info(`Cetak ${label} belum terhubung.`);
+    };
+
+    const handleGlobalPrint = () => {
+        const jenis_permintaan = jenisMap[activeTab] || 'surat_sakit';
+        const detail_permintaan = buildDetailForTab(activeTab);
+
+        // Validasi per jenis
+        if (jenis_permintaan === 'radiologi' && (radItems.length === 0 || !radForm.tanggal_periksa || !radForm.diagnosa)) {
+            toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
+            return;
+        }
+        if (jenis_permintaan === 'laboratorium' && (labItems.length === 0 || !labForm.tanggal_periksa || !labForm.diagnosa)) {
+            toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
+            return;
+        }
+        if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.kode_surat || !skdp.untuk || !skdp.pada)) {
+            toast.warning('Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.');
+            return;
+        }
+        if (jenis_permintaan === 'surat_sehat' && !suratSehat.tgl_periksa) {
+            toast.warning('Isi tanggal periksa terlebih dahulu.');
+            return;
+        }
+        if (
+            jenis_permintaan === 'surat_kematian' &&
+            (!suratKematian.tgl_periksa || !suratKematian.tanggal_meninggal || !suratKematian.jam_meninggal)
+        ) {
+            toast.warning('Lengkapi tgl periksa, tgl meninggal, dan jam meninggal.');
+            return;
+        }
+        if (jenis_permintaan === 'surat_sakit' && (!suratSakit.diagnosis_utama || !suratSakit.lama_istirahat || !suratSakit.terhitung_mulai)) {
+            toast.warning('Lengkapi diagnosis utama, lama istirahat dan terhitung mulai.');
+            return;
+        }
+
+        const encodedNorawat = btoa(pelayanan.nomor_register);
+        const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
+        const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
+            jenis_permintaan,
+        )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
+        window.open(cetakUrl, '_blank');
     };
 
     return (
@@ -425,20 +578,6 @@ export default function Permintaan() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    handlePrintStub(
-                                                        'Surat Sakit',
-                                                        !!suratSakit.diagnosis_utama && !!suratSakit.lama_istirahat && !!suratSakit.terhitung_mulai,
-                                                        'Lengkapi diagnosis utama, lama istirahat dan terhitung mulai.',
-                                                    )
-                                                }
-                                            >
-                                                Print
-                                            </Button>
-                                        </div>
                                     </div>
                                 </TabsContent>
 
@@ -603,21 +742,6 @@ export default function Permintaan() {
                                                 />
                                             </div>
                                         </div>
-
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    handlePrintStub(
-                                                        'Permintaan Radiologi',
-                                                        radItems.length > 0 && !!radForm.tanggal_periksa && !!radForm.diagnosa,
-                                                        'Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.',
-                                                    )
-                                                }
-                                            >
-                                                Print
-                                            </Button>
-                                        </div>
                                     </div>
                                 </TabsContent>
 
@@ -740,21 +864,6 @@ export default function Permintaan() {
                                                 />
                                             </div>
                                         </div>
-
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    handlePrintStub(
-                                                        'Permintaan Laboratorium',
-                                                        labItems.length > 0 && !!labForm.tanggal_periksa && !!labForm.diagnosa,
-                                                        'Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.',
-                                                    )
-                                                }
-                                            >
-                                                Print
-                                            </Button>
-                                        </div>
                                     </div>
                                 </TabsContent>
 
@@ -870,21 +979,6 @@ export default function Permintaan() {
                                                     placeholder="(2)"
                                                 />
                                             </div>
-                                        </div>
-
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    handlePrintStub(
-                                                        'SKDP',
-                                                        !!skdp.tanggal_pemeriksaan && !!skdp.kode_surat && !!skdp.untuk && !!skdp.pada,
-                                                        'Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.',
-                                                    )
-                                                }
-                                            >
-                                                Print
-                                            </Button>
                                         </div>
                                     </div>
                                 </TabsContent>
@@ -1011,17 +1105,6 @@ export default function Permintaan() {
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    handlePrintStub('Surat Sehat', !!suratSehat.tgl_periksa, 'Isi tanggal periksa terlebih dahulu.')
-                                                }
-                                            >
-                                                Print
-                                            </Button>
-                                        </div>
                                     </div>
                                 </TabsContent>
 
@@ -1108,29 +1191,65 @@ export default function Permintaan() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    handlePrintStub(
-                                                        'Surat Kematian',
-                                                        !!suratKematian.tgl_periksa &&
-                                                            !!suratKematian.tanggal_meninggal &&
-                                                            !!suratKematian.jam_meninggal,
-                                                        'Lengkapi tgl periksa, tgl meninggal, dan jam meninggal.',
-                                                    )
-                                                }
-                                            >
-                                                Print
-                                            </Button>
-                                        </div>
                                     </div>
                                 </TabsContent>
                             </Tabs>
+                            <div className="mt-4 flex justify-end">
+                                <Button type="button" onClick={() => setIsConfirmOpen(true)}>
+                                    Simpan
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
             </div>
+            {/* Modal Konfirmasi */}
+            <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Konfirmasi Permintaan</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+                            <div className="md:col-span-6">
+                                <Label>Tab Aktif</Label>
+                                <Input value={activeTab.toUpperCase()} readOnly />
+                            </div>
+                            <div className="md:col-span-6">
+                                <Label>Nomor Register</Label>
+                                <Input value={pelayanan.nomor_register} readOnly />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+                            <div className="md:col-span-6">
+                                <Label>Judul</Label>
+                                <Input value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Judul permintaan (opsional)" />
+                            </div>
+                            <div className="md:col-span-6">
+                                <Label>Keterangan</Label>
+                                <Input value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Keterangan (opsional)" />
+                            </div>
+                        </div>
+                        <div>
+                            <Label>Ringkasan Data</Label>
+                            <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                                {JSON.stringify(buildDetailForTab(activeTab), null, 2)}
+                            </pre>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setIsConfirmOpen(false)}>
+                            Batal
+                        </Button>
+                        <Button type="button" onClick={handleGlobalPrint}>
+                            Print
+                        </Button>
+                        <Button type="button" onClick={() => handleSimpanPermintaan(() => setIsConfirmOpen(false))}>
+                            Simpan
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

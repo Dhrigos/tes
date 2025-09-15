@@ -20,9 +20,18 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
+use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
 
 class Pendaftaran_Controller extends Controller
 {
+    public $WsPcareController;
+
+    public function __construct()
+    {
+        $this->WsPcareController = new Ws_Pcare_Controller();
+    }
+
     public function index()
     {
         return Inertia::render('module/pendaftaran/index');
@@ -226,6 +235,7 @@ class Pendaftaran_Controller extends Controller
     public function getMasterData()
     {
         try {
+            DB::beginTransaction();
             $pasien = Pasien::select('id', 'nama', 'no_rm', 'nik', 'no_bpjs')
                 ->orderBy('nama', 'asc')
                 ->limit(100) // Batasi untuk performa
@@ -320,26 +330,41 @@ class Pendaftaran_Controller extends Controller
 
             // Pastikan data ditemukan
             if (!$pendaftaran) {
-                return redirect()->back()->with('error', 'Pendaftaran tidak ditemukan.');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data pasien Tidak ditemukan.'
+                ]);
             }
 
 
             $datapendaftaran = $pendaftaran;
 
             $penjamin = Penjamin::find($datapendaftaran->Penjamin);
-            // if ($penjamin->nama == 'BPJS') {
 
-            //     $poli = poli::find($datapendaftaran->poli_id)->first();
+            if (str_contains(strtoupper($penjamin->nama), 'BPJS')) {
 
-            //     $databpjs = [
-            //         "tanggalperiksa" => Carbon::parse($pendaftaran->tanggal_kujungan)->format('Y-m-d'),
-            //         "kodepoli" => $poli->kode,
-            //         "nomorkartu" => $datapendaftaran->pasien->no_bpjs,
-            //         "alasan" => $request->alasanpembatalan,
-            //     ];
+                $poli = poli::find($datapendaftaran->poli_id)->first();
 
-            // $this->PcareController->delete_ws_antria_bpjs($databpjs);
-            // }
+                $databpjs = [
+                    "tanggalperiksa" => Carbon::parse($datapendaftaran->tanggal_kujungan)->format('Y-m-d'),
+                    "kodepoli" => $poli->kode,
+                    "nomorkartu" => $datapendaftaran->pasien->no_bpjs,
+                    "alasan" => $request->alasanpembatalan,
+                ];
+
+                $bpjsResponse = $this->WsPcareController->delete_antrian($databpjs);
+
+                if ($bpjsResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsBody = $bpjsResponse->getData(true);
+                    if (($bpjsBody['status'] ?? '') === 'error') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $bpjsBody['message'] ?? 'Permintaan BPJS gagal'
+                        ], 400);
+                    }
+                    $bpjsMessage = $bpjsBody['data'] ?? null;
+                }
+            }
 
 
             // Hapus pendaftaran langsung
@@ -353,7 +378,7 @@ class Pendaftaran_Controller extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Data pasien berhasil disimpan.'
+                'message' => 'Pendaftaran berhasil dibatalkan.'
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -390,39 +415,97 @@ class Pendaftaran_Controller extends Controller
             // Generate nomor antrian
             $antrian = $this->generateAntrian($request->tanggal, $poli->id, $dokter->id);
 
-            // Simpan data pendaftaran
-            $pendaftaran = Pendaftaran::create([
-                'nomor_register' => $nomorRegister,
-                'tanggal_kujungan' => $request->tanggal . ' ' . $request->jam . ':00',
-                'nomor_rm' => $pasien->no_rm,
-                'antrian' => $antrian,
-                'pasien_id' => $request->pasien_id,
-                'poli_id' => $request->poli_id,
-                'dokter_id' => $request->dokter_id,
-                'Penjamin' => $request->penjamin_id,
-            ]);
+            $bpjsMessage = null;
+            if ($penjamin && str_contains(strtoupper($penjamin->nama), 'BPJS')) {
+                $jadwal = $dokter->jadwal()->first();
+                $databpjs = [
+                    "nomorkartu" => $pasien->no_bpjs,
+                    "nik" => $pasien->nik,
+                    "nohp" => $pasien->telepon, // ganti dari nama pasien
+                    "kodepoli" => $poli->kode,
+                    "namapoli" => $poli->nama,
+                    "norm" => $pasien->no_rm,
+                    "tanggalperiksa" => Carbon::parse($request->tanggal, 'Asia/Jakarta')->format('Y-m-d'),
+                    "kodedokter" => $dokter->kode,
+                    "namadokter" => $dokter->nama,
+                    "jampraktek" => optional($jadwal)->jam_mulai
+                        ? Carbon::parse($jadwal->jam_mulai)->format('H:i') . '-' . Carbon::parse($jadwal->jam_selesai)->format('H:i')
+                        : null,
 
-            // Simpan status kehadiran di pelayanan_statuses (0: belum hadir, 1: terdaftar, 2: hadir)
-            Pelayanan_status::updateOrCreate(
-                ['nomor_register' => $nomorRegister],
-                [
+                    "nomorantrean" => $antrian,
+                    "angkaantrean" => preg_match('/\d+/', $antrian, $m) ? $m[0] : null,
+                    "keterangan" => "",
+                ];
+
+                $bpjsResponse = $this->WsPcareController->post_antrian($databpjs);
+                if ($bpjsResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsBody = $bpjsResponse->getData(true);
+                    if (($bpjsBody['status'] ?? '') === 'error') {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => $bpjsBody['message'] ?? 'Permintaan BPJS gagal'
+                        ], 400);
+                    }
+                    $bpjsMessage = $bpjsBody['data'] ?? null;
+                }
+                Pendaftaran::create([
                     'nomor_register' => $nomorRegister,
-                    'pasien_id' => $request->pasien_id,
                     'tanggal_kujungan' => $request->tanggal . ' ' . $request->jam . ':00',
-                    'status_daftar' => 1,
-                ]
-            );
+                    'nomor_rm' => $pasien->no_rm,
+                    'antrian' => $antrian,
+                    'pasien_id' => $request->pasien_id,
+                    'poli_id' => $request->poli_id,
+                    'dokter_id' => $request->dokter_id,
+                    'Penjamin' => $request->penjamin_id,
+                ]);
 
+                // Jika sukses BPJS, baru simpan status
+                Pelayanan_status::updateOrCreate(
+                    ['nomor_register' => $nomorRegister],
+                    [
+                        'nomor_register' => $nomorRegister,
+                        'pasien_id' => $request->pasien_id,
+                        'tanggal_kujungan' => $request->tanggal . ' ' . $request->jam . ':00',
+                        'status_daftar' => 1,
+                    ]
+                );
+            } else {
+                Pendaftaran::create([
+                    'nomor_register' => $nomorRegister,
+                    'tanggal_kujungan' => $request->tanggal . ' ' . $request->jam . ':00',
+                    'nomor_rm' => $pasien->no_rm,
+                    'antrian' => $antrian,
+                    'pasien_id' => $request->pasien_id,
+                    'poli_id' => $request->poli_id,
+                    'dokter_id' => $request->dokter_id,
+                    'Penjamin' => $request->penjamin_id,
+                ]);
+                // Non-BPJS
+                Pelayanan_status::updateOrCreate(
+                    ['nomor_register' => $nomorRegister],
+                    [
+                        'nomor_register' => $nomorRegister,
+                        'pasien_id' => $request->pasien_id,
+                        'tanggal_kujungan' => $request->tanggal . ' ' . $request->jam . ':00',
+                        'status_daftar' => 1,
+                    ]
+                );
+            }
+
+
+            DB::commit();
             return response()->json([
                 'success' => true,
                 'message' => 'Pendaftaran berhasil disimpan',
                 'data' => [
                     'nomor_register' => $nomorRegister,
                     'antrian' => $antrian,
+                    'bpjs_message' => $bpjsMessage ?? null,
                 ]
             ]);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi gagal',
@@ -430,6 +513,7 @@ class Pendaftaran_Controller extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('Error storing pendaftaran: ' . $e->getMessage());
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat menyimpan pendaftaran: ' . $e->getMessage()
@@ -485,7 +569,7 @@ class Pendaftaran_Controller extends Controller
             ->first();
         $nextNumber = $last ? ((int) str_replace($antrian->nama . '-', '', $last->antrian)) + 1 : 1;
         $antrianBaru = $antrian->nama . '-' . $nextNumber;
-        
+
         return $antrianBaru;
     }
 
@@ -505,23 +589,46 @@ class Pendaftaran_Controller extends Controller
             $statusMap = \App\Models\Module\Pelayanan\Pelayanan_status::whereIn('nomor_register', $registers)
                 ->get()->keyBy('nomor_register');
 
+            // Keluarkan data yang sudah dibatalkan (status_daftar = 0)
+            $pendaftaran = $pendaftaran->filter(function ($p) use ($statusMap) {
+                $ps = $statusMap->get($p->nomor_register);
+                $statusDaftar = (int) ((optional($ps)->status_daftar) ?? 1);
+                return in_array($statusDaftar, [1, 2], true);
+            })->values();
+
             // Bentuk array dengan field 'status' kompatibel untuk frontend (bukan relation Eloquent)
             $pendaftaran = $pendaftaran->map(function ($p) use ($statusMap) {
                 $ps = $statusMap->get($p->nomor_register);
                 // Pastikan default 1 diterapkan sebelum casting agar tidak menjadi 0 saat null
                 $statusDaftar = (int) ((optional($ps)->status_daftar) ?? 1); // 1: terdaftar, 2: hadir
                 $statusPerawat = (int)optional($ps)->status_perawat ?? 0; // 0/1/2 stage perawat
+                $statusBidan = (int)optional($ps)->status_bidan ?? null; // 0 menunggu, 1 dilayani, 2/3/4 selesai tahap
+                $poliKode = strtoupper((string) optional($p->poli)->kode);
 
                 // Mapping ke field lama:
                 // - status_pendaftaran: gunakan status_daftar (1/2)
                 // - status_panggil: 0=menunggu, 1=menunggu, 2=periksa, 3=selesai
                 $statusPanggil = 0;
-                if ($statusPerawat === 0) {
-                    $statusPanggil = 0;
-                } elseif ($statusPerawat === 1) {
-                    $statusPanggil = 2;
-                } elseif ($statusPerawat >= 2) {
-                    $statusPanggil = 3;
+                if ($poliKode === 'K') {
+                    // KIA: gunakan status bidan
+                    if ($statusBidan === 0) {
+                        $statusPanggil = 0; // menunggu
+                    } elseif ($statusBidan === 1) {
+                        $statusPanggil = 2; // dilayani/aktif
+                    } elseif ($statusBidan !== null && $statusBidan >= 2) {
+                        $statusPanggil = 3; // selesai tahap
+                    } else {
+                        $statusPanggil = 0;
+                    }
+                } else {
+                    // Non-KIA: gunakan status perawat lama
+                    if ($statusPerawat === 0) {
+                        $statusPanggil = 0;
+                    } elseif ($statusPerawat === 1) {
+                        $statusPanggil = 2;
+                    } elseif ($statusPerawat >= 2) {
+                        $statusPanggil = 3;
+                    }
                 }
 
                 $asArray = $p->toArray();
@@ -530,6 +637,7 @@ class Pendaftaran_Controller extends Controller
                     'status_pendaftaran' => $statusDaftar,
                     'status_panggil' => $statusPanggil,
                     'Status_aplikasi' => 1,
+                    'status_bidan' => $statusBidan,
                 ];
                 return $asArray;
             });
@@ -542,16 +650,29 @@ class Pendaftaran_Controller extends Controller
                     $jumlahMenunggu = $group->filter(function ($item) use ($statusMap) {
                         $nr = $item['nomor_register'] ?? null;
                         $ps = $nr ? optional($statusMap->get($nr)) : null;
-                        $sd = (int)optional($ps)->status_dokter ?? 0;
-                        $status = $item['status'] ?? null; // berisi status_pendaftaran (1/2)
-                        return $status && (int)($status['status_pendaftaran'] ?? 0) === 2 && $sd === 0;
+                        $poliKode = strtoupper((string) optional($item['poli'])['kode'] ?? '');
+                        $status = $item['status'] ?? null; // berisi status_pendaftaran (1/2) dan status_bidan
+                        if ($poliKode === 'K') {
+                            $sb = (int)($status['status_bidan'] ?? -1);
+                            return $status && (int)($status['status_pendaftaran'] ?? 0) === 2 && $sb === 0;
+                        } else {
+                            $sd = (int)optional($ps)->status_dokter ?? 0;
+                            return $status && (int)($status['status_pendaftaran'] ?? 0) === 2 && $sd === 0;
+                        }
                     })->count();
 
                     $jumlahDilayani = $group->filter(function ($item) use ($statusMap) {
                         $nr = $item['nomor_register'] ?? null;
                         $ps = $nr ? optional($statusMap->get($nr)) : null;
-                        $sd = (int)optional($ps)->status_dokter ?? 0;
-                        return in_array($sd, [3, 4], true);
+                        $poliKode = strtoupper((string) optional($item['poli'])['kode'] ?? '');
+                        $status = $item['status'] ?? null;
+                        if ($poliKode === 'K') {
+                            $sb = (int)($status['status_bidan'] ?? -1);
+                            return $sb === 1; // sedang dilayani oleh bidan
+                        } else {
+                            $sd = (int)optional($ps)->status_dokter ?? 0;
+                            return in_array($sd, [3, 4], true);
+                        }
                     })->count();
 
                     // Pasien aktif berdasarkan logika antrian lama (status_panggil == 2)
@@ -560,12 +681,18 @@ class Pendaftaran_Controller extends Controller
                         return $status && (int)($status['status_panggil'] ?? 0) === 2;
                     })->sortBy('antrian')->first();
 
-                    // Fallback: jika tidak terdeteksi dari antrian lama, gunakan status_dokter 1/2
+                    // Fallback: jika tidak terdeteksi dari antrian lama
                     $pasienAktifDokter = null;
                     if (!$pasienAktifQueue) {
                         $pasienAktifDokter = $group->filter(function ($item) use ($statusMap) {
                             $nr = $item['nomor_register'] ?? null;
                             $ps = $nr ? optional($statusMap->get($nr)) : null;
+                            $poliKode = strtoupper((string) optional($item['poli'])['kode'] ?? '');
+                            if ($poliKode === 'K') {
+                                $status = $item['status'] ?? null;
+                                $sb = (int)($status['status_bidan'] ?? -1);
+                                return $sb === 1; // aktif dilayani bidan
+                            }
                             $sd = (int)optional($ps)->status_dokter ?? 0;
                             return in_array($sd, [1, 2], true);
                         })->sortBy('antrian')->first();
@@ -583,18 +710,30 @@ class Pendaftaran_Controller extends Controller
                             return $status && in_array((int)($status['status_panggil'] ?? 0), [0, 1]) && (int)($status['status_pendaftaran'] ?? 0) === 2;
                         });
 
-                        // Sinkronkan dengan pelayanan_statuses.status_dokter
+                        // Sinkronkan dengan status layanan aktif
                         $hasDokterMelayani = $group->contains(function ($item) use ($statusMap) {
                             $nr = $item['nomor_register'] ?? null;
                             $ps = $nr ? optional($statusMap->get($nr)) : null;
+                            $poliKode = strtoupper((string) optional($item['poli'])['kode'] ?? '');
+                            if ($poliKode === 'K') {
+                                $status = $item['status'] ?? null;
+                                $sb = (int)($status['status_bidan'] ?? -1);
+                                return $sb === 1; // bidan sedang melayani
+                            }
                             $sd = (int)optional($ps)->status_dokter ?? 0;
-                            return in_array($sd, [1, 2], true); // 1/2 = sedang melayani
+                            return in_array($sd, [1, 2], true); // 1/2 = dokter sedang melayani
                         });
                         $hasDokterMenunggu = !$hasDokterMelayani && $group->contains(function ($item) use ($statusMap) {
                             $nr = $item['nomor_register'] ?? null;
                             $ps = $nr ? optional($statusMap->get($nr)) : null;
+                            $poliKode = strtoupper((string) optional($item['poli'])['kode'] ?? '');
+                            if ($poliKode === 'K') {
+                                $status = $item['status'] ?? null;
+                                $sb = (int)($status['status_bidan'] ?? -1);
+                                return $sb === 0; // menunggu bidan
+                            }
                             $sd = (int)optional($ps)->status_dokter ?? 0;
-                            return $sd === 0; // 0 = menunggu
+                            return $sd === 0; // 0 = menunggu dokter
                         });
 
                         // Prioritas penentuan:
@@ -640,7 +779,6 @@ class Pendaftaran_Controller extends Controller
                     ]
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error getting pendaftaran data: ' . $e->getMessage());
             return response()->json([
@@ -670,7 +808,6 @@ class Pendaftaran_Controller extends Controller
                 'success' => true,
                 'message' => 'Dokter berhasil diupdate'
             ]);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -720,10 +857,10 @@ class Pendaftaran_Controller extends Controller
 
             // Ambil data penjamin
             $penjamin = Penjamin::find($datapendaftaran->Penjamin);
-            
+
             // Ambil data pasien untuk so_perawat
             $pasien = \App\Models\Module\Pasien\Pasien::find($datapendaftaran->pasien_id);
-            
+
             // Hitung umur dalam format "X Tahun Y Bulan Z Hari"
             $tanggalLahir = \Carbon\Carbon::parse($pasien->tanggal_lahir);
             $sekarang = \Carbon\Carbon::now();
@@ -745,7 +882,7 @@ class Pendaftaran_Controller extends Controller
                 'user_input_name' => 'System',
             ]);
 
-            if ($penjamin && $penjamin->nama == 'BPJS') {
+            if (str_contains(strtoupper($penjamin->nama), 'BPJS')) {
                 // Logic untuk BPJS (dikomentari untuk sementara)
                 $poli = Poli::where('id', $datapendaftaran->poli_id)->first();
 
@@ -761,36 +898,18 @@ class Pendaftaran_Controller extends Controller
                     "waktu" => $newTimestamp,
                 ];
 
-                // BPJS logic dikomentari untuk sementara
-                // if((int)$pendaftaran->Status_aplikasi === 2){
-                //     $this->PcareController->update_ws_antria_bpjs($databpjs);
-                // }
+                $bpjsResponse = $this->WsPcareController->update_antrian($databpjs);
 
-                $pendaftaranpcare = [
-                    "kdProviderPeserta" => $datapendaftaran->pasien->kodeprovide,
-                    "tglDaftar" => Carbon::parse($pendaftaran->tanggal_kujungan, 'Asia/Jakarta')->format('d-m-Y'),
-                    "noKartu" => $datapendaftaran->pasien->no_bpjs,
-                    "kdPoli" => $poli->kode,
-                    "keluhan" => null,
-                    "kunjSakit" => true,
-                    "sistole" => 0,
-                    "diastole" => 0,
-                    "beratBadan" => 0,
-                    "tinggiBadan" => 0,
-                    "respRate" => 0,
-                    "lingkarPerut" => 0,
-                    "heartRate" => 0,
-                    "rujukBalik" => 0,
-                    "kdTkp" => "10",
-                ];
-
-                // BPJS API calls dikomentari untuk sementara
-                // try {
-                //     $response = $this->PcareController->post_pendaftaran_bpjs($pendaftaranpcare);
-                //     // ... rest of BPJS logic
-                // } catch (\Exception $e) {
-                //     Log::error('Gagal post_pendaftaran_bpjs: ' . $e->getMessage());
-                // }
+                if ($bpjsResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsBody = $bpjsResponse->getData(true);
+                    if (($bpjsBody['status'] ?? '') === 'error') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $bpjsBody['message'] ?? 'Permintaan BPJS gagal'
+                        ], 400);
+                    }
+                    $bpjsMessage = $bpjsBody['data'] ?? null;
+                }
             }
 
             // Update status daftar di pelayanan_statuses: 2 (hadir)
@@ -807,7 +926,6 @@ class Pendaftaran_Controller extends Controller
                 'success' => true,
                 'message' => 'Status kehadiran berhasil diupdate.'
             ]);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,

@@ -53,11 +53,10 @@ class Dokter extends Model
     {
         return $this->belongsTo(User::class, 'users');
     }
-public function namapoli()
-{
-    return $this->belongsTo(Poli::class, 'poli', 'id');
-
-}
+    public function namapoli()
+    {
+        return $this->belongsTo(Poli::class, 'poli', 'id');
+    }
 
     public function namastatuspegawai()
     {

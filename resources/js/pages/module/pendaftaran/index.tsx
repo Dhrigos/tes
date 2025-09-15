@@ -90,6 +90,7 @@ interface PendaftaranData {
         status_pendaftaran: number;
         status_panggil: number;
         Status_aplikasi: number;
+        status_bidan?: number;
     };
 }
 
@@ -756,9 +757,32 @@ const PendaftaranDashboard = () => {
                                                         </div>
                                                     </td>
                                                     <td className="p-2 text-center">
-                                                        <Badge variant="outline" className="text-xs">
-                                                            {getStatusPendaftaran(item.status?.Status_aplikasi || 1)}
-                                                        </Badge>
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {getStatusPendaftaran(item.status?.Status_aplikasi || 1)}
+                                                            </Badge>
+                                                            {/* Jika loket KIA (kode 'K'), tampilkan badge status bidan */}
+                                                            {String(item?.poli?.kode || '').toUpperCase() === 'K'
+                                                                ? (() => {
+                                                                      const sb = Number(item?.status?.status_bidan ?? -1);
+                                                                      if (sb === 0) {
+                                                                          return (
+                                                                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                                                                  <Activity className="mr-1 h-3 w-3" /> Menunggu (Bidan)
+                                                                              </Badge>
+                                                                          );
+                                                                      }
+                                                                      if (sb === 1) {
+                                                                          return (
+                                                                              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                                                                  <Stethoscope className="mr-1 h-3 w-3" /> Dilayani (Bidan)
+                                                                              </Badge>
+                                                                          );
+                                                                      }
+                                                                      return null;
+                                                                  })()
+                                                                : null}
+                                                        </div>
                                                     </td>
                                                     <td className="p-2 text-center text-sm">{item.nomor_register}</td>
                                                     <td className="p-2 text-center text-sm">{formatDate(item.tanggal_kujungan)}</td>

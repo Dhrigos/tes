@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\Module\Pelayanan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
 use App\Models\Module\Pelayanan\Pelayanan;
+use App\Models\Module\Pelayanan\Rujukan;
+use App\Models\Module\Pasien\Pasien_History;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class Pelayanan_Rujukan_Controller extends Controller
 {
@@ -142,7 +147,7 @@ class Pelayanan_Rujukan_Controller extends Controller
     /**
      * Store a new rujukan
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request)
     {
         try {
             // Validate request data
@@ -153,23 +158,81 @@ class Pelayanan_Rujukan_Controller extends Controller
                 // Add more validation rules as needed
             ]);
 
-            // Process the rujukan data
-            // This is where you would save to database
+            // Save to database
+            $created = Rujukan::create([
+                'nomor_rm' => $request->input('nomor_rm'),
+                'nomor_register' => $request->input('no_rawat'),
+                'penjamin' => $request->input('penjamin'),
+                'jenis_rujukan' => $validated['jenis_rujukan'],
+                'tujuan_rujukan' => $validated['tujuan_rujukan'],
+                'opsi_rujukan' => $validated['opsi_rujukan'],
+                // Spesialis
+                'sarana' => $request->input('sarana'),
+                'kategori_rujukan' => $request->input('kategori_rujukan'),
+                'alasanTacc' => $request->input('alasanTacc'),
+                'spesialis' => $request->input('spesialis'),
+                'sub_spesialis' => $request->input('sub_spesialis'),
+                'tanggal_rujukan' => $request->input('tanggal_rujukan'),
+                'tujuan_rujukan_spesialis' => $request->input('tujuan_rujukan_spesialis'),
+                // Rujukan Khusus
+                'igd_rujukan_khusus' => $request->input('igd_rujukan_khusus'),
+                'subspesialis_khusus' => $request->input('subspesialis_khusus'),
+                'tanggal_rujukan_khusus' => $request->input('tanggal_rujukan_khusus'),
+                'tujuan_rujukan_khusus' => $request->input('tujuan_rujukan_khusus'),
+            ]);
 
-            return redirect()
-                ->back()
-                ->with('success', 'Rujukan berhasil disimpan');
+            // Simpan ke Pasien History (best-effort)
+            try {
+                $pelayananRow = Pelayanan::with('pasien')
+                    ->where('nomor_register', (string) $request->input('no_rawat', ''))
+                    ->first();
+                $namaPasien = optional(optional($pelayananRow)->pasien)->nama ?? '';
+                Pasien_History::create([
+                    'no_rm' => (string) $request->input('nomor_rm', ''),
+                    'nama' => $namaPasien,
+                    'history' => [
+                        'type' => 'rujukan_tambah',
+                        'nomor_register' => (string) $request->input('no_rawat', ''),
+                        'jenis_rujukan' => (string) $validated['jenis_rujukan'],
+                        'tujuan_rujukan' => (string) $validated['tujuan_rujukan'],
+                        'opsi_rujukan' => (string) $validated['opsi_rujukan'],
+                        'spesialis' => (string) $request->input('spesialis', ''),
+                        'sub_spesialis' => (string) $request->input('sub_spesialis', ''),
+                        'tanggal_rujukan' => (string) $request->input('tanggal_rujukan', ''),
+                        'tujuan_rujukan_spesialis' => (string) $request->input('tujuan_rujukan_spesialis', ''),
+                        'igd_rujukan_khusus' => (string) $request->input('igd_rujukan_khusus', ''),
+                        'subspesialis_khusus' => (string) $request->input('subspesialis_khusus', ''),
+                        'tanggal_rujukan_khusus' => (string) $request->input('tanggal_rujukan_khusus', ''),
+                        'tujuan_rujukan_khusus' => (string) $request->input('tujuan_rujukan_khusus', ''),
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to save Pasien_History (rujukan_tambah): ' . $e->getMessage());
+            }
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Rujukan berhasil disimpan',
+                    'id' => $created->id,
+                ]);
+            }
+            return redirect()->back()->with('success', 'Rujukan berhasil disimpan');
         } catch (\Exception $e) {
-            return redirect()
-                ->back()
-                ->with('error', 'Gagal menyimpan rujukan: ' . $e->getMessage());
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal menyimpan rujukan: ' . $e->getMessage(),
+                ], 500);
+            }
+            return redirect()->back()->with('error', 'Gagal menyimpan rujukan: ' . $e->getMessage());
         }
     }
 
     /**
      * Update an existing rujukan
      */
-    public function update(Request $request, $norawat): RedirectResponse
+    public function update(Request $request, $norawat)
     {
         try {
             // Validate request data
@@ -180,16 +243,211 @@ class Pelayanan_Rujukan_Controller extends Controller
                 // Add more validation rules as needed
             ]);
 
-            // Process the rujukan data
-            // This is where you would update database
+            // Update in database by nomor_register
+            $rujukan = Rujukan::where('nomor_register', $norawat)->first();
+            if (!$rujukan) {
+                // If not exist, create new entry for safety
+                $rujukan = new Rujukan();
+                $rujukan->nomor_register = $norawat;
+            }
+            $rujukan->fill([
+                'nomor_rm' => $request->input('nomor_rm', $rujukan->nomor_rm),
+                'penjamin' => $request->input('penjamin', $rujukan->penjamin),
+                'jenis_rujukan' => $validated['jenis_rujukan'],
+                'tujuan_rujukan' => $validated['tujuan_rujukan'],
+                'opsi_rujukan' => $validated['opsi_rujukan'],
+                // Spesialis
+                'sarana' => $request->input('sarana'),
+                'kategori_rujukan' => $request->input('kategori_rujukan'),
+                'alasanTacc' => $request->input('alasanTacc'),
+                'spesialis' => $request->input('spesialis'),
+                'sub_spesialis' => $request->input('sub_spesialis'),
+                'tanggal_rujukan' => $request->input('tanggal_rujukan'),
+                'tujuan_rujukan_spesialis' => $request->input('tujuan_rujukan_spesialis'),
+                // Rujukan Khusus
+                'igd_rujukan_khusus' => $request->input('igd_rujukan_khusus'),
+                'subspesialis_khusus' => $request->input('subspesialis_khusus'),
+                'tanggal_rujukan_khusus' => $request->input('tanggal_rujukan_khusus'),
+                'tujuan_rujukan_khusus' => $request->input('tujuan_rujukan_khusus'),
+            ]);
+            $rujukan->save();
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Rujukan berhasil diperbarui',
+                    'id' => $rujukan->id,
+                ]);
+            }
+
+            // Simpan ke Pasien History (best-effort)
+            try {
+                $pelayananRow = Pelayanan::with('pasien')
+                    ->where('nomor_register', (string) $norawat)
+                    ->first();
+                $namaPasien = optional(optional($pelayananRow)->pasien)->nama ?? '';
+                Pasien_History::create([
+                    'no_rm' => (string) $request->input('nomor_rm', ''),
+                    'nama' => $namaPasien,
+                    'history' => [
+                        'type' => 'rujukan_edit',
+                        'nomor_register' => (string) $norawat,
+                        'jenis_rujukan' => (string) $validated['jenis_rujukan'],
+                        'tujuan_rujukan' => (string) $validated['tujuan_rujukan'],
+                        'opsi_rujukan' => (string) $validated['opsi_rujukan'],
+                        'spesialis' => (string) $request->input('spesialis', ''),
+                        'sub_spesialis' => (string) $request->input('sub_spesialis', ''),
+                        'tanggal_rujukan' => (string) $request->input('tanggal_rujukan', ''),
+                        'tujuan_rujukan_spesialis' => (string) $request->input('tujuan_rujukan_spesialis', ''),
+                        'igd_rujukan_khusus' => (string) $request->input('igd_rujukan_khusus', ''),
+                        'subspesialis_khusus' => (string) $request->input('subspesialis_khusus', ''),
+                        'tanggal_rujukan_khusus' => (string) $request->input('tanggal_rujukan_khusus', ''),
+                        'tujuan_rujukan_khusus' => (string) $request->input('tujuan_rujukan_khusus', ''),
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to save Pasien_History (rujukan_edit): ' . $e->getMessage());
+            }
 
             return redirect()
                 ->back()
                 ->with('success', 'Rujukan berhasil diperbarui');
         } catch (\Exception $e) {
-            return redirect()
-                ->back()
-                ->with('error', 'Gagal memperbarui rujukan: ' . $e->getMessage());
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal memperbarui rujukan: ' . $e->getMessage(),
+                ], 500);
+            }
+            return redirect()->back()->with('error', 'Gagal memperbarui rujukan: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Proxy: Get faskes rujukan by subspesialis and sarana (PCare)
+     */
+    public function pcareFaskesRujukanSubspesialis(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'subspesialis' => 'required|string',
+                'sarana' => 'required|string',
+                'tgl' => 'required|date_format:Y-m-d',
+            ]);
+
+            $pcare = app(Pcare_Controller::class);
+            $tglFormatted = \Carbon\Carbon::createFromFormat('Y-m-d', $validated['tgl'])->format('d-m-Y');
+            return $pcare->get_faskes_rujukan_subspesialis(
+                $validated['subspesialis'],
+                $validated['sarana'],
+                $tglFormatted
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Proxy: Get faskes rujukan khusus by jenis khusus and no kartu (PCare)
+     */
+    public function pcareFaskesRujukanKhusus(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'khusus' => 'required|string',
+                'nokartu' => 'required|string',
+                'tgl' => 'required|date_format:Y-m-d',
+            ]);
+
+            $pcare = app(Pcare_Controller::class);
+            $tglFormatted = \Carbon\Carbon::createFromFormat('Y-m-d', $validated['tgl'])->format('d-m-Y');
+            return $pcare->get_faskes_rujukan_khusus(
+                $validated['khusus'],
+                $validated['nokartu'],
+                $tglFormatted
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Proxy: Get faskes rujukan khusus subspesialis (PCare)
+     */
+    public function pcareFaskesRujukanKhususSubspesialis(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'khusus' => 'required|string',
+                'subspesialis' => 'required|string',
+                'nokartu' => 'required|string',
+                'tgl' => 'required|date_format:Y-m-d',
+            ]);
+
+            $pcare = app(Pcare_Controller::class);
+            $tglFormatted = \Carbon\Carbon::createFromFormat('Y-m-d', $validated['tgl'])->format('d-m-Y');
+            return $pcare->get_faskes_rujukan_khusus_subspesialis(
+                $validated['khusus'],
+                $validated['subspesialis'],
+                $validated['nokartu'],
+                $tglFormatted
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Cetak surat rujukan ke PDF
+     */
+    public function cetakSuratRujukan($no_rawat)
+    {
+        // Ambil data pelayanan beserta relasi yang umum dipakai
+        $pelayanan = Pelayanan::with(['poli', 'dokter.namauser', 'pasien', 'pendaftaran.penjamin'])
+            ->where('nomor_register', $no_rawat)
+            ->first();
+
+        if (!$pelayanan) {
+            abort(404, 'Data tidak ditemukan');
+        }
+
+        // Ambil rujukan yang sudah disimpan
+        $rujukan = Rujukan::where('nomor_register', $no_rawat)->first();
+
+        // Data diagnosa: fallback '-' bila belum tersedia model/tabel diagnosa
+        $diagnosa = '-';
+
+        // Nama fasilitas (FKTP) dari config aplikasi sebagai fallback
+        $fktp = config('app.name', '-');
+
+        $data = [
+            'nomor_registrasi' => $pelayanan->nomor_register ?? '-',
+            'fktp'             => $fktp,
+            'nama_pasien'      => optional($pelayanan->pasien)->nama ?? '-',
+            'nomor_rm'         => $pelayanan->nomor_rm ?? '-',
+            'tanggal_lahir'    => optional($pelayanan->pasien)->tanggal_lahir ?? '-',
+            'jenis_kelamin'    => optional($pelayanan->pasien)->seks ?? '-',
+            'penjamin'         => optional(optional($pelayanan->pendaftaran)->penjamin)->nama ?? '-',
+            'dokter_pengirim'  => optional(optional($pelayanan->dokter)->namauser)->name ?? '-',
+            'diagnosa'         => $diagnosa,
+            'tanggal_rujukan'  => $rujukan->tanggal_rujukan ?? $rujukan->tanggal_rujukan_khusus ?? '-',
+            'keterangan'       => 'Rujukan untuk pemeriksaan lebih lanjut',
+            'no_rujukan'       => $pelayanan->kunjungan ?? '-',
+            'no_bpjs'          => optional($pelayanan->pasien)->no_bpjs ?? '-',
+            'subspesialis'     => $rujukan->sub_spesialis ?? $rujukan->subspesialis_khusus ?? '-',
+            'lokasi'           => $rujukan->tujuan_rujukan_spesialis ?? $rujukan->tujuan_rujukan_khusus ?? null,
+        ];
+
+        $pdf = Pdf::loadView('pdf.rujukan', $data)->setPaper('a4', 'landscape');
+        return $pdf->stream('rujukan-' . ($pelayanan->nomor_rm ?? 'pasien') . '.pdf');
     }
 }

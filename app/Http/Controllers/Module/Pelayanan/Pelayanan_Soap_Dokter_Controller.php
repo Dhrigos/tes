@@ -100,6 +100,10 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $today = Carbon::today();
             $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
                 ->whereDate('tanggal_kujungan', '=', $today)
+                // Kecualikan pasien poli KIA (kode 'K') dari daftar dokter
+                ->whereHas('poli', function ($q) {
+                    $q->where('kode', '!=', 'K');
+                })
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->unique('nomor_register')
@@ -194,9 +198,16 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             $nomor_register = base64_decode($norawat);
 
             // Get patient data
-            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
+            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin', 'poli'])
                 ->where('nomor_register', $nomor_register)
                 ->first();
+
+            // Jika poli KIA (kode 'K'), alihkan dari dokter ke bidan
+            if ($pelayanan && optional($pelayanan->poli)->kode === 'K') {
+                return redirect()
+                    ->route('pelayanan.soap-bidan.index')
+                    ->with('error', 'Pasien KIA dialihkan ke alur Bidan');
+            }
 
             // Get SOAP dokter data (may be null for create mode)
             $soapDokter = Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->first();

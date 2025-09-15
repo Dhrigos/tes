@@ -449,11 +449,16 @@ Route::middleware(['auth', 'verified'])->prefix('pelayanan')->as('pelayanan.')->
     Route::get('/rujukan/{norawat}', [Pelayanan_Rujukan_Controller::class, 'show'])->name('rujukan.show');
     Route::post('/rujukan', [Pelayanan_Rujukan_Controller::class, 'store'])->name('rujukan.store');
     Route::put('/rujukan/{norawat}', [Pelayanan_Rujukan_Controller::class, 'update'])->name('rujukan.update');
+    Route::get('/rujukan/cetak/{norawat}', [Pelayanan_Rujukan_Controller::class, 'cetakSuratRujukan'])->name('rujukan.cetak');
 
     Route::get('/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'show'])->name('permintaan.show');
     Route::post('/permintaan', [Pelayanan_Permintaan_Controller::class, 'store'])->name('permintaan.store');
     Route::put('/permintaan/{norawat}', [Pelayanan_Permintaan_Controller::class, 'update'])->name('permintaan.update');
+    Route::get('/permintaan/cetak/{norawat}', [Pelayanan_Permintaan_Controller::class, 'cetak'])->name('permintaan.cetak');
 });
+
+// Alias tanpa prefix untuk kompatibilitas front-end lama
+Route::middleware(['auth', 'verified'])->get('/rujukan/cetak/{norawat}', [Pelayanan_Rujukan_Controller::class, 'cetakSuratRujukan']);
 
 // API routes for pelayanan
 Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () { //ini pake api

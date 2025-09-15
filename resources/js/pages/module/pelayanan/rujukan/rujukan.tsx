@@ -64,6 +64,10 @@ export default function Rujukan() {
     const { pelayanan, Ref_TACC, subspesialis, sarana, spesialis } = usePage().props as unknown as PageProps;
 
     const [activeTab, setActiveTab] = useState('jenis-rujukan');
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [successOpen, setSuccessOpen] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
     const [formData, setFormData] = useState({
         // Step 1
         jenis_rujukan: '',
@@ -189,6 +193,7 @@ export default function Rujukan() {
                 nomor_rm: pelayanan.nomor_rm,
                 no_rawat: pelayanan.nomor_register,
                 penjamin: pelayanan.penjamin,
+                jenis_rujukan: formData.jenis_rujukan,
                 tujuan_rujukan: formData.tujuan_rujukan,
                 opsi_rujukan: formData.opsi_rujukan,
             };
@@ -209,7 +214,7 @@ export default function Rujukan() {
                 payload['tujuan_rujukan_khusus'] = formData.tujuan_rujukan_khusus;
             }
 
-            const res = await fetch('/pelayana_rujuk/add', {
+            const res = await fetch('/pelayanan/rujukan', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -219,24 +224,44 @@ export default function Rujukan() {
                 body: JSON.stringify(payload),
             });
 
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.message || 'Gagal menyimpan data rujukan');
+            if (res.ok) {
+                // Pastikan backend mengembalikan JSON success untuk AJAX
+                let json: any = null;
+                try {
+                    json = await res.json();
+                } catch (_) {}
+                if (json?.success) {
+                    window.open(`/rujukan/cetak/${pelayanan.nomor_register}`, '_blank');
+                    window.location.href = `/pelayanan/soap-dokter/${pelayanan.nomor_register}`;
+                    return;
+                }
+                // Jika bukan JSON (mis. redirect HTML), tetap lanjutkan fallback
+                window.open(`/rujukan/cetak/${pelayanan.nomor_register}`, '_blank');
+                window.location.href = `/pelayanan/soap-dokter/${pelayanan.nomor_register}`;
+                return;
             }
-            const data = await res.json();
-            if (data?.success === false) {
-                throw new Error(data?.message || 'Gagal menyimpan data rujukan');
+            // Extract error message from JSON or fallback to text/HTTP status
+            let message = 'Gagal menyimpan data rujukan';
+            try {
+                const err = await res.json();
+                message = err?.message || message;
+            } catch (_) {
+                try {
+                    const text = await res.text();
+                    // If server returned HTML (e.g., <!DOCTYPE), keep generic message
+                    if (text && !/^<!DOCTYPE/i.test(text.trim())) message = text;
+                } catch (_) {}
             }
-            window.location.href = `/rujukan/cetak/${pelayanan.nomor_register}`;
+            throw new Error(message);
         } catch (error: any) {
-            alert(error?.message || 'Terjadi kesalahan dalam menyimpan data!');
+            setErrorMessage(error?.message || 'Terjadi kesalahan dalam menyimpan data!');
+            setErrorOpen(true);
         }
     };
 
     const formatTanggal = (raw: string) => {
-        if (!raw) return '';
-        const [y, m, d] = raw.split('-');
-        return `${d}-${m}-${y}`;
+        // Backend expects Y-m-d; input type="date" already provides this
+        return raw || '';
     };
 
     const handleCariProviderSpesialis = async () => {
@@ -244,17 +269,28 @@ export default function Rujukan() {
         const sar = formData.sarana || '0';
         const tgl = formatTanggal(formData.tanggal_rujukan);
         if (!spes || !sar || !tgl) {
-            alert('Harap isi Sub Spesialis, Sarana, dan Tanggal Rujukan terlebih dahulu.');
+            setErrorMessage('Harap isi Sub Spesialis, Sarana, dan Tanggal Rujukan terlebih dahulu.');
+            setErrorOpen(true);
             return;
         }
         try {
-            const res = await fetch(`/api/pcare/provide_rujuk/${spes}/${sar}/${tgl}`);
-            if (!res.ok) throw new Error('Gagal mengambil data provider');
-            const json = await res.json();
+            const res = await fetch(
+                `/api/pelayanan-rujukan/get-faskes-rujukan-subspesialis?subspesialis=${encodeURIComponent(spes)}&sarana=${encodeURIComponent(sar)}&tgl=${encodeURIComponent(tgl)}`,
+            );
+            let json: any = null;
+            try {
+                json = await res.json();
+            } catch (_) {}
+            if (!res.ok || json?.status === 'error') {
+                throw new Error(json?.message || 'Gagal mengambil data provider');
+            }
             const list = (json?.data?.list || []) as Array<{ kdppk: string; nmppk: string }>;
             setTujuanRujukanSpesialisOptions(list);
+            setSuccessMessage(`Berhasil! Ditemukan ${list.length} provider.`);
+            setSuccessOpen(true);
         } catch (e: any) {
-            alert(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
+            setErrorMessage(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
+            setErrorOpen(true);
         }
     };
 
@@ -264,23 +300,32 @@ export default function Rujukan() {
         const nobpjs = pelayanan.no_bpjs || '0';
         const tgl = formatTanggal(formData.tanggal_rujukan_khusus);
         if (!tujuan || !nobpjs || !tgl) {
-            alert('Harap isi Spesialis, No BPJS, dan Tanggal Rujukan terlebih dahulu.');
+            setErrorMessage('Harap isi Spesialis, No BPJS, dan Tanggal Rujukan terlebih dahulu.');
+            setErrorOpen(true);
             return;
         }
         let url = '';
         if (subkhusus) {
-            url = `/api/pcare/provide_rujuk_husus_subspesialis/${subkhusus}/${tujuan}/${nobpjs}/${tgl}`;
+            url = `/api/pelayanan-rujukan/get-faskes-rujukan-khusus-subspesialis?khusus=${encodeURIComponent(tujuan)}&subspesialis=${encodeURIComponent(subkhusus)}&nokartu=${encodeURIComponent(nobpjs)}&tgl=${encodeURIComponent(tgl)}`;
         } else {
-            url = `/api/pcare/provide_rujuk_husus/${tujuan}/${nobpjs}/${tgl}`;
+            url = `/api/pelayanan-rujukan/get-faskes-rujukan-khusus?khusus=${encodeURIComponent(tujuan)}&nokartu=${encodeURIComponent(nobpjs)}&tgl=${encodeURIComponent(tgl)}`;
         }
         try {
             const res = await fetch(url);
-            if (!res.ok) throw new Error('Gagal mengambil data provider');
-            const json = await res.json();
+            let json: any = null;
+            try {
+                json = await res.json();
+            } catch (_) {}
+            if (!res.ok || json?.status === 'error') {
+                throw new Error(json?.message || 'Gagal mengambil data provider');
+            }
             const list = (json?.data?.list || []) as Array<{ kdppk: string; nmppk: string }>;
             setTujuanRujukanKhususOptions(list);
+            setSuccessMessage(`Berhasil! Ditemukan ${list.length} provider.`);
+            setSuccessOpen(true);
         } catch (e: any) {
-            alert(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
+            setErrorMessage(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
+            setErrorOpen(true);
         }
     };
 
@@ -289,6 +334,34 @@ export default function Rujukan() {
             <Head title="Pelayanan Rujuk" />
 
             <div className="space-y-6 p-6">
+                {errorOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/50" onClick={() => setErrorOpen(false)}></div>
+                        <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-lg">
+                            <h3 className="mb-2 text-lg font-semibold text-card-foreground">Terjadi Kesalahan</h3>
+                            <p className="mb-4 text-sm text-muted-foreground">{errorMessage}</p>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setErrorOpen(false)}>
+                                    Tutup
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {successOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/30" onClick={() => setSuccessOpen(false)}></div>
+                        <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-lg">
+                            <h3 className="mb-2 text-lg font-semibold text-card-foreground">Berhasil</h3>
+                            <p className="mb-4 text-sm text-muted-foreground">{successMessage}</p>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setSuccessOpen(false)}>
+                                    Tutup
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <Card>
                     <CardHeader>
                         <CardTitle>Pelayanan Rujuk</CardTitle>
@@ -525,6 +598,7 @@ export default function Rujukan() {
                                                         id="tanggal_rujukan_khusus"
                                                         value={formData.tanggal_rujukan_khusus}
                                                         onChange={(e) => handleInputChange('tanggal_rujukan_khusus', e.target.value)}
+                                                        className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                     />
                                                 </div>
 
@@ -741,6 +815,7 @@ export default function Rujukan() {
                                                         id="tanggal_rujukan"
                                                         value={formData.tanggal_rujukan}
                                                         onChange={(e) => handleInputChange('tanggal_rujukan', e.target.value)}
+                                                        className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                                     />
                                                 </div>
 

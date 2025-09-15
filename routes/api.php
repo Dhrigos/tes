@@ -14,6 +14,7 @@ use App\Http\Controllers\Module\Pendaftaran\Pendaftaran_Controller;
 use App\Http\Controllers\Module\SDM\Dokter_Controller;
 use App\Http\Controllers\Module\Pembelian\Pembelian_Controller;
 use App\Http\Controllers\Module\Pelayanan\PelayananController;
+use App\Http\Controllers\Module\Pelayanan\Pelayanan_Rujukan_Controller;
 use App\Http\Controllers\Settings\Web_Setting_Controller;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
@@ -196,4 +197,10 @@ Route::prefix('system-monitoring')->group(function () {
     Route::post('/start-auto', [SystemMonitoringController::class, 'startAuto']);
     Route::post('/force-execute', [SystemMonitoringController::class, 'forceExecute']);
     Route::get('/auto-status', [SystemMonitoringController::class, 'autoStatus']);
+});
+
+Route::prefix('pelayanan-rujukan')->group(function () {
+    Route::get('/get-faskes-rujukan-subspesialis', [Pelayanan_Rujukan_Controller::class, 'pcareFaskesRujukanSubspesialis']);
+    Route::get('/get-faskes-rujukan-khusus', [Pelayanan_Rujukan_Controller::class, 'pcareFaskesRujukanKhusus']);
+    Route::get('/get-faskes-rujukan-khusus-subspesialis', [Pelayanan_Rujukan_Controller::class, 'pcareFaskesRujukanKhususSubspesialis']);
 });

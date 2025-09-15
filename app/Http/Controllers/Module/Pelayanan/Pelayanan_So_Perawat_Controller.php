@@ -16,6 +16,7 @@ use App\Models\Module\Pasien\Pasien_History;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Inertia\Inertia;
@@ -27,9 +28,16 @@ use App\Models\Module\Pelayanan\Gcs\Gcs_Kesadaran;
 use App\Services\PelayananStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
 
 class Pelayanan_So_Perawat_Controller extends Controller
 {
+    public $PcareController;
+
+    public function __construct()
+    {
+        $this->PcareController = new Pcare_Controller();
+    }
     /**
      * Save patient history to pasien_histories table
      */
@@ -94,6 +102,10 @@ class Pelayanan_So_Perawat_Controller extends Controller
             // Ambil data hanya untuk hari ini
             $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
                 ->whereDate('tanggal_kujungan', '=', $today)
+                // Kecualikan pasien poli KIA (kode 'K') dari alur perawat
+                ->whereHas('poli', function ($q) {
+                    $q->where('kode', '!=', 'K');
+                })
                 ->whereNotNull('dokter_id') // Pastikan ada dokter_id
                 ->get()
                 ->map(function ($pelayanan) {
@@ -231,21 +243,66 @@ class Pelayanan_So_Perawat_Controller extends Controller
 
         try {
             DB::transaction(function () use ($nomor_register) {
-                // 2) SOAP Dokter and its children
-                Pelayanan_Soap_Dokter_Obat::where('no_rawat', $nomor_register)->delete();
-                Pelayanan_Soap_Dokter_Tindakan::where('no_rawat', $nomor_register)->delete();
-                Pelayanan_Soap_Dokter_Icd::where('no_rawat', $nomor_register)->delete();
-                Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->delete();
+                // 2) SOAP Dokter and its children (guard table existence)
+                if (Schema::hasTable('pelayanan_soap_dokter_obats')) {
+                    Pelayanan_Soap_Dokter_Obat::where('no_rawat', $nomor_register)->delete();
+                }
+                if (Schema::hasTable('pelayanan_soap_dokter_tindakans')) {
+                    Pelayanan_Soap_Dokter_Tindakan::where('no_rawat', $nomor_register)->delete();
+                }
+                if (Schema::hasTable('pelayanan_soap_dokter_icds')) {
+                    Pelayanan_Soap_Dokter_Icd::where('no_rawat', $nomor_register)->delete();
+                }
+                if (Schema::hasTable('pelayanan_soap_dokters')) {
+                    Pelayanan_Soap_Dokter::where('no_rawat', $nomor_register)->delete();
+                }
 
-                // 3) Rujukan & Permintaan
-                Pelayanan_Rujukan::where('no_rawat', $nomor_register)->delete();
-                Pelayanan_Permintaan::where('no_rawat', $nomor_register)->delete();
+                // 3) Rujukan & Permintaan (guard table existence)
+                if (Schema::hasTable('pelayanan_rujukans')) {
+                    Pelayanan_Rujukan::where('no_rawat', $nomor_register)->delete();
+                }
+                if (Schema::hasTable('pelayanan_permintaans')) {
+                    // Tabel ini opsional di beberapa instalasi
+                    Pelayanan_Permintaan::where('no_rawat', $nomor_register)->delete();
+                }
 
                 // 4) SO Perawat
-                Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->delete();
+                if (Schema::hasTable('pelayanan__so__perawats') || Schema::hasTable('pelayanan_so_perawats')) {
+                    // Coba dua kemungkinan nama tabel berdasarkan konvensi yang ada
+                    Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->delete();
+                }
 
-                // 5) Status pelayanan
-                Pelayanan_status::where('nomor_register', $nomor_register)->delete();
+                // 5) Status pelayanan: untuk pembatalan, reset field yang tersedia saja
+                if (Schema::hasTable('pelayanan_statuses')) {
+                    $updates = [];
+                    if (Schema::hasColumn('pelayanan_statuses', 'status_daftar')) {
+                        $updates['status_daftar'] = 0;
+                    }
+                    if (Schema::hasColumn('pelayanan_statuses', 'status_perawat')) {
+                        $updates['status_perawat'] = 0;
+                    }
+                    if (Schema::hasColumn('pelayanan_statuses', 'status_dokter')) {
+                        $updates['status_dokter'] = 0;
+                    }
+                    if (Schema::hasColumn('pelayanan_statuses', 'status_bidan')) {
+                        $updates['status_bidan'] = 0;
+                    }
+                    if (!empty($updates)) {
+                        $updates['updated_at'] = now();
+                        Pelayanan_status::where('nomor_register', $nomor_register)->update($updates);
+                    }
+                }
+
+                // 6) Hapus data indeks utama agar tidak tampil lagi di dashboard/index
+                if (Schema::hasTable('pendaftaran_statuses')) {
+                    DB::table('pendaftaran_statuses')->where('nomor_register', $nomor_register)->delete();
+                }
+                if (Schema::hasTable('pendaftarans')) {
+                    DB::table('pendaftarans')->where('nomor_register', $nomor_register)->delete();
+                }
+                if (Schema::hasTable('pelayanans')) {
+                    DB::table('pelayanans')->where('nomor_register', $nomor_register)->delete();
+                }
             });
 
             return response()->json([
@@ -269,9 +326,16 @@ class Pelayanan_So_Perawat_Controller extends Controller
             $nomor_register = base64_decode($norawat);
 
             // Get patient data
-            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
+            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin', 'poli'])
                 ->where('nomor_register', $nomor_register)
                 ->first();
+
+            // Jika poli KIA (kode 'K'), alihkan dari perawat ke bidan
+            if ($pelayanan && optional($pelayanan->poli)->kode === 'K') {
+                return redirect()
+                    ->route('pelayanan.soap-bidan.index')
+                    ->with('error', 'Pasien KIA dialihkan ke alur Bidan');
+            }
 
             // Get SO Perawat data (may be null for create mode)
             $soPerawat = Pelayanan_So_Perawat::where('no_rawat', $nomor_register)->first();
@@ -457,6 +521,38 @@ class Pelayanan_So_Perawat_Controller extends Controller
             if (!empty($validated['no_rawat'])) {
                 app(PelayananStatusService::class)->tandaiPerawatSelesai($validated['no_rawat']);
             }
+            if (str_contains(strtoupper($validated['penjamin']), 'BPJS')) {
+
+                $databpjs = [
+                    "kdProviderPeserta" => $validated,
+                    "tglDaftar" => null,
+                    "noKartu" => null,
+                    "kdPoli" => null,
+                    "keluhan" => null,
+                    "kunjSakit" => true,
+                    "sistole" => 0,
+                    "diastole" => 0,
+                    "beratBadan" => 0,
+                    "tinggiBadan" => 0,
+                    "respRate" => 0,
+                    "lingkarPerut" => 0,
+                    "heartRate" => 0,
+                    "rujukBalik" => 0,
+                    "kdTkp" => "10",
+                ];
+                $bpjsResponse = $this->PcareController->add_pendaftaran($databpjs);
+
+                if ($bpjsResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsBody = $bpjsResponse->getData(true);
+                    if (($bpjsBody['status'] ?? '') === 'error') {
+                        return redirect()
+                            ->back()
+                            ->with('error', $bpjsBody['message'] ?? 'Permintaan BPJS gagal');
+                    }
+                    $bpjsMessage = $bpjsBody['data'] ?? null;
+                }
+            }
+
 
             // Save to patient history
             $this->savePatientHistory($validated, 'so_perawat_tambah');

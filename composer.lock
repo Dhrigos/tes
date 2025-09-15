@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4f82313278ca35ff14f5364414deb3d1",
+    "content-hash": "6294b30c866a8067e9efc875af7e8fed",
     "packages": [
         {
             "name": "barryvdh/laravel-dompdf",
@@ -1848,16 +1848,16 @@
         },
         {
             "name": "laravel/nightwatch",
-            "version": "v1.13.4",
+            "version": "v1.13.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/nightwatch.git",
-                "reference": "43488626f89b6f216abde902180a9daaba69928c"
+                "reference": "31f169d7853e6dc1027fee1765e9b4b8b3218082"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/nightwatch/zipball/43488626f89b6f216abde902180a9daaba69928c",
-                "reference": "43488626f89b6f216abde902180a9daaba69928c",
+                "url": "https://api.github.com/repos/laravel/nightwatch/zipball/31f169d7853e6dc1027fee1765e9b4b8b3218082",
+                "reference": "31f169d7853e6dc1027fee1765e9b4b8b3218082",
                 "shasum": ""
             },
             "require": {
@@ -1930,7 +1930,7 @@
                 "issues": "https://github.com/laravel/nightwatch/issues",
                 "source": "https://github.com/laravel/nightwatch"
             },
-            "time": "2025-09-11T02:57:15+00:00"
+            "time": "2025-09-15T00:14:08+00:00"
         },
         {
             "name": "laravel/prompts",
@@ -4111,6 +4111,87 @@
                 }
             ],
             "time": "2025-08-21T11:53:16+00:00"
+        },
+        {
+            "name": "picqer/php-barcode-generator",
+            "version": "v3.2.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/picqer/php-barcode-generator.git",
+                "reference": "fbb1de7454fcc8600133818bc1103abeb86479a4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/picqer/php-barcode-generator/zipball/fbb1de7454fcc8600133818bc1103abeb86479a4",
+                "reference": "fbb1de7454fcc8600133818bc1103abeb86479a4",
+                "shasum": ""
+            },
+            "require": {
+                "ext-mbstring": "*",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^9.5"
+            },
+            "suggest": {
+                "ext-bcmath": "Barcode IMB (Intelligent Mail Barcode) needs bcmath extension",
+                "ext-gd": "For JPG and PNG generators, GD or Imagick is required",
+                "ext-imagick": "For JPG and PNG generators, GD or Imagick is required"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Picqer\\Barcode\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-3.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Casper Bakker",
+                    "email": "info@picqer.com",
+                    "homepage": "https://picqer.com"
+                },
+                {
+                    "name": "Nicola Asuni",
+                    "email": "info@tecnick.com",
+                    "homepage": "http://nicolaasuni.tecnick.com"
+                }
+            ],
+            "description": "An easy to use, non-bloated, barcode generator in PHP. Creates SVG, PNG, JPG and HTML images from the most used 1D barcode standards.",
+            "homepage": "https://github.com/picqer/php-barcode-generator",
+            "keywords": [
+                "CODABAR",
+                "Code11",
+                "Code93",
+                "EAN13",
+                "KIX",
+                "KIXCODE",
+                "MSI",
+                "POSTNET",
+                "Pharma",
+                "Standard 2 of 5",
+                "barcode",
+                "barcode generator",
+                "code128",
+                "code39",
+                "ean",
+                "html",
+                "jpeg",
+                "jpg",
+                "php",
+                "png",
+                "svg",
+                "upc"
+            ],
+            "support": {
+                "issues": "https://github.com/picqer/php-barcode-generator/issues",
+                "source": "https://github.com/picqer/php-barcode-generator/tree/v3.2.3"
+            },
+            "time": "2025-07-29T07:15:20+00:00"
         },
         {
             "name": "psr/clock",
@@ -7429,16 +7510,16 @@
         },
         {
             "name": "tightenco/ziggy",
-            "version": "v2.5.3",
+            "version": "v2.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tighten/ziggy.git",
-                "reference": "0b3b521d2c55fbdb04b6721532f7f5f49d32f52b"
+                "reference": "cccc6035c109daab03a33926b3a8499bedbed01f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tighten/ziggy/zipball/0b3b521d2c55fbdb04b6721532f7f5f49d32f52b",
-                "reference": "0b3b521d2c55fbdb04b6721532f7f5f49d32f52b",
+                "url": "https://api.github.com/repos/tighten/ziggy/zipball/cccc6035c109daab03a33926b3a8499bedbed01f",
+                "reference": "cccc6035c109daab03a33926b3a8499bedbed01f",
                 "shasum": ""
             },
             "require": {
@@ -7493,9 +7574,9 @@
             ],
             "support": {
                 "issues": "https://github.com/tighten/ziggy/issues",
-                "source": "https://github.com/tighten/ziggy/tree/v2.5.3"
+                "source": "https://github.com/tighten/ziggy/tree/v2.6.0"
             },
-            "time": "2025-05-17T18:15:19+00:00"
+            "time": "2025-09-15T00:00:26+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
@@ -8863,16 +8944,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "11.5.38",
+            "version": "11.5.39",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "5bd0e4f64a2261b7ade7054c51547beaf2d99e43"
+                "reference": "ad5597f79d8489d2870073ac0bc0dd0ad1fa9931"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/5bd0e4f64a2261b7ade7054c51547beaf2d99e43",
-                "reference": "5bd0e4f64a2261b7ade7054c51547beaf2d99e43",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/ad5597f79d8489d2870073ac0bc0dd0ad1fa9931",
+                "reference": "ad5597f79d8489d2870073ac0bc0dd0ad1fa9931",
                 "shasum": ""
             },
             "require": {
@@ -8944,7 +9025,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/11.5.38"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/11.5.39"
             },
             "funding": [
                 {
@@ -8968,7 +9049,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-09-11T10:34:07+00:00"
+            "time": "2025-09-14T06:20:41+00:00"
         },
         {
             "name": "sebastian/cli-parser",
