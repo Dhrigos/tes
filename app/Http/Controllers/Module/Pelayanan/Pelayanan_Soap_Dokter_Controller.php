@@ -60,43 +60,31 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 return;
             }
 
-            $output = 'Keluhan tidak tersedia';
-            if (!empty($pelayanan->pelayanan_soap->tableData)) {
-                $decoded = json_decode($pelayanan->pelayanan_soap->tableData, true);
-                if (is_array($decoded)) {
-                    // Format baru: { keluhanList: [{ keluhan, durasi }], ... }
-                    $keluhanList = $decoded['keluhanList'] ?? null;
-                    if (is_array($keluhanList) && !empty($keluhanList)) {
-                        $parts = [];
-                        foreach ($keluhanList as $entry) {
-                            $keluhan = trim((string)($entry['keluhan'] ?? ''));
-                            $durasi = trim((string)($entry['durasi'] ?? ''));
-                            if ($keluhan !== '' || $durasi !== '') {
-                                $parts[] = strtolower(trim($keluhan . ' ' . $durasi));
-                            }
-                        }
-                        if (!empty($parts)) {
-                            $output = implode(', ', $parts);
-                        }
-                    } else {
-                        // Fallback format lama: array of items with keys 'penyakit','durasi','waktu'
-                        $hasil = [];
-                        foreach ($decoded as $item) {
-                            if (is_array($item)) {
-                                $penyakit = trim((string)($item['penyakit'] ?? ''));
-                                $durasi = trim((string)($item['durasi'] ?? ''));
-                                $waktu = isset($item['waktu']) ? strtolower((string)$item['waktu']) : '';
-                                if ($penyakit !== '' || $durasi !== '' || $waktu !== '') {
-                                    $hasil[] = trim($penyakit . ' ' . $durasi . ' ' . $waktu);
-                                }
-                            }
-                        }
-                        if (!empty($hasil)) {
-                            $output = implode(', ', $hasil);
-                        }
-                    }
-                }
+            // 1) Keluhan dari tableData
+            $keluhanText = 'Keluhan tidak tersedia';
+            $table = $pelayanan->pelayanan_soap->tableData;
+
+            // robust: bisa array (sudah cast) atau string JSON
+            if (is_string($table)) {
+                $decoded = json_decode($table, true);
+                if (json_last_error() === JSON_ERROR_NONE) $table = $decoded;
             }
+            $keluhanList = is_array($table) ? ($table['keluhanList'] ?? []) : [];
+
+            if (is_array($keluhanList) && !empty($keluhanList)) {
+                $parts = [];
+                foreach ($keluhanList as $row) {
+                    $k = trim((string)($row['keluhan'] ?? ''));
+                    $d = trim((string)($row['durasi'] ?? ''));
+                    if ($k !== '' || $d !== '') $parts[] = strtolower(trim("$k $d"));
+                }
+                if (!empty($parts)) $keluhanText = implode(', ', $parts);
+            }
+
+            // 2) Hilangkan <p> ... </p> jadi string polos
+            $anamnesaPlain     = trim(preg_replace('/\s+/', ' ', strip_tags((string)($pelayanan->pelayanan_soap->anamnesa ?? ''))));
+            $terapiNonObatPlain = trim(preg_replace('/\s+/', ' ', strip_tags((string)($pelayanan->pelayanan_soap->plan ?? $pelayanan->pelayanan_soap->terapi_nonobat ?? ''))));
+
 
 
             // Diagnosa (ICD)
@@ -164,7 +152,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 "noKartu" => $pelayanan->pasien->no_bpjs ?? '',
                 "tglDaftar" => now()->format('d-m-Y'),
                 "kdPoli" => $pelayanan->poli->kode ?? '',
-                "keluhan" => $output,
+                "keluhan" => $keluhanText,
                 "kdSadar" => $kdSadar,
                 "sistole" => $soap->sistol ?? null,
                 "diastole" => $soap->distol ?? null,
@@ -180,12 +168,12 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 "rujukLanjut" => null,
                 "kdTacc" => 0,
                 "alasanTacc" => null,
-                "anamnesa" => $soap->anamnesa,
+                "anamnesa" => $anamnesaPlain,
                 "alergiMakan" => $soap->alergi_makanan ?? '00',
                 "alergiUdara" => $soap->alergi_udara ?? '00',
                 "alergiObat" => $soap->alergi_obat ?? '00',
                 "kdPrognosa" => "01",
-                "terapiNonObat" => $soap->plan ?? "tidak ada",
+                "terapiNonObat" => $terapiNonObatPlain,
                 "terapiObat" => $terapiObat ?? "tidak ada",
                 "bmhp" => $soap->bmhp ?? '',
                 "suhu" => $soap->suhu ?? "0",
