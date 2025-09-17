@@ -60,9 +60,14 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 return;
             }
 
+            // Ambil SOAP dokter terbaru untuk no_rawat ini
+            $soap = Pelayanan_Soap_Dokter::where('no_rawat', $pelayanan->nomor_register)
+                ->latest('updated_at') // atau 'created_at'
+                ->first();
+
             // 1) Keluhan dari tableData
             $keluhanText = 'Keluhan tidak tersedia';
-            $table = $pelayanan->pelayanan_soap->tableData;
+            $table = $soap->tableData;
 
             // robust: bisa array (sudah cast) atau string JSON
             if (is_string($table)) {
@@ -82,8 +87,8 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             }
 
             // 2) Hilangkan <p> ... </p> jadi string polos
-            $anamnesaPlain     = trim(preg_replace('/\s+/', ' ', strip_tags((string)($pelayanan->pelayanan_soap->anamnesa ?? ''))));
-            $terapiNonObatPlain = trim(preg_replace('/\s+/', ' ', strip_tags((string)($pelayanan->pelayanan_soap->plan ?? $pelayanan->pelayanan_soap->terapi_nonobat ?? ''))));
+            $anamnesaPlain     = trim(preg_replace('/\s+/', ' ', strip_tags((string)($soap->anamnesa ?? ''))));
+            $terapiNonObatPlain = trim(preg_replace('/\s+/', ' ', strip_tags((string)($soap->plan ?? $soap->terapi_nonobat ?? ''))));
 
 
 
@@ -106,10 +111,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 $dataDiag['kdDiag1'] = 'Z00.0'; // Diagnosa default
             }
 
-            // Ambil SOAP dokter terbaru untuk no_rawat ini
-            $soap = Pelayanan_Soap_Dokter::where('no_rawat', $pelayanan->nomor_register)
-                ->latest('updated_at') // atau 'created_at'
-                ->first();
+
 
             $eye     = (int) ($soap->eye ?? 0);
             $verbal  = (int) ($soap->verbal ?? 0);
