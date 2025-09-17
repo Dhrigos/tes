@@ -244,21 +244,10 @@ class Ws_Pcare_Controller extends Controller
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;
 
-            // // Jika error metadata atau response kosong
-            if (
-                !is_array($body)
-                || empty($body['response'])
-            ) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
-                    'response_time' => number_format($responseTime, 2)
-                ], 400);
-            }
 
             return response()->json([
                 'status' => 'success',
-                'data' => $body['metaData']['message'],
+                'data' => $body,
                 'response_time' => number_format($responseTime, 2)
             ]);
         } catch (\Exception $e) {
@@ -289,21 +278,9 @@ class Ws_Pcare_Controller extends Controller
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;
 
-            // // Jika error metadata atau response kosong
-            if (
-                !is_array($body)
-                || empty($body['response'])
-            ) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
-                    'response_time' => number_format($responseTime, 2)
-                ], 400);
-            }
-
             return response()->json([
                 'status' => 'success',
-                'data' => $body['metaData']['message'],
+                'data' => $body['metadata']['message'],
                 'response_time' => number_format($responseTime, 2)
             ]);
         } catch (\Exception $e) {
@@ -334,21 +311,9 @@ class Ws_Pcare_Controller extends Controller
             $body = json_decode($response->body(), true);
             $responseTime = microtime(true) - $startTime;
 
-            // // Jika error metadata atau response kosong
-            if (
-                !is_array($body)
-                || empty($body['response'])
-            ) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $body['metaData']['message'] ?? 'Permintaan BPJS gagal',
-                    'response_time' => number_format($responseTime, 2)
-                ], 400);
-            }
-
             return response()->json([
                 'status' => 'success',
-                'data' => $body['metaData']['message'],
+                'data' => $body['metadata']['message'],
                 'response_time' => number_format($responseTime, 2)
             ]);
         } catch (\Exception $e) {

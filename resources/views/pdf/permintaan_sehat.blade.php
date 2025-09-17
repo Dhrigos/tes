@@ -152,6 +152,16 @@
             <td>{{ $suhu ?? '-' }} °C</td>
         </tr>
         <tr>
+            <td class="info-label">Berat Badan</td>
+            <td class="info-separator">:</td>
+            <td>{{ $berat ?? '-' }} kg</td>
+        </tr>
+        <tr>
+            <td class="info-label">Tinggi Badan</td>
+            <td class="info-separator">:</td>
+            <td>{{ $tinggi ?? '-' }} cm</td>
+        </tr>
+        <tr>
             <td class="info-label">Pernafasan</td>
             <td class="info-separator">:</td>
             <td>{{ $respiratory_rate ?? '-' }} /menit</td>

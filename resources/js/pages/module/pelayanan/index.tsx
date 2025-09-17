@@ -216,6 +216,9 @@ export default function PelayananSoPerawat() {
     const getActionButtons = (row: PelayananData) => {
         const norawat = btoa(row.nomor_register);
 
+        // Deteksi KIA dari nama poli agar tidak memuat relasi tambahan
+        const isKia = (row?.poli?.nama || '').toUpperCase().includes('KIA') || false;
+
         switch (row.tindakan_button) {
             case 'panggil':
                 return (
@@ -235,7 +238,7 @@ export default function PelayananSoPerawat() {
                         variant="outline"
                         size="sm"
                         className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                        onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}`)}
+                        onClick={() => router.visit(isKia ? `/pelayanan/soap-bidan/${norawat}` : `/pelayanan/so-perawat/${norawat}`)}
                     >
                         <FileText className="mr-1 h-4 w-4" />
                         Pemeriksaan
@@ -248,7 +251,7 @@ export default function PelayananSoPerawat() {
                             variant="outline"
                             size="sm"
                             className="border-cyan-600 text-cyan-600 hover:bg-cyan-50"
-                            onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}`)}
+                            onClick={() => router.visit(isKia ? `/pelayanan/soap-bidan/edit/${norawat}` : `/pelayanan/so-perawat/edit/${norawat}`)}
                         >
                             <Edit className="mr-1 h-4 w-4" />
                             Edit

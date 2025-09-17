@@ -48,6 +48,7 @@ interface PageProps {
     subspesialis: Subspesialis[];
     sarana: Sarana[];
     spesialis: Spesialis[];
+    isKia?: boolean;
     errors?: Record<string, string>;
     flash?: {
         success?: string;
@@ -61,7 +62,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Rujukan() {
-    const { pelayanan, Ref_TACC, subspesialis, sarana, spesialis } = usePage().props as unknown as PageProps;
+    const { pelayanan, Ref_TACC, subspesialis, sarana, spesialis, isKia } = usePage().props as unknown as PageProps;
 
     const [activeTab, setActiveTab] = useState('jenis-rujukan');
     const [errorOpen, setErrorOpen] = useState(false);
@@ -232,12 +233,14 @@ export default function Rujukan() {
                 } catch (_) {}
                 if (json?.success) {
                     window.open(`/rujukan/cetak/${pelayanan.nomor_register}`, '_blank');
-                    window.location.href = `/pelayanan/soap-dokter/${pelayanan.nomor_register}`;
+                    const target = isKia ? 'soap-bidan' : 'soap-dokter';
+                    window.location.href = `/pelayanan/${target}/${pelayanan.nomor_register}`;
                     return;
                 }
                 // Jika bukan JSON (mis. redirect HTML), tetap lanjutkan fallback
                 window.open(`/rujukan/cetak/${pelayanan.nomor_register}`, '_blank');
-                window.location.href = `/pelayanan/soap-dokter/${pelayanan.nomor_register}`;
+                const target2 = isKia ? 'soap-bidan' : 'soap-dokter';
+                window.location.href = `/pelayanan/${target2}/${pelayanan.nomor_register}`;
                 return;
             }
             // Extract error message from JSON or fallback to text/HTTP status

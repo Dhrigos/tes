@@ -293,17 +293,40 @@ export default function Index() {
     const handleSearchKfa = async () => {
         const q = (nama || '').trim();
         if (!q) return;
+        if (!kfaType) {
+            toast.error('Pilih jenis barang terlebih dahulu');
+            return;
+        }
+        if (kfaType !== 'farmasi' && kfaType !== 'alkes') {
+            toast.error('Pencarian KFA hanya untuk farmasi atau alkes');
+            return;
+        }
         try {
             setIsLoadingKfa(true);
-            const res = await fetch(`/api/get_kfa_obat/${encodeURIComponent(kfaType)}/${encodeURIComponent(q)}`);
+            const typeParam = kfaType === 'farmasi' ? 'farmasi' : 'alkes';
+            const res = await fetch(`/api/get_kfa_obat/${encodeURIComponent(typeParam)}/${encodeURIComponent(q)}`);
             const json = await res.json();
-            const items = Array.isArray(json?.data) ? (json.data as Array<{ name: string; kfa_code: string; manufacturer: string }>) : [];
-            setKfaOptions(items);
-            if (items.length === 1) {
-                selectKfa(items[0]);
-                return;
+            const rawRoot = json?.data ?? json?.items ?? json?.result ?? json?.obat ?? json?.alkes ?? (Array.isArray(json) ? json : []);
+            const rawArray = Array.isArray(rawRoot)
+                ? rawRoot
+                : rawRoot && typeof rawRoot === 'object'
+                  ? Object.values(rawRoot as Record<string, any>)
+                  : [];
+            const items = rawArray
+                .map((it: any) => ({
+                    name: it?.name ?? it?.nama ?? '',
+                    name_dagang: it?.name_dagang ?? it?.nama_dagang ?? '',
+                    kfa_code: it?.kfa_code ?? it?.kode ?? '',
+                    manufacturer: it?.manufacturer ?? it?.pabrikan ?? it?.manufacture ?? '',
+                }))
+                .filter((it: any) => it.name);
+            setKfaOptions(items as Array<{ name: string; name_dagang?: string; kfa_code: string; manufacturer: string }>);
+            if (items.length === 0) {
+                toast.warning('Data KFA tidak ditemukan');
+                setShowKfaList(false);
+            } else {
+                setShowKfaList(true);
             }
-            setShowKfaList(true);
         } catch (e) {
             setKfaOptions([]);
             setShowKfaList(false);
@@ -660,7 +683,7 @@ export default function Index() {
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2">
                                                 <Select
-                                                    value={kfaType || undefined}
+                                                    value={kfaType || ''}
                                                     onValueChange={(v) => setKfaType(v as 'farmasi' | 'alkes' | 'inventaris')}
                                                 >
                                                     <SelectTrigger className="w-36">
@@ -692,7 +715,7 @@ export default function Index() {
                                 {step === 2 && (
                                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                         <Select
-                                            value={gudangKategori !== '' ? String(gudangKategori) : undefined}
+                                            value={gudangKategori !== '' ? String(gudangKategori) : ''}
                                             onValueChange={(v) => setGudangKategori(v ? Number(v) : '')}
                                         >
                                             <SelectTrigger>
@@ -735,7 +758,7 @@ export default function Index() {
                                             <div className="space-y-2">
                                                 <div className="flex items-center gap-2">
                                                     <Select
-                                                        value={kfaType || undefined}
+                                                        value={kfaType || ''}
                                                         onValueChange={(v) => setKfaType(v as 'farmasi' | 'alkes' | 'inventaris')}
                                                     >
                                                         <SelectTrigger className="w-36">
@@ -968,7 +991,7 @@ export default function Index() {
                                         />
                                         <Input placeholder="Barcode obat" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
                                         <Select
-                                            value={gudangKategori !== '' ? String(gudangKategori) : undefined}
+                                            value={gudangKategori !== '' ? String(gudangKategori) : ''}
                                             onValueChange={(v) => setGudangKategori(v ? Number(v) : '')}
                                         >
                                             <SelectTrigger>

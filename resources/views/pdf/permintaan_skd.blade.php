@@ -137,22 +137,47 @@
 
     <table class="info-table" style="width: 100%;">
         <tr>
-            <td class="info-label">Diagnosa</td>
+            <td class="info-label">Untuk</td>
             <td class="info-separator">:</td>
-            {{-- <td>{{ $diagnosa }}</td> --}}
-            <td><strong>{!! nl2br(e($diagnosa ?? '-')) !!}</strong></td>
+            <td>{{ $untuk ?? '-' }}</td>
         </tr>
 
         <tr>
-            <td class="info-label">Selama</td>
+            <td class="info-label">Pada</td>
             <td class="info-separator">:</td>
-            <td>{{ $jumlah_hari }} Hari</td>
+            <td>{{ $pada ? \Carbon\Carbon::parse($pada)->format('d-m-Y') : '-' }}</td>
         </tr>
 
         <tr>
-            <td class="info-label">Terhitung Hingga</td>
+            <td class="info-label">Poli/Unit</td>
             <td class="info-separator">:</td>
-            <td>{{ \Carbon\Carbon::parse($tgl_awal)->format('d-m-Y') }} - {{ \Carbon\Carbon::parse($tgl_akhir)->format('d-m-Y') }}</td>
+            <td>{{ $poli_unit ?? '-' }}</td>
+        </tr>
+
+        <tr>
+            <td class="info-label">Alasan</td>
+            <td class="info-separator">:</td>
+            <td>
+                @if($alasan1)
+                1. {{ $alasan1 }}<br>
+                @endif
+                @if($alasan2)
+                2. {{ $alasan2 }}
+                @endif
+            </td>
+        </tr>
+
+        <tr>
+            <td class="info-label">Rencana</td>
+            <td class="info-separator">:</td>
+            <td>
+                @if($rencana1)
+                1. {{ $rencana1 }}<br>
+                @endif
+                @if($rencana2)
+                2. {{ $rencana2 }}
+                @endif
+            </td>
         </tr>
     </table>
 

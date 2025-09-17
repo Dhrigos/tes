@@ -66,6 +66,24 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
     const embalaseTotal = Number(embalase || 0) * Number(nilaiEmbis || 0);
     const total = subtotal + embalaseTotal;
 
+    const parseQuantity = (value: any): number => {
+        if (value == null) return 0;
+        if (typeof value === 'number') return isFinite(value) ? value : 0;
+        const str = String(value).trim();
+        // Replace comma decimal separators and extract first number
+        const normalized = str.replace(/,/g, '.');
+        const match = normalized.match(/\d+(?:\.\d+)?/);
+        if (!match) return 0;
+        const num = Number(match[0]);
+        return isNaN(num) ? 0 : num;
+    };
+
+    const getJumlahFromResep = (r: AnyRecord): number => {
+        const raw = r?.jumlah ?? r?.jumlah_diberikan ?? r?.qty ?? r?.jumlah_obat ?? r?.jumlahResep ?? r?.jml ?? r?.quantity;
+        const parsed = parseQuantity(raw);
+        return parsed > 0 ? parsed : 1;
+    };
+
     const breadcrumbs = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Apotek', href: '/apotek' },
@@ -88,14 +106,19 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
 
             const cleaned = (resepArray || [])
                 .filter((r: AnyRecord) => r && r.nama_obat)
-                .map((r: AnyRecord) => ({
-                    nama_obat: r?.nama_obat || '',
-                    jumlah: r?.jumlah != null ? Number(r.jumlah) : 1,
-                    satuan_gudang: r?.satuan_gudang || '',
-                    instruksi: r?.instruksi || '',
-                    signa: r?.signa || '',
-                    penggunaan: r?.penggunaan || '',
-                }));
+                .map((r: AnyRecord) => {
+                    const jumlah = getJumlahFromResep(r);
+                    const satuan = r?.satuan_gudang || r?.satuan || '';
+                    const mapped = {
+                        nama_obat: r?.nama_obat || '',
+                        jumlah,
+                        satuan_gudang: satuan,
+                        instruksi: r?.instruksi || '',
+                        signa: r?.signa || '',
+                        penggunaan: r?.penggunaan || '',
+                    };
+                    return mapped;
+                });
 
             setResepData(cleaned);
 
@@ -279,7 +302,7 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                         console.warn('[Apotek] hargaBebas fetch failed', err);
                     }
                 }
-                const qty = (resep as any)?.jumlah != null ? Number((resep as any).jumlah) : 1;
+                const qty = getJumlahFromResep(resep as AnyRecord);
                 const totalItem = qty * harga;
                 sequentialItems.push({
                     nama: resep.nama_obat,

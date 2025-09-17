@@ -351,7 +351,7 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
 });
 
 Route::get('/', function () {
-    return Inertia::render('welcome');
+    return redirect()->route('login'); // Redirect ke route login
 })->name('home');
 
 

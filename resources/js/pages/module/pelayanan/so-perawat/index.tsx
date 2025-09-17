@@ -105,10 +105,11 @@ export default function PelayananSoPerawat() {
         });
     };
 
-    const handlePanggilPasien = async (norawat: string) => {
+    const handlePanggilPasien = async (norawat: string, isKia: boolean) => {
         try {
             const encodedNorawat = btoa(norawat);
-            const res = await fetch(`/api/pelayanan/hadir/${encodedNorawat}`, {
+            const url = isKia ? `/api/pelayanan/hadir-bidan/${encodedNorawat}` : `/api/pelayanan/hadir/${encodedNorawat}`;
+            const res = await fetch(url, {
                 method: 'GET',
                 headers: { Accept: 'application/json' },
             });
@@ -182,7 +183,10 @@ export default function PelayananSoPerawat() {
         }
     };
 
-    const filteredPelayanan = pelayanan.filter((p) => {
+    // Pastikan pasien KIA tidak tampil di halaman perawat (guard sisi frontend)
+    const pelayananNonKia = pelayanan.filter((p) => !(p?.poli?.nama || '').toUpperCase().includes('KIA'));
+
+    const filteredPelayanan = pelayananNonKia.filter((p) => {
         const s = search.toLowerCase();
         return (
             (p.pasien?.nama?.toLowerCase() || '').includes(s) ||
@@ -224,6 +228,7 @@ export default function PelayananSoPerawat() {
 
     const getActionButtons = (row: PelayananData) => {
         const norawat = btoa(row.nomor_register);
+        const isKia = (row?.poli?.nama || '').toUpperCase().includes('KIA');
 
         switch (row.tindakan_button) {
             case 'panggil':
@@ -232,7 +237,7 @@ export default function PelayananSoPerawat() {
                         variant="outline"
                         size="xs"
                         className="border-yellow-600 text-yellow-600 hover:bg-yellow-50 disabled:opacity-50"
-                        onClick={() => handlePanggilPasien(row.nomor_register)}
+                        onClick={() => handlePanggilPasien(row.nomor_register, isKia)}
                         disabled={!((row.status_daftar ?? 0) === 2 && (row.status_perawat ?? 0) === 0)}
                     >
                         <Bell className="mr-1 h-4 w-4" />
@@ -245,7 +250,7 @@ export default function PelayananSoPerawat() {
                         variant="outline"
                         size="xs"
                         className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                        onClick={() => router.visit(`/pelayanan/so-perawat/${norawat}?mode=pemeriksaan`)}
+                        onClick={() => router.visit(isKia ? `/pelayanan/soap-bidan/${norawat}` : `/pelayanan/so-perawat/${norawat}?mode=pemeriksaan`)}
                     >
                         <FileText className="mr-1 h-4 w-4" />
                         Pemeriksaan
@@ -258,7 +263,9 @@ export default function PelayananSoPerawat() {
                             variant="outline"
                             size="xs"
                             className="border-cyan-600 text-cyan-600 hover:bg-cyan-50"
-                            onClick={() => router.visit(`/pelayanan/so-perawat/edit/${norawat}?mode=edit`)}
+                            onClick={() =>
+                                router.visit(isKia ? `/pelayanan/soap-bidan/edit/${norawat}` : `/pelayanan/so-perawat/edit/${norawat}?mode=edit`)
+                            }
                         >
                             <Edit className="mr-1 h-4 w-4" />
                             Edit
