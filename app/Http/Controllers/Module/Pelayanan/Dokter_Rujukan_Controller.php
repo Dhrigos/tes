@@ -27,7 +27,7 @@ class Dokter_Rujukan_Controller extends Controller
         try {
             $nomor_register = base64_decode($norawat);
 
-            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])
+            $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin', 'poli'])
                 ->where('nomor_register', $nomor_register)
                 ->first();
 
@@ -80,6 +80,7 @@ class Dokter_Rujukan_Controller extends Controller
                 'subspesialis' => [],
                 'sarana' => [],
                 'spesialis' => [],
+                'isKia' => strtoupper((string) optional($pelayanan?->poli)->kode) === 'K'
             ]);
         } catch (\Exception $e) {
             return Inertia::render('module/pelayanan/rujukan/rujukan', [
@@ -182,6 +183,7 @@ class Dokter_Rujukan_Controller extends Controller
             'sarana' => $sarana,
             'spesialis' => $spesialis,
             'subspesialis' => $subspesialis,
+            'isKia' => strtoupper((string) optional($pelayanan?->poli)->kode) === 'K'
         ]);
     }
 

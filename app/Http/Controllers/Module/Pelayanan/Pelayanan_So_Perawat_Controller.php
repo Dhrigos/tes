@@ -29,14 +29,18 @@ use App\Services\PelayananStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
+
 
 class Pelayanan_So_Perawat_Controller extends Controller
 {
     public $PcareController;
+    public $WsPcareController;
 
     public function __construct()
     {
         $this->PcareController = new Pcare_Controller();
+        $this->WsPcareController = new Ws_Pcare_Controller();
     }
     /**
      * Save patient history to pasien_histories table
@@ -181,11 +185,54 @@ class Pelayanan_So_Perawat_Controller extends Controller
                 ], 404);
             }
 
-            // Update status: hadir perawat (berbeda dengan hadir daftar di modul pendaftaran)
-            Pelayanan_status::updateOrCreate(
-                ['nomor_register' => $nomor_register],
-                ['status_perawat' => 1]
-            );
+            if ($pelayanan->pendaftaran->penjamin && str_contains(strtoupper($pelayanan->pendaftaran->penjamin->nama), 'BPJS')) {
+
+                $jadwal = $pelayanan->dokter->jadwal()->first();
+
+                $databpjs = [
+                    "nomorkartu" => $pelayanan->pasien->no_bpjs,
+                    "nik" => $pelayanan->pasien->nik,
+                    "nohp" => $pelayanan->pasien->telepon, // ganti dari nama pasien
+                    "kodepoli" => $pelayanan->poli->kode,
+                    "namapoli" => $pelayanan->poli->nama,
+                    "norm" => $pelayanan->pasien->no_rm,
+                    "tanggalperiksa" => Carbon::parse($request->tanggal, 'Asia/Jakarta')->format('Y-m-d'),
+                    "kodedokter" => $pelayanan->dokter->kode,
+                    "namadokter" => $pelayanan->dokter->nama,
+                    "jampraktek" => optional($jadwal)->jam_mulai
+                        ? Carbon::parse($jadwal->jam_mulai)->format('H:i') . '-' . Carbon::parse($jadwal->jam_selesai)->format('H:i')
+                        : null,
+
+                    "nomorantrean" => $pelayanan->pendaftaran->antrian,
+                    "angkaantrean" => preg_match('/\d+/', $pelayanan->pendaftaran->antrian, $m) ? $m[0] : null,
+                    "keterangan" => "",
+                ];
+
+                $bpjsResponse = $this->WsPcareController->post_antrian($databpjs);
+
+                if ($bpjsResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsBody = $bpjsResponse->getData(true);
+                    if (($bpjsBody['status'] ?? '') === 'error') {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => $bpjsBody['message'] ?? 'Permintaan BPJS gagal'
+                        ], 400);
+                    }
+                    $bpjsMessage = $bpjsBody['data'] ?? null;
+                }
+                // Update status: hadir perawat (berbeda dengan hadir daftar di modul pendaftaran)
+                Pelayanan_status::updateOrCreate(
+                    ['nomor_register' => $nomor_register],
+                    ['status_perawat' => 1]
+                );
+            } else {
+                // Update status: hadir perawat (berbeda dengan hadir daftar di modul pendaftaran)
+                Pelayanan_status::updateOrCreate(
+                    ['nomor_register' => $nomor_register],
+                    ['status_perawat' => 1]
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -521,38 +568,108 @@ class Pelayanan_So_Perawat_Controller extends Controller
             if (!empty($validated['no_rawat'])) {
                 app(PelayananStatusService::class)->tandaiPerawatSelesai($validated['no_rawat']);
             }
+
             if (str_contains(strtoupper($validated['penjamin']), 'BPJS')) {
+                $pelayanan = Pelayanan::with(['pasien', 'pendaftaran.penjamin'])->where('nomor_register', $validated['no_rawat'])->first();
+
+                date_default_timezone_set('UTC');
+                $Timestamp = strval(time() - strtotime('1970-01-01 00:00:00'));
+                $newTimestamp = $Timestamp * 1000;
+
+                $databpjsws = [
+                    "tanggalperiksa" => Carbon::parse($pelayanan->pendaftaran->tanggal_kujungan)->format('Y-m-d'),
+                    "kodepoli" => $pelayanan->pendaftaran->poli->kode,
+                    "nomorkartu" => $pelayanan->pasien->no_bpjs,
+                    "status" => 1,
+                    "waktu" => $newTimestamp,
+                ];
+
+
+                // 1) Update antrian terlebih dahulu
+                Log::info('BPJS update_antrian request', [
+                    'no_rawat' => $validated['no_rawat'] ?? null,
+                    'payload' => $databpjsws,
+                ]);
+                $bpjsUpdateResponse = $this->WsPcareController->update_antrian($databpjsws);
+                if ($bpjsUpdateResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsUpdateBody = $bpjsUpdateResponse->getData(true);
+                    Log::info('BPJS update_antrian response', [
+                        'no_rawat' => $validated['no_rawat'] ?? null,
+                        'response' => $bpjsUpdateBody,
+                    ]);
+                    if (($bpjsUpdateBody['status'] ?? '') === 'error') {
+                        Log::warning('BPJS update_antrian error', [
+                            'no_rawat' => $validated['no_rawat'] ?? null,
+                            'message' => $bpjsUpdateBody['message'] ?? 'Permintaan BPJS (update antrian) gagal',
+                        ]);
+                        return redirect()
+                            ->back()
+                            ->with('error', $bpjsUpdateBody['message'] ?? 'Permintaan BPJS (update antrian) gagal');
+                    }
+                }
+
+
+                // Susun keluhan dari tableData.keluhanList => "keluhan durasi"
+                $keluhanText = null;
+                if (!empty($validated['tableData']) && is_array($validated['tableData'])) {
+                    $keluhanList = $validated['tableData']['keluhanList'] ?? [];
+                    if (is_array($keluhanList) && !empty($keluhanList)) {
+                        $parts = [];
+                        foreach ($keluhanList as $entry) {
+                            $keluhan = trim((string)($entry['keluhan'] ?? ''));
+                            $durasi = trim((string)($entry['durasi'] ?? ''));
+                            if ($keluhan !== '' || $durasi !== '') {
+                                $text = trim($keluhan . ' ' . $durasi);
+                                $parts[] = strtolower($text);
+                            }
+                        }
+                        if (!empty($parts)) {
+                            $keluhanText = implode(', ', $parts);
+                        }
+                    }
+                }
 
                 $databpjs = [
-                    "kdProviderPeserta" => $validated,
-                    "tglDaftar" => null,
-                    "noKartu" => null,
-                    "kdPoli" => null,
-                    "keluhan" => null,
+                    "kdProviderPeserta" => $pelayanan->pasien->kodeprovide,
+                    "tglDaftar" => Carbon::parse($pelayanan->pendaftaran->tanggal_kujungan)->format('d-m-Y'),
+                    "noKartu" => $pelayanan->pasien->no_bpjs,
+                    "kdPoli" => $pelayanan->pendaftaran->poli->kode,
+                    "keluhan" => $keluhanText,
                     "kunjSakit" => true,
-                    "sistole" => 0,
-                    "diastole" => 0,
-                    "beratBadan" => 0,
-                    "tinggiBadan" => 0,
-                    "respRate" => 0,
-                    "lingkarPerut" => 0,
-                    "heartRate" => 0,
+                    "sistole" => $validated['sistol'],
+                    "diastole" => $validated['distol'],
+                    "beratBadan" => $validated['berat'],
+                    "tinggiBadan" => $validated['tinggi'],
+                    "respRate" => $validated['rr'],
+                    "lingkarPerut" => $validated['lingkar_perut'],
+                    "heartRate" => $validated['nadi'],
                     "rujukBalik" => 0,
                     "kdTkp" => "10",
                 ];
-                $bpjsResponse = $this->PcareController->add_pendaftaran($databpjs);
 
-                if ($bpjsResponse instanceof \Illuminate\Http\JsonResponse) {
-                    $bpjsBody = $bpjsResponse->getData(true);
-                    if (($bpjsBody['status'] ?? '') === 'error') {
+                // 2) Lalu lakukan add pendaftaran
+                Log::info('BPJS add_pendaftaran request', [
+                    'no_rawat' => $validated['no_rawat'] ?? null,
+                    'payload' => $databpjs,
+                ]);
+                $bpjsAddResponse = $this->PcareController->add_pendaftaran($databpjs);
+                if ($bpjsAddResponse instanceof \Illuminate\Http\JsonResponse) {
+                    $bpjsAddBody = $bpjsAddResponse->getData(true);
+                    Log::info('BPJS add_pendaftaran response', [
+                        'no_rawat' => $validated['no_rawat'] ?? null,
+                        'response' => $bpjsAddBody,
+                    ]);
+                    if (($bpjsAddBody['status'] ?? '') === 'error') {
+                        Log::warning('BPJS add_pendaftaran error', [
+                            'no_rawat' => $validated['no_rawat'] ?? null,
+                            'message' => $bpjsAddBody['message'] ?? 'Permintaan BPJS (add pendaftaran) gagal',
+                        ]);
                         return redirect()
                             ->back()
-                            ->with('error', $bpjsBody['message'] ?? 'Permintaan BPJS gagal');
+                            ->with('error', $bpjsAddBody['message'] ?? 'Permintaan BPJS (add pendaftaran) gagal');
                     }
-                    $bpjsMessage = $bpjsBody['data'] ?? null;
                 }
             }
-
 
             // Save to patient history
             $this->savePatientHistory($validated, 'so_perawat_tambah');

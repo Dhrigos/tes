@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Module\Pelayanan;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Ws_Pcare_Controller;
 use App\Models\Module\Pelayanan\Pelayanan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Obat;
@@ -40,8 +42,174 @@ use Illuminate\Validation\ValidationException;
 use App\Models\Module\Pemdaftaran\Pendaftaran;
 use App\Models\Module\Pemdaftaran\Pendaftaran_status;
 
+
 class Pelayanan_Soap_Dokter_Controller extends Controller
 {
+    /**
+     * Kirim status antrean ke BPJS Antrean (WS) bila penjamin BPJS
+     */
+    private function kirimStatusBpjsAntrean(Pelayanan $pelayanan, int $statusAntrean): void
+    {
+        try {
+            if (!$pelayanan) {
+                return;
+            }
+
+            $penjaminNama = optional(optional($pelayanan->pendaftaran)->penjamin)->nama;
+            if (!($penjaminNama && str_contains(strtoupper($penjaminNama), 'BPJS'))) {
+                return;
+            }
+
+            $output = 'Keluhan tidak tersedia';
+            if (!empty($pelayanan->pelayanan_soap->tableData)) {
+                $decoded = json_decode($pelayanan->pelayanan_soap->tableData, true);
+                if (is_array($decoded)) {
+                    // Format baru: { keluhanList: [{ keluhan, durasi }], ... }
+                    $keluhanList = $decoded['keluhanList'] ?? null;
+                    if (is_array($keluhanList) && !empty($keluhanList)) {
+                        $parts = [];
+                        foreach ($keluhanList as $entry) {
+                            $keluhan = trim((string)($entry['keluhan'] ?? ''));
+                            $durasi = trim((string)($entry['durasi'] ?? ''));
+                            if ($keluhan !== '' || $durasi !== '') {
+                                $parts[] = strtolower(trim($keluhan . ' ' . $durasi));
+                            }
+                        }
+                        if (!empty($parts)) {
+                            $output = implode(', ', $parts);
+                        }
+                    } else {
+                        // Fallback format lama: array of items with keys 'penyakit','durasi','waktu'
+                        $hasil = [];
+                        foreach ($decoded as $item) {
+                            if (is_array($item)) {
+                                $penyakit = trim((string)($item['penyakit'] ?? ''));
+                                $durasi = trim((string)($item['durasi'] ?? ''));
+                                $waktu = isset($item['waktu']) ? strtolower((string)$item['waktu']) : '';
+                                if ($penyakit !== '' || $durasi !== '' || $waktu !== '') {
+                                    $hasil[] = trim($penyakit . ' ' . $durasi . ' ' . $waktu);
+                                }
+                            }
+                        }
+                        if (!empty($hasil)) {
+                            $output = implode(', ', $hasil);
+                        }
+                    }
+                }
+            }
+
+
+            // Diagnosa (ICD)
+            $icds = Pelayanan_Soap_Dokter_Icd::where('no_rawat', $pelayanan->no_rawat)
+                ->pluck('kode_icd10')
+                ->toArray();
+
+
+            // Gabungkan semua kode ICD menjadi satu string, lalu pisahkan per koma
+            $allCodes = implode(',', $icds);
+            $diagnosa = array_slice(array_map('trim', explode(',', $allCodes)), 0, 3);
+
+            $dataDiag = [];
+            foreach ($diagnosa as $i => $kode) {
+                $dataDiag["kdDiag" . ($i + 1)] = $kode;
+            }
+
+            if (empty($dataDiag)) {
+                $dataDiag['kdDiag1'] = 'Z00.0'; // Diagnosa default
+            }
+
+            // Ambil SOAP dokter terbaru untuk no_rawat ini
+            $soap = Pelayanan_Soap_Dokter::where('no_rawat', $pelayanan->nomor_register)
+                ->latest('updated_at') // atau 'created_at'
+                ->first();
+
+            $eye     = (int) ($soap->eye ?? 0);
+            $verbal  = (int) ($soap->verbal ?? 0);
+            $motorik = (int) ($soap->motorik ?? 0);
+            $totalSkor = $eye + $verbal + $motorik;
+
+            $kdSadar = Gcs_Kesadaran::where('skor', $totalSkor)->value('kode') ?? '01';
+
+            $obats = Pelayanan_Soap_Dokter_Obat::where('no_rawat', $pelayanan->nomor_register)->get();
+
+            $terapiObat = 'tidak ada';
+            if ($obats->isNotEmpty()) {
+                $items = $obats->map(function ($o) {
+                    $nama      = trim((string) $o->nama_obat);
+                    $instruksi = trim((string) $o->instruksi);   // contoh: "M.f. pulv"
+                    $signa     = trim((string) $o->signa);       // contoh: "1x1" → jadikan "1 x 1"
+                    if ($signa !== '') {
+                        $signa = preg_replace('/\s*/', '', $signa);
+                        $signa = preg_replace('/x/i', ' x ', $signa, 1);
+                    }
+                    $qty   = ($o->jumlah_diberikan === null || $o->jumlah_diberikan === '') ? '1' : trim((string) $o->jumlah_diberikan);
+                    $unit  = trim((string) ($o->satuan_signa ?: $o->satuan_gudang ?: 'pcs'));
+
+                    $lines = [];
+                    $lines[] = 'R/ ' . $nama;
+                    if ($instruksi !== '') {
+                        $lines[] = $instruksi;
+                    }
+                    $lines[] = 'S. ' . ($signa !== '' ? ($signa . ' x ') : '') . $qty . ' ' . strtolower($unit);
+
+                    return implode("\n", $lines);
+                });
+
+                // Pisahkan resep antar item dengan satu baris kosong
+                $terapiObat = $items->implode("\n\n");
+            }
+
+            $payload = array_merge([
+                "noKunjungan" => null,
+                "noKartu" => $pelayanan->pasien->no_bpjs ?? '',
+                "tglDaftar" => now()->format('d-m-Y'),
+                "kdPoli" => $pelayanan->poli->kode ?? '',
+                "keluhan" => $output,
+                "kdSadar" => $kdSadar,
+                "sistole" => $soap->sistol ?? null,
+                "diastole" => $soap->distol ?? null,
+                "beratBadan" => $soap->berat ?? null,
+                "tinggiBadan" => $soap->tinggi ?? null,
+                "respRate" => $soap->rr ?? null,
+                "heartRate" => $soap->nadi ?? null,
+                "lingkarPerut" => $soap->lingkar_perut ?? null,
+                "kdStatusPulang" => "3",
+                "tglPulang" => now()->format('d-m-Y'),
+                "kdDokter" => $pelayanan->dokter->kode ?? '',
+                "kdPoliRujukInternal" => null,
+                "rujukLanjut" => null,
+                "kdTacc" => 0,
+                "alasanTacc" => null,
+                "anamnesa" => $soap->anamnesa,
+                "alergiMakan" => $soap->alergi_makanan ?? '00',
+                "alergiUdara" => $soap->alergi_udara ?? '00',
+                "alergiObat" => $soap->alergi_obat ?? '00',
+                "kdPrognosa" => "01",
+                "terapiNonObat" => $soap->plan ?? "tidak ada",
+                "terapiObat" => $terapiObat ?? "tidak ada",
+                "bmhp" => $soap->bmhp ?? '',
+                "suhu" => $soap->suhu ?? "0",
+            ], $dataDiag);
+
+            // Fire and forget; log jika error
+            try {
+                Log::info('BPJS WS (dokter) update_antrian dipanggil', [
+                    'nomor_register' => $pelayanan->nomor_register ?? null,
+                    'payload' => $payload,
+                    'statusAntrean' => $statusAntrean,
+                ]);
+                (new Pcare_Controller())->add_rujukan($payload);
+            } catch (\Throwable $bpjsEx) {
+                Log::warning('Gagal update antrean BPJS (dokter)', [
+                    'no_register' => $pelayanan->nomor_register ?? null,
+                    'payload' => $payload,
+                    'error' => $bpjsEx->getMessage(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('kirimStatusBpjsAntrean error', ['message' => $e->getMessage()]);
+        }
+    }
     /**
      * Save patient history to pasien_histories table
      */
@@ -1018,6 +1186,11 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Dokter selesai layanan penuh: set 4 (pelayanan selesai penuh)
             app(PelayananStatusService::class)->tandaiDokterSelesaiPenuh($nomor_register);
 
+            $pelayanan->loadMissing(['pasien', 'pendaftaran.poli', 'pendaftaran.penjamin']);
+            if ($pelayanan->pendaftaran->penjamin && str_contains(strtoupper($pelayanan->pendaftaran->penjamin->nama), 'BPJS')) {
+                $this->kirimStatusBpjsAntrean($pelayanan, 3);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pasien berhasil diselesaikan'
@@ -1055,6 +1228,10 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
 
             // Tandai dokter half-complete (3) tanpa menutup pendaftaran
             app(PelayananStatusService::class)->tandaiDokterPelayananSelesai($nomor_register);
+
+            // Bridging BPJS Antrean: tetap status 2 (proses lanjutan)
+            $pelayanan->loadMissing(['pasien', 'pendaftaran.poli', 'pendaftaran.penjamin']);
+            $this->kirimStatusBpjsAntrean($pelayanan, 2);
 
             return response()->json([
                 'success' => true,
@@ -1094,6 +1271,17 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             app(\App\Services\PelayananStatusService::class)->tandaiDokterBerjalan($nomor_register);
             app(\App\Services\PelayananStatusService::class)->setWaktuPanggilDokter($nomor_register);
             app(\App\Services\PelayananStatusService::class)->tandaiPerawatFinal($nomor_register);
+
+            // Bridging BPJS Antrean: status 2 (sedang dilayani dokter) hanya jika penjamin BPJS
+            $pelayanan->loadMissing(['pasien', 'pendaftaran.poli', 'pendaftaran.penjamin']);
+            $penjaminNama = optional(optional($pelayanan->pendaftaran)->penjamin)->nama;
+            if ($penjaminNama && str_contains(strtoupper($penjaminNama), 'BPJS')) {
+                Log::info('Memanggil kirimStatusBpjsAntrean dari hadirDokter', [
+                    'nomor_register' => $nomor_register,
+                    'statusAntrean' => 2,
+                ]);
+                $this->kirimStatusBpjsAntrean($pelayanan, 2);
+            }
 
             return response()->json([
                 'success' => true,

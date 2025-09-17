@@ -9,6 +9,7 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use App\Models\Module\Master\Data\Medis\Radiologi_Pemeriksaan;
 use App\Models\Module\Pasien\Pasien_History;
+use App\Services\PelayananStatusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class Pelayanan_Permintaan_Controller extends Controller
 {
@@ -163,8 +165,11 @@ class Pelayanan_Permintaan_Controller extends Controller
             } catch (\Exception $e) {
             }
 
+            // Update status dokter berdasarkan jenis permintaan
+            $this->updateDokterStatus($validated['no_rawat'], $validated['jenis_permintaan']);
+
             return redirect()
-                ->back()
+                ->route('pelayanan.soap-dokter.index')
                 ->with('success', 'Permintaan berhasil disimpan');
         } catch (\Exception $e) {
             return redirect()
@@ -221,8 +226,11 @@ class Pelayanan_Permintaan_Controller extends Controller
             } catch (\Exception $e) {
             }
 
+            // Update status dokter berdasarkan jenis permintaan
+            $this->updateDokterStatus($nomor_register, $validated['jenis_permintaan']);
+
             return redirect()
-                ->back()
+                ->route('pelayanan.soap-dokter.index')
                 ->with('success', 'Permintaan berhasil diperbarui');
         } catch (\Exception $e) {
             return redirect()
@@ -287,6 +295,7 @@ class Pelayanan_Permintaan_Controller extends Controller
                 'penjamin' => optional($pendaftaran?->penjamin)->nama ?? '',
                 'dokter_pengirim' => $dokter->nama ?? '',
                 'poli' => $poli->nama ?? '',
+                'no_bpjs' => $pasien->no_bpjs ?? '',
                 'now' => \Carbon\Carbon::now(),
                 'judul' => $request->query('judul'),
                 'keterangan' => $request->query('keterangan'),
@@ -302,22 +311,48 @@ class Pelayanan_Permintaan_Controller extends Controller
                 ];
             } elseif ($jenis === 'laboratorium') {
                 $payload = [
-                    'labItems' => $detailArray['items'] ?? [],
+                    'labData' => $detailArray['items'] ?? [],
                     'diagnosa' => $detailArray['diagnosa'] ?? '',
                     'tanggal' => $detailArray['tanggal_periksa'] ?? now()->toDateTimeString(),
                     'catatan' => $detailArray['catatan'] ?? '',
                 ];
             } elseif ($jenis === 'skdp') {
                 $payload = [
-                    'data' => $detailArray,
+                    'kode_surat' => $detailArray['kode_surat'] ?? '',
+                    'tgl_pemeriksaan' => $detailArray['tanggal_pemeriksaan'] ?? now()->toDateTimeString(),
+                    'untuk' => $detailArray['untuk'] ?? '',
+                    'pada' => $detailArray['pada'] ?? '',
+                    'poli_unit' => $detailArray['poli_unit'] ?? '',
+                    'alasan1' => $detailArray['alasan1'] ?? '',
+                    'alasan2' => $detailArray['alasan2'] ?? '',
+                    'rencana1' => $detailArray['rencana1'] ?? '',
+                    'rencana2' => $detailArray['rencana2'] ?? '',
+                    'sep_bpjs' => $detailArray['sep_bpjs'] ?? '',
+                    'diagnosa' => $detailArray['diagnosa'] ?? '',
+                    'jumlah_hari' => $detailArray['jumlah_hari'] ?? 0,
+                    'tgl_awal' => $detailArray['tgl_awal'] ?? now()->toDateString(),
+                    'tgl_akhir' => $detailArray['tgl_akhir'] ?? now()->addDays(($detailArray['jumlah_hari'] ?? 0) - 1)->toDateString(),
                 ];
             } elseif ($jenis === 'surat_sehat') {
                 $payload = [
-                    'data' => $detailArray,
+                    'tgl_periksa' => $detailArray['tgl_periksa'] ?? now()->toDateString(),
+                    'sistole' => $detailArray['sistole'] ?? '',
+                    'diastole' => $detailArray['diastole'] ?? '',
+                    'suhu' => $detailArray['suhu'] ?? '',
+                    'berat' => $detailArray['berat'] ?? '',
+                    'respiratory_rate' => $detailArray['respiratory_rate'] ?? '',
+                    'nadi' => $detailArray['nadi'] ?? '',
+                    'tinggi' => $detailArray['tinggi'] ?? '',
+                    'buta_warna_status' => $detailArray['buta_warna_status'] ?? 'Tidak',
                 ];
             } elseif ($jenis === 'surat_kematian') {
                 $payload = [
-                    'data' => $detailArray,
+                    'tgl_periksa' => $detailArray['tgl_periksa'] ?? now()->toDateString(),
+                    'tanggal_meninggal' => $detailArray['tanggal_meninggal'] ?? '',
+                    'jam_meninggal' => $detailArray['jam_meninggal'] ?? '',
+                    'ref_tgl_jam' => $detailArray['ref_tgl_jam'] ?? '',
+                    'penyebab_kematian' => $detailArray['penyebab_kematian'] ?? 'Sakit',
+                    'penyebab_lainnya' => $detailArray['penyebab_lainnya'] ?? '',
                 ];
             } else { // surat_sakit
                 $payload = [
@@ -336,6 +371,42 @@ class Pelayanan_Permintaan_Controller extends Controller
             return view($view, array_merge($common, $payload));
         } catch (\Exception $e) {
             return response('Gagal memuat halaman cetak: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Update status dokter berdasarkan jenis permintaan
+     */
+    private function updateDokterStatus(string $nomorRegister, string $jenisPermintaan): void
+    {
+        try {
+            $statusService = new PelayananStatusService();
+
+            // Tentukan apakah pasien berada di alur KIA (Bidan) berdasarkan poli
+            $isKia = false;
+            try {
+                $pelayanan = \App\Models\Module\Pelayanan\Pelayanan::with(['pendaftaran.poli'])
+                    ->where('nomor_register', $nomorRegister)
+                    ->first();
+                $kodePoli = strtoupper((string) optional(optional($pelayanan?->pendaftaran)->poli)->kode);
+                $isKia = ($kodePoli === 'K');
+            } catch (\Throwable $e) {
+                // fallback: anggap bukan KIA jika gagal ambil data
+                $isKia = false;
+            }
+
+            // Status 3 untuk radiologi & laboratorium (perlu konfirmasi)
+            // Status 4 untuk jenis lainnya (selesai)
+            $targetStatus = in_array($jenisPermintaan, ['radiologi', 'laboratorium']) ? 3 : 4;
+
+            if ($isKia) {
+                $statusService->setStatusBidan($nomorRegister, $targetStatus);
+            } else {
+                $statusService->setStatusDokter($nomorRegister, $targetStatus);
+            }
+        } catch (\Exception $e) {
+            // Log error but don't fail the request
+            Log::error('Failed to update dokter status: ' . $e->getMessage());
         }
     }
 }

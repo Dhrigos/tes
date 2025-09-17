@@ -17,6 +17,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual;
+use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual as SettingHargaJual;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama as SettingHargaJualUtama;
 use App\Models\Settings\Web_Setting;
@@ -115,6 +116,7 @@ class Pembelian_Controller extends Controller
                     $klinikSetting = SettingHargaJual::first();
                     $utamaSetting = SettingHargaJualUtama::first();
 
+                    // Persentase akan dipilih per-item berdasarkan jenis pembelian (utama vs klinik)
                     $uPercent1 = (float) (($utamaSetting?->harga_jual_1 ?? $klinikSetting?->harga_jual_1 ?? '0'));
                     $uPercent2 = (float) (($utamaSetting?->harga_jual_2 ?? $klinikSetting?->harga_jual_2 ?? '0'));
                     $uPercent3 = (float) (($utamaSetting?->harga_jual_3 ?? $klinikSetting?->harga_jual_3 ?? '0'));
@@ -132,6 +134,10 @@ class Pembelian_Controller extends Controller
                             continue;
                         }
 
+                        // Pembulatan harga satuan sebelum disimpan/diolah
+                        $hargaSatuanRoundedStr = (string) round((float) ($detail['harga_satuan'] ?? '0'));
+                        $hargaSatuanRounded = (float) $hargaSatuanRoundedStr;
+
                         if (in_array($request->jenis_pembelian, ['inventaris', 'inventaris_klinik'])) {
                             PembelianInventarisDetail::create([
                                 'kode' => $request->nomor_faktur,
@@ -140,7 +146,7 @@ class Pembelian_Controller extends Controller
                                 'kategori_barang' => 'Inventaris',
                                 'jenis_barang' => 'Medical Equipment',
                                 'qty_barang' => $detail['qty'],
-                                'harga_barang' => $detail['harga_satuan'],
+                                'harga_barang' => $hargaSatuanRoundedStr,
                                 'lokasi' => $detail['lokasi'] ?? 'Gudang',
                                 'kondisi' => $detail['kondisi'] ?? 'Baik',
                                 'masa_akhir_penggunaan' => $detail['exp'] ?? null,
@@ -155,7 +161,7 @@ class Pembelian_Controller extends Controller
                                     'kategori_barang' => 'Inventaris',
                                     'jenis_barang' => 'Medical Equipment',
                                     'qty_barang' => $detail['qty'],
-                                    'harga_barang' => $detail['harga_satuan'],
+                                    'harga_barang' => $hargaSatuanRoundedStr,
                                     'lokasi' => $detail['lokasi'] ?? 'Gudang',
                                     'kondisi' => $detail['kondisi'] ?? 'Baik',
                                     'masa_akhir_penggunaan' => $detail['exp'] ?? null,
@@ -172,7 +178,7 @@ class Pembelian_Controller extends Controller
                                     'kategori_barang' => 'Inventaris',
                                     'jenis_barang' => 'Medical Equipment',
                                     'qty_barang' => $detail['qty'],
-                                    'harga_barang' => $detail['harga_satuan'],
+                                    'harga_barang' => $hargaSatuanRoundedStr,
                                     'lokasi' => $detail['lokasi'] ?? 'Gudang',
                                     'kondisi' => $detail['kondisi'] ?? 'Baik',
                                     'masa_akhir_penggunaan' => $detail['exp'] ?? null,
@@ -188,7 +194,7 @@ class Pembelian_Controller extends Controller
                                 'nama_obat_alkes' => $detail['nama_obat_alkes'],
                                 'kode_obat_alkes' => $detail['kode_obat_alkes'],
                                 'qty' => $detail['qty'],
-                                'harga_satuan' => $detail['harga_satuan'],
+                                'harga_satuan' => $hargaSatuanRoundedStr,
                                 'diskon' => $detail['diskon'] ?? '0',
                                 'exp' => $detail['exp'] ?? null,
                                 'batch' => $detail['batch'] ?? null,
@@ -212,83 +218,119 @@ class Pembelian_Controller extends Controller
                                 ]);
                             }
 
-                            $qty = (float) ($detail['qty'] ?? '0');
-                            if ($qty <= 0) {
-                                $qty = 1;
-                            }
-                            $hargaSatuan = (float) ($detail['harga_satuan'] ?? '0');
-                            $diskonRaw = (float) ($detail['diskon'] ?? '0');
-                            $diskonPersen = false;
-                            if (array_key_exists('diskon_persen', $detail)) {
+                            // Perhitungan disamakan dengan contoh: basis subtotal = harga_satuan,
+                            // diskon persen atau rupiah tanpa normalisasi per-qty, PPN sesuai metode.
+                            $hargaSatuan = $hargaSatuanRounded;
+                            $subTotal = $hargaSatuan;
+
+                            $diskonInput = (string) ($detail['diskon'] ?? '0');
+                            $isDiskonPersen = false;
+                            if (strpos($diskonInput, '%') !== false) {
+                                $isDiskonPersen = true;
+                            } elseif (array_key_exists('diskon_persen', $detail)) {
                                 $dp = $detail['diskon_persen'];
                                 if (is_bool($dp)) {
-                                    $diskonPersen = $dp;
+                                    $isDiskonPersen = $dp;
                                 } else {
                                     $dpStr = strtolower((string) $dp);
-                                    $diskonPersen = in_array($dpStr, ['1', 'true', 'yes', 'ya'], true);
+                                    $isDiskonPersen = in_array($dpStr, ['1', 'true', 'yes', 'ya'], true);
                                 }
                             }
 
-                            $unitDiscount = $diskonPersen ? ($hargaSatuan * ($diskonRaw / 100.0)) : ($qty > 0 ? ($diskonRaw / $qty) : 0.0);
-                            $unitNet = max(0.0, $hargaSatuan - $unitDiscount);
+                            $diskonPersenVal = 0.0;
+                            $diskonRupiahVal = 0.0;
+                            if ($isDiskonPersen) {
+                                $diskonPersenVal = (float) str_replace('%', '', $diskonInput);
+                            } else {
+                                $diskonRupiahVal = (float) $diskonInput;
+                            }
+
+                            $PPNbarang = 0.0;
+                            $Diskonbarang = 0.0;
+                            $hargaDasar = $subTotal;
 
                             switch ($metodeHna) {
                                 case '2':
-                                    $hargaDasar = $hargaSatuan * (1 + $ppnPercent / 100.0);
+                                    $PPNbarang = $subTotal * ($ppnPercent / 100.0);
+                                    $hargaDasar = $subTotal + $PPNbarang;
                                     break;
                                 case '3':
-                                    $hargaDasar = $unitNet;
+                                    if ($isDiskonPersen) {
+                                        $Diskonbarang = $subTotal * ($diskonPersenVal / 100.0);
+                                    } else {
+                                        $Diskonbarang = $diskonRupiahVal;
+                                    }
+                                    $hargaDasar = max(0.0, $subTotal - $Diskonbarang);
                                     break;
                                 case '4':
-                                    $hargaDasar = $unitNet * (1 + $ppnPercent / 100.0);
+                                    if ($isDiskonPersen) {
+                                        $Diskonbarang = $subTotal * ($diskonPersenVal / 100.0);
+                                    } else {
+                                        $Diskonbarang = $diskonRupiahVal;
+                                    }
+                                    $hargaSetelahDiskon = max(0.0, $subTotal - $Diskonbarang);
+                                    $PPNbarang = $hargaSetelahDiskon * ($ppnPercent / 100.0);
+                                    $hargaDasar = $hargaSetelahDiskon + $PPNbarang;
                                     break;
                                 case '1':
-                                    $hargaDasar = $hargaSatuan;
-                                    break;
                                 default:
-                                    $hargaDasar = $hargaSatuan;
+                                    $hargaDasar = $subTotal;
                                     break;
                             }
+                            // Bulatkan ke atas harga dasar
+                            $hargaDasar = (float) ceil($hargaDasar);
 
-                            $uJual1 = $hargaDasar * (1 + $uPercent1 / 100.0) + $uEmbalase;
-                            $uJual2 = $hargaDasar * (1 + $uPercent2 / 100.0) + $uEmbalase;
-                            $uJual3 = $hargaDasar * (1 + $uPercent3 / 100.0) + $uEmbalase;
+                            // Tentukan sumber setting sesuai target jenis
+                            $targetJenis = ($request->jenis_pembelian === 'obat_klinik') ? 'klinik' : 'utama';
+                            if ($targetJenis === 'utama') {
+                                $p1 = (float) ($utamaSetting?->harga_jual_1 ?? 0);
+                                $p2 = (float) ($utamaSetting?->harga_jual_2 ?? 0);
+                                $p3 = (float) ($utamaSetting?->harga_jual_3 ?? 0);
+                            } else {
+                                $p1 = (float) ($klinikSetting?->harga_jual_1 ?? 0);
+                                $p2 = (float) ($klinikSetting?->harga_jual_2 ?? 0);
+                                $p3 = (float) ($klinikSetting?->harga_jual_3 ?? 0);
+                            }
 
-                            $kJual1 = $hargaDasar * (1 + $kPercent1 / 100.0) + $kEmbalase;
-                            $kJual2 = $hargaDasar * (1 + $kPercent2 / 100.0) + $kEmbalase;
-                            $kJual3 = $hargaDasar * (1 + $kPercent3 / 100.0) + $kEmbalase;
+                            // Hitung harga jual lalu bulatkan ke atas
+                            $uJual1 = (float) ceil($hargaDasar * (1 + $p1 / 100.0));
+                            $uJual2 = (float) ceil($hargaDasar * (1 + $p2 / 100.0));
+                            $uJual3 = (float) ceil($hargaDasar * (1 + $p3 / 100.0));
 
                             $tglMasuk = $request->tanggal_terima_barang ?: now()->format('Y-m-d');
-                            $targetJenis = ($request->jenis_pembelian === 'obat_klinik') ? 'klinik' : 'utama';
 
+                            // Gunakan uJual sebagai hasil final (sudah berdasarkan jenis di atas)
+                            $jual1 = $uJual1;
+                            $jual2 = $uJual2;
+                            $jual3 = $uJual3;
+
+                            // Simpan harga jual berdasarkan target lokasi
                             if ($targetJenis === 'utama') {
-                                $jual1 = $uJual1;
-                                $jual2 = $uJual2;
-                                $jual3 = $uJual3;
-                            } else {
-                                $jual1 = $kJual1;
-                                $jual2 = $kJual2;
-                                $jual3 = $kJual3;
-                            }
-
-                            // Upsert consolidated daftar_harga_juals for the target jenis (utama/klinik)
-                            Daftar_Harga_Jual::updateOrCreate(
-                                [
+                                Daftar_Harga_Jual::create([
                                     'kode_obat_alkes' => $detail['kode_obat_alkes'],
-                                    'jenis' => $targetJenis,
-                                ],
-                                [
+                                    'jenis' => 'utama',
                                     'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                                    'harga_dasar' => (string) $hargaDasar,
-                                    'harga_jual_1' => (string) $jual1,
-                                    'harga_jual_2' => (string) $jual2,
-                                    'harga_jual_3' => (string) $jual3,
-                                    'diskon' => (string) $diskonRaw,
-                                    'ppn' => (string) $ppnPercent,
+                                    'harga_dasar' => (string) ceil($hargaDasar),
+                                    'harga_jual_1' => (string) ceil($jual1),
+                                    'harga_jual_2' => (string) ceil($jual2),
+                                    'harga_jual_3' => (string) ceil($jual3),
+                                    'diskon' => (string) $Diskonbarang,
+                                    'ppn' => (string) $PPNbarang,
                                     'tanggal_obat_masuk' => $tglMasuk,
-                                    'jenis' => $targetJenis,
-                                ]
-                            );
+                                ]);
+                            } else { // klinik
+                                Daftar_Harga_Jual_Klinik::create([
+                                    'kode_obat_alkes' => $detail['kode_obat_alkes'],
+                                    'nama_obat_alkes' => $detail['nama_obat_alkes'],
+                                    'harga_dasar' => (string) ceil($hargaDasar),
+                                    'harga_jual_1' => (string) ceil($jual1),
+                                    'harga_jual_2' => (string) ceil($jual2),
+                                    'harga_jual_3' => (string) ceil($jual3),
+                                    'diskon' => (string) $Diskonbarang,
+                                    'ppn' => (string) $PPNbarang,
+                                    'tanggal_obat_masuk' => $tglMasuk,
+                                ]);
+                            }
                         }
                     }
 

@@ -16,6 +16,7 @@ use App\Models\Module\Gudang\Stok_Inventaris;
 use App\Models\Module\Gudang\Harga_Barang;
 use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual;
 use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual;
+use App\Models\Module\Master\Data\Gudang\Daftar_Harga_Jual_Klinik;
 use App\Services\PermintaanBarangWebSocketService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -413,11 +414,10 @@ class Permintaan_Barang_Controller extends Controller
                     $harga_jual_2 = $harga_dasar + ($harga_dasar * ($setting->harga_jual_2 / 100));
                     $harga_jual_3 = $harga_dasar + ($harga_dasar * ($setting->harga_jual_3 / 100));
 
-                    // Create or update harga jual record in consolidated table
-                    Daftar_Harga_Jual::updateOrCreate(
+                    // Create or update harga jual record in klinik-specific table
+                    Daftar_Harga_Jual_Klinik::updateOrCreate(
                         [
                             'kode_obat_alkes' => $item['kode_obat_alkes'],
-                            'jenis' => 'klinik'
                         ],
                         [
                             'nama_obat_alkes' => $item['nama_obat_alkes'],
@@ -428,8 +428,6 @@ class Permintaan_Barang_Controller extends Controller
                             'diskon' => 0,
                             'ppn' => 0,
                             'tanggal_obat_masuk' => Carbon::now()->toDateString(),
-                            'jenis' => 'klinik',
-                            'updated_at' => now(),
                         ]
                     );
                 }
@@ -868,6 +866,29 @@ class Permintaan_Barang_Controller extends Controller
                         'expired' => $expired,
                         'kode_request' => $kodeRequest,
                     ]);
+
+                    // Simpan/Update harga ke tabel klinik
+                    $setting = Setting_Harga_Jual::first();
+                    $harga_dasar = $item['harga_dasar'] ?? 0;
+                    $harga_jual_1 = $harga_dasar + ($harga_dasar * (($setting->harga_jual_1 ?? 0) / 100));
+                    $harga_jual_2 = $harga_dasar + ($harga_dasar * (($setting->harga_jual_2 ?? 0) / 100));
+                    $harga_jual_3 = $harga_dasar + ($harga_dasar * (($setting->harga_jual_3 ?? 0) / 100));
+
+                    Daftar_Harga_Jual_Klinik::updateOrCreate(
+                        [
+                            'kode_obat_alkes' => $kodeObatAlkes,
+                        ],
+                        [
+                            'nama_obat_alkes' => $namaObatAlkes,
+                            'harga_dasar' => $harga_dasar,
+                            'harga_jual_1' => $harga_jual_1,
+                            'harga_jual_2' => $harga_jual_2,
+                            'harga_jual_3' => $harga_jual_3,
+                            'diskon' => 0,
+                            'ppn' => 0,
+                            'tanggal_obat_masuk' => Carbon::now()->toDateString(),
+                        ]
+                    );
                 }
 
                 // Hapus konfirmasi untuk item ini bila ada id

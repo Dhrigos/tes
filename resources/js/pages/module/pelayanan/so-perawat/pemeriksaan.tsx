@@ -1094,6 +1094,95 @@ export default function PemeriksaanPerawat() {
         setKeluhanList(keluhanList.filter((_, i) => i !== index));
     };
 
+    // Validate all required fields before submit
+    const validateRequiredFields = (): boolean => {
+        if (!keluhanList || keluhanList.length === 0) {
+            toast.error('Harap tambahkan minimal 1 keluhan pada daftar keluhan');
+            setActiveTab('subyektif');
+            return false;
+        }
+
+        setActiveTab('obyektif');
+
+        if (!sistol?.trim()) {
+            toast.error('Sistol wajib diisi');
+            sistolRef.current?.focus();
+            return false;
+        }
+        if (!distol?.trim()) {
+            toast.error('Diastol wajib diisi');
+            distolRef.current?.focus();
+            return false;
+        }
+        if (!suhu?.trim()) {
+            toast.error('Suhu wajib diisi');
+            suhuRef.current?.focus();
+            return false;
+        }
+        if (!nadi?.trim()) {
+            toast.error('Nadi wajib diisi');
+            nadiRef.current?.focus();
+            return false;
+        }
+        if (!rr?.trim()) {
+            toast.error('RR wajib diisi');
+            rrRef.current?.focus();
+            return false;
+        }
+        if (!tinggi?.trim()) {
+            toast.error('Tinggi badan wajib diisi');
+            tinggiRef.current?.focus();
+            return false;
+        }
+        if (!berat?.trim()) {
+            toast.error('Berat badan wajib diisi');
+            beratRef.current?.focus();
+            return false;
+        }
+        if (!spo2?.trim()) {
+            toast.error('SpO2 wajib diisi');
+            spo2Ref.current?.focus();
+            return false;
+        }
+        if (!lingkarPerut?.trim()) {
+            toast.error('Lingkar perut wajib diisi');
+            lingkarPerutRef.current?.focus();
+            return false;
+        }
+
+        if (!jenisAlergi || jenisAlergi.length === 0) {
+            toast.error('Jenis alergi wajib dipilih');
+            return false;
+        }
+        const hasTidakAda = jenisAlergi.includes('00');
+        if (hasTidakAda) {
+            if (!(alergi.length === 1 && alergi[0] === '00')) {
+                toast.error('Jika memilih "Tidak ada", detail alergi harus "Tidak ada"');
+                return false;
+            }
+        } else {
+            if (!alergi || alergi.length === 0) {
+                toast.error('Detail alergi wajib dipilih');
+                return false;
+            }
+        }
+
+        if (!gcsEye?.trim()) {
+            toast.error('GCS Eye wajib dipilih');
+            return false;
+        }
+        if (!gcsVerbal?.trim()) {
+            toast.error('GCS Verbal wajib dipilih');
+            return false;
+        }
+        if (!gcsMotorik?.trim()) {
+            toast.error('GCS Motorik wajib dipilih');
+            return false;
+        }
+
+        return true;
+    };
+
     // Helper function to convert readable gender to database code
     const convertGenderToCode = (genderName: string): string => {
         if (!genderName) return '';
@@ -1139,6 +1228,10 @@ export default function PemeriksaanPerawat() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validateRequiredFields()) {
+            return;
+        }
 
         try {
             const payload = {
@@ -1319,7 +1412,9 @@ export default function PemeriksaanPerawat() {
                                     <div className="space-y-6">
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>{formTitle}</CardTitle>
+                                                <CardTitle>
+                                                    {formTitle} <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent className="space-y-4">
                                                 <div className="space-y-4">
@@ -1371,7 +1466,9 @@ export default function PemeriksaanPerawat() {
 
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Daftar Keluhan</CardTitle>
+                                                <CardTitle>
+                                                    Daftar Keluhan <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 {keluhanList.length > 0 ? (
@@ -1419,7 +1516,9 @@ export default function PemeriksaanPerawat() {
                                         {/* Top Section: Vital Signs & Anthropometry */}
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Tanda Vital & Antropometri</CardTitle>
+                                                <CardTitle>
+                                                    Tanda Vital & Antropometri <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
@@ -1437,6 +1536,7 @@ export default function PemeriksaanPerawat() {
                                                                 onKeyDown={(e) => handleKeyDown(e, 'sistol', 'distol')}
                                                                 placeholder="Sistol"
                                                                 className="w-1/2 text-sm"
+                                                                required
                                                                 tabIndex={1}
                                                             />
                                                             <span className="text-gray-500">/</span>
@@ -1449,6 +1549,7 @@ export default function PemeriksaanPerawat() {
                                                                 onKeyDown={(e) => handleKeyDown(e, 'distol', 'suhu')}
                                                                 placeholder="Distol"
                                                                 className="w-1/2 text-sm"
+                                                                required
                                                                 tabIndex={2}
                                                             />
                                                         </div>
@@ -1467,6 +1568,7 @@ export default function PemeriksaanPerawat() {
                                                             onKeyDown={(e) => handleKeyDown(e, 'suhu', 'nadi')}
                                                             placeholder="Suhu"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={3}
                                                         />
                                                     </div>
@@ -1484,6 +1586,7 @@ export default function PemeriksaanPerawat() {
                                                             onKeyDown={(e) => handleKeyDown(e, 'nadi', 'rr')}
                                                             placeholder="Nadi"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={4}
                                                         />
                                                     </div>
@@ -1501,6 +1604,7 @@ export default function PemeriksaanPerawat() {
                                                             onKeyDown={(e) => handleKeyDown(e, 'rr', 'tinggi')}
                                                             placeholder="RR"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={5}
                                                         />
                                                     </div>
@@ -1518,6 +1622,7 @@ export default function PemeriksaanPerawat() {
                                                             onKeyDown={(e) => handleKeyDown(e, 'tinggi', 'berat')}
                                                             placeholder="Tinggi"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={6}
                                                         />
                                                     </div>
@@ -1535,6 +1640,7 @@ export default function PemeriksaanPerawat() {
                                                             onKeyDown={(e) => handleKeyDown(e, 'berat', 'spo2')}
                                                             placeholder="Berat"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={7}
                                                         />
                                                     </div>
@@ -1545,7 +1651,9 @@ export default function PemeriksaanPerawat() {
                                         {/* Middle Section: SpO2, Allergy, Waist, BMI */}
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Data Tambahan</CardTitle>
+                                                <CardTitle>
+                                                    Data Tambahan <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -1562,6 +1670,7 @@ export default function PemeriksaanPerawat() {
                                                             onKeyDown={(e) => handleKeyDown(e, 'spo2', 'lingkarPerut')}
                                                             placeholder="SpO2"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={8}
                                                         />
                                                     </div>
@@ -1716,6 +1825,7 @@ export default function PemeriksaanPerawat() {
                                                             onChange={(e) => setLingkarPerut(e.target.value)}
                                                             placeholder="Lingkar Perut"
                                                             className="mt-1 text-sm"
+                                                            required
                                                             tabIndex={9}
                                                         />
                                                     </div>
@@ -1754,7 +1864,9 @@ export default function PemeriksaanPerawat() {
                                         {/* Bottom Section: GCS */}
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Glasgow Coma Scale (GCS)</CardTitle>
+                                                <CardTitle>
+                                                    Glasgow Coma Scale (GCS) <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">

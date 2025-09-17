@@ -1261,8 +1261,124 @@ export default function PemeriksaanSoapDokter() {
         }
     };
 
+    // Validate all required fields before submit
+    const validateRequiredFields = (): boolean => {
+        // Require at least one keluhan item
+        if (!keluhanList || keluhanList.length === 0) {
+            toast.error('Harap tambahkan minimal 1 keluhan');
+            setActiveTab('subyektif');
+            return false;
+        }
+
+        setActiveTab('objektif');
+
+        // Vital signs
+        if (!String(formData.sistol || '').trim()) {
+            toast.error('Sistol wajib diisi');
+            (sistolRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.distol || '').trim()) {
+            toast.error('Diastol wajib diisi');
+            (distolRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.suhu || '').trim()) {
+            toast.error('Suhu wajib diisi');
+            (suhuRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.nadi || '').trim()) {
+            toast.error('Nadi wajib diisi');
+            (nadiRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.rr || '').trim()) {
+            toast.error('RR wajib diisi');
+            (rrRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.spo2 || '').trim()) {
+            toast.error('SpO2 wajib diisi');
+            (spo2Ref as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.tinggi || '').trim()) {
+            toast.error('Tinggi badan wajib diisi');
+            (tinggiRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.berat || '').trim()) {
+            toast.error('Berat badan wajib diisi');
+            (beratRef as any)?.current?.focus?.();
+            return false;
+        }
+        if (!String(formData.lingkar_perut || '').trim()) {
+            toast.error('Lingkar perut wajib diisi');
+            (lingkarPerutRef as any)?.current?.focus?.();
+            return false;
+        }
+
+        // Alergi
+        const jenis = formData.jenis_alergi || [];
+        if (!Array.isArray(jenis) || jenis.length === 0) {
+            toast.error('Jenis alergi wajib dipilih');
+            return false;
+        }
+        const detail = formData.alergi || [];
+        const hasTidakAda = jenis.includes('00');
+        if (hasTidakAda) {
+            if (!(Array.isArray(detail) && detail.length === 1 && detail[0] === '00')) {
+                toast.error('Jika memilih "Tidak ada", detail alergi harus "Tidak ada"');
+                return false;
+            }
+        } else {
+            if (!Array.isArray(detail) || detail.length === 0) {
+                toast.error('Detail alergi wajib dipilih');
+                return false;
+            }
+        }
+
+        // GCS selections
+        if (!String(formData.eye || '').trim()) {
+            toast.error('GCS Eye wajib dipilih');
+            return false;
+        }
+        if (!String(formData.verbal || '').trim()) {
+            toast.error('GCS Verbal wajib dipilih');
+            return false;
+        }
+        if (!String(formData.motorik || '').trim()) {
+            toast.error('GCS Motorik wajib dipilih');
+            return false;
+        }
+
+        // Anamnesa, Assessment, Plan
+        if (!String(formData.anamnesa || '').trim()) {
+            toast.error('Anamnesa wajib diisi');
+            setActiveTab('subyektif');
+            return false;
+        }
+        if (!String(formData.assesmen || '').trim()) {
+            toast.error('Assessment wajib diisi');
+            setActiveTab('assessment');
+            return false;
+        }
+        if (!String(formData.plan || '').trim()) {
+            toast.error('Plan wajib diisi');
+            setActiveTab('plan');
+            return false;
+        }
+
+        return true;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validateRequiredFields()) {
+            return;
+        }
 
         // Prepare ICD arrays for backend
         const icd10_code = icd10List.map((item) => item.kode_icd10);
@@ -1655,7 +1771,9 @@ export default function PemeriksaanSoapDokter() {
                                         {/* Daftar Keluhan */}
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Daftar Keluhan</CardTitle>
+                                                <CardTitle>
+                                                    Daftar Keluhan <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 {keluhanList.length > 0 ? (
@@ -1683,7 +1801,9 @@ export default function PemeriksaanSoapDokter() {
                                         {/* Anamnesa */}
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle>Anamnesa</CardTitle>
+                                                <CardTitle>
+                                                    Anamnesa <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <RichTextEditor
@@ -1713,7 +1833,9 @@ export default function PemeriksaanSoapDokter() {
                                         {/* Tanda Vital Group */}
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
-                                                <CardTitle className="text-lg">Tanda Vital</CardTitle>
+                                                <CardTitle className="text-lg">
+                                                    Tanda Vital <span className="text-red-500">*</span>
+                                                </CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenVitalGroup(!openVitalGroup)}>
                                                     {openVitalGroup ? '▼' : '▶'}
                                                 </Button>
@@ -1739,6 +1861,7 @@ export default function PemeriksaanSoapDokter() {
                                                                         onKeyDown={(e) => handleKeyDown(e as any, 'sistol', 'distol')}
                                                                         placeholder="120"
                                                                         className="w-20 text-center"
+                                                                        required
                                                                     />
                                                                     <span>/</span>
                                                                     <Input
@@ -1751,6 +1874,7 @@ export default function PemeriksaanSoapDokter() {
                                                                         onKeyDown={(e) => handleKeyDown(e as any, 'distol', 'suhu')}
                                                                         placeholder="80"
                                                                         className="w-20 text-center"
+                                                                        required
                                                                     />
                                                                 </div>
                                                             </div>
@@ -1765,6 +1889,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     onBlur={handleSuhuBlur}
                                                                     onKeyDown={(e) => handleKeyDown(e as any, 'suhu', 'nadi')}
                                                                     placeholder="36.5"
+                                                                    required
                                                                 />
                                                             </div>
                                                             <div>
@@ -1778,6 +1903,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     onBlur={handleNadiBlur}
                                                                     onKeyDown={(e) => handleKeyDown(e as any, 'nadi', 'rr')}
                                                                     placeholder="80"
+                                                                    required
                                                                 />
                                                             </div>
                                                             <div>
@@ -1791,6 +1917,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     onBlur={handleRrBlur}
                                                                     onKeyDown={(e) => handleKeyDown(e as any, 'rr', 'spo2')}
                                                                     placeholder="20"
+                                                                    required
                                                                 />
                                                             </div>
                                                         </div>
@@ -1807,6 +1934,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     onBlur={handleSpo2Blur}
                                                                     onKeyDown={(e) => handleKeyDown(e as any, 'spo2', 'lingkarPerut')}
                                                                     placeholder="98"
+                                                                    required
                                                                 />
                                                             </div>
                                                             <div>
@@ -1837,6 +1965,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     onBlur={handleBmiBlur}
                                                                     onKeyDown={(e) => handleKeyDown(e as any, 'tinggi', 'berat')}
                                                                     placeholder="170"
+                                                                    required
                                                                 />
                                                             </div>
                                                             <div>
@@ -1850,6 +1979,7 @@ export default function PemeriksaanSoapDokter() {
                                                                     onBlur={handleBmiBlur}
                                                                     onKeyDown={(e) => handleKeyDown(e as any, 'berat', 'jenisAlergi')}
                                                                     placeholder="70"
+                                                                    required
                                                                 />
                                                             </div>
                                                             <div>
@@ -2091,7 +2221,9 @@ export default function PemeriksaanSoapDokter() {
                                         {/* HTT (Head To Toe) Section */}
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
-                                                <CardTitle className="text-lg">Head To Toe (HTT)</CardTitle>
+                                                <CardTitle className="text-lg">
+                                                    Head To Toe (HTT) <span className="text-red-500">*</span>
+                                                </CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenHtt(!openHtt)}>
                                                     {openHtt ? '▼' : '▶'}
                                                 </Button>
@@ -2548,7 +2680,9 @@ export default function PemeriksaanSoapDokter() {
                                         {/* Assessment Section */}
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
-                                                <CardTitle className="text-lg">Assessment</CardTitle>
+                                                <CardTitle className="text-lg">
+                                                    Assessment <span className="text-red-500">*</span>
+                                                </CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenAssessment(!openAssessment)}>
                                                     {openAssessment ? '▼' : '▶'}
                                                 </Button>
@@ -3038,7 +3172,9 @@ export default function PemeriksaanSoapDokter() {
                                     <div className="space-y-6">
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle className="text-lg">Plan dan Edukasi</CardTitle>
+                                                <CardTitle className="text-lg">
+                                                    Plan dan Edukasi <span className="text-red-500">*</span>
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent className="space-y-4">
                                                 <div>

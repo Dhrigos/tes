@@ -25,6 +25,7 @@ use App\Models\Module\Master\Data\Medis\Jenis_Diet;
 use App\Models\Module\Master\Data\Medis\Makanan;
 use App\Models\Module\Master\Data\Medis\Tindakan;
 use App\Models\Module\Master\Data\Medis\Alergi;
+use App\Models\Module\Master\Data\Medis\Poli;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Diet;
 use App\Models\Module\Pasien\Pasien_History;
 use Illuminate\Http\Request;
@@ -99,24 +100,28 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
         try {
             $today = Carbon::today();
 
-            // Filter pasien yang akan dilayani bidan berdasarkan kode K (KIA)
-            $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
-                ->whereDate('tanggal_kujungan', '=', $today)
-                ->whereHas('poli', function ($query) {
-                    $query->where('kode', 'K');
-                })
+            // Ambil ID poli KIA (robust: berdasarkan kode 'K' atau nama mengandung 'KIA')
+            $kiaPoliIds = Poli::where(function ($q) {
+                $q->where('kode', 'K')->orWhere('nama', 'like', '%KIA%');
+            })->pluck('id');
+
+            // Ambil sumber data dari Pendaftaran agar pasien KIA tampil meski belum ada row di Pelayanan
+            $pendaftarans = Pendaftaran::with(['pasien', 'poli', 'dokter.namauser', 'penjamin', 'status'])
+                // Kolom ini bertipe string; gunakan like agar aman
+                ->where('tanggal_kujungan', 'like', $today->format('Y-m-d') . '%')
+                ->whereIn('poli_id', $kiaPoliIds)
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->unique('nomor_register')
                 ->values();
 
-            $nomorRegisters = $pelayanans->pluck('nomor_register')->all();
+            $nomorRegisters = $pendaftarans->pluck('nomor_register')->all();
 
             $statusMap = Pelayanan_status::whereIn('nomor_register', $nomorRegisters)
                 ->get()->keyBy('nomor_register');
 
             $pelayananData = [];
-            foreach ($pelayanans as $p) {
+            foreach ($pendaftarans as $p) {
                 $ps = $statusMap->get($p->nomor_register);
                 $statusDaftar = (int)optional($ps)->status_daftar ?? 0;
                 $statusBidan = (int)optional($ps)->status_bidan ?? 0;
@@ -148,7 +153,7 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
                     'nomor_register' => $p->nomor_register,
                     'tanggal_kujungan' => $p->tanggal_kujungan,
                     'poli_id' => $p->poli_id,
-                    'bidan_id' => $p->dokter_id, // Menggunakan dokter_id sebagai bidan_id untuk sementara
+                    'bidan_id' => $p->dokter_id, // gunakan dokter sebagai bidan untuk sementara
                     'tindakan_button' => $tindakan,
                     'pasien' => [
                         'nama' => optional($p->pasien)->nama ?? '-',
@@ -163,7 +168,8 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
                         ],
                     ],
                     'pendaftaran' => [
-                        'antrian' => optional($p->pendaftaran)->antrian ?? '-',
+                        // Gunakan nilai scalar langsung, jangan bungkus dengan optional() agar tidak terkirim sebagai object {}
+                        'antrian' => $p->antrian ?? '-',
                     ],
                     'status_daftar' => $statusDaftar,
                     'status_bidan' => $statusBidan,

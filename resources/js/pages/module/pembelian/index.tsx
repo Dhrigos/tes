@@ -84,10 +84,10 @@ export default function PembelianIndex() {
         id: '',
         nama_obat_alkes: '',
         kode_obat_alkes: '',
-        qty: '0',
+        qty: '',
         qty_aktual: '0',
-        harga_satuan: '0',
-        diskon: '0',
+        harga_satuan: '',
+        diskon: '',
         exp: '',
         batch: '',
         sub_total: '0',
@@ -196,6 +196,7 @@ export default function PembelianIndex() {
             if (res.data?.success) {
                 setObatOptions(res.data.data || []);
             }
+            console.log('DBG obatOptions', res.data);
         } catch (e) {
             // silently ignore
         }
@@ -298,10 +299,10 @@ export default function PembelianIndex() {
             id: Date.now().toString(),
             nama_obat_alkes: '',
             kode_obat_alkes: '',
-            qty: '0',
+            qty: '',
             qty_aktual: '0',
-            harga_satuan: '0',
-            diskon: '0',
+            harga_satuan: '',
+            diskon: '',
             // exp dipakai untuk inventaris sebagai masa akhir penggunaan
             exp: isInventarisType ? new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0] : '',
             batch: '',
@@ -331,10 +332,12 @@ export default function PembelianIndex() {
     const openEditModal = (item: PembelianDetail) => {
         setEditingItem(item);
         // Normalize modal data based on kemasan and konversi so editing shows correct values
-        const konversi = item.nilai_konversi || 1;
-        const konversiBs = item.nilai_konversi_bs || 1;
-        const konversiSk = item.nilai_konversi_sk || (item.nilai_konversi ? item.nilai_konversi / Math.max(1, konversiBs) : 1);
-        const totalKonversi = Math.max(1, konversiBs) * Math.max(1, konversiSk);
+        const nilaiBesarTmp = parseInt(item.nilai_satuan_besar || '1') || 1;
+        const nilaiSedangTmp = parseInt(item.nilai_satuan_sedang || '1') || 1;
+        const nilaiKecilTmp = parseInt(item.nilai_satuan_kecil || '1') || 1;
+        const konversiBs = Math.max(1, nilaiSedangTmp);
+        const konversiSk = Math.max(1, nilaiKecilTmp);
+        const totalKonversi = Math.max(1, nilaiBesarTmp) * konversiBs * konversiSk;
         const kemasanBesar = !!item.kemasan_besar;
 
         let hargaBesar = parseFloat(item.harga_satuan_besar || '0') || 0;
@@ -353,18 +356,6 @@ export default function PembelianIndex() {
         let nilaiBesar = parseInt(item.nilai_satuan_besar || '0') || 0;
         let nilaiSedang = parseInt(item.nilai_satuan_sedang || '0') || 0;
         let nilaiKecil = parseInt(item.nilai_satuan_kecil || '0') || 0;
-        if (!nilaiBesar && nilaiKecil) {
-            // derive via chain
-            const approxSedang = Math.round(nilaiKecil / Math.max(1, konversiSk));
-            nilaiBesar = Math.round(approxSedang / Math.max(1, konversiBs));
-        }
-        if (!nilaiSedang && nilaiBesar) {
-            nilaiSedang = nilaiBesar * Math.max(1, konversiBs);
-        }
-        if (!nilaiKecil && nilaiBesar) {
-            nilaiSedang = nilaiSedang || nilaiBesar * Math.max(1, konversiBs);
-            nilaiKecil = nilaiSedang * Math.max(1, konversiSk);
-        }
 
         const hargaAktif = kemasanBesar ? hargaBesar : hargaKecil;
 
@@ -376,6 +367,23 @@ export default function PembelianIndex() {
         const diskonValue = parseFloat(item.diskon || '0') || 0;
         const diskonNominal = diskonPersen ? qtyPembelian * hargaAktif * (diskonValue / 100) : diskonValue;
         const subTotal = qtyPembelian * hargaAktif - diskonNominal;
+
+        console.log('DBG konversi (openEditModal)', {
+            kemasanBesar,
+            konversiBs,
+            konversiSk,
+            totalKonversi,
+            qtyPembelian,
+            qtyAktual,
+            hargaBesar,
+            hargaSedang,
+            hargaKecil,
+            hargaAktif,
+            diskonPersen,
+            diskonValue,
+            diskonNominal,
+            subTotal,
+        });
 
         setModalData({
             ...item,
@@ -410,9 +418,10 @@ export default function PembelianIndex() {
             if (isObatType) {
                 // Sync harga satuan besar/kecil saat input harga berubah
                 if (field === 'harga_satuan') {
-                    const konvBs = prev.nilai_konversi_bs || 1;
-                    const konvSk = prev.nilai_konversi_sk || (prev.nilai_konversi ? prev.nilai_konversi / Math.max(1, konvBs) : 1);
-                    const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
+                    const nilaiBesarCount = parseInt(prev.nilai_satuan_besar || '1') || 1;
+                    const konvBs = parseInt(prev.nilai_satuan_sedang || '1') || 1;
+                    const konvSk = parseInt(prev.nilai_satuan_kecil || '1') || 1;
+                    const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
                     const hargaInput = parseFloat(value as string) || 0;
                     if (prev.kemasan_besar) {
                         updatedItem.harga_satuan_besar = hargaInput.toString();
@@ -425,56 +434,67 @@ export default function PembelianIndex() {
                     }
                 }
 
-                if (field === 'nilai_satuan_besar') {
-                    const nilaiBesar = parseInt(value as string) || 0;
-                    const konvBs = prev.nilai_konversi_bs || 1;
-                    const konvSk = prev.nilai_konversi_sk || (prev.nilai_konversi ? prev.nilai_konversi / Math.max(1, konvBs) : 1);
-                    updatedItem.nilai_satuan_sedang = (nilaiBesar * Math.max(1, konvBs)).toString();
-                    updatedItem.nilai_satuan_kecil = (nilaiBesar * Math.max(1, konvBs) * Math.max(1, konvSk)).toString();
-                }
-
-                if (field === 'nilai_satuan_sedang') {
-                    const nilaiSedang = parseInt(value as string) || 0;
-                    const konvBs = prev.nilai_konversi_bs || 1;
-                    const konvSk = prev.nilai_konversi_sk || (prev.nilai_konversi ? prev.nilai_konversi / Math.max(1, konvBs) : 1);
-                    updatedItem.nilai_satuan_besar = Math.round(nilaiSedang / Math.max(1, konvBs)).toString();
-                    updatedItem.nilai_satuan_kecil = (nilaiSedang * Math.max(1, konvSk)).toString();
-                }
-
-                if (field === 'nilai_satuan_kecil') {
-                    const nilaiKecil = parseInt(value as string) || 0;
-                    const konvBs = prev.nilai_konversi_bs || 1;
-                    const konvSk = prev.nilai_konversi_sk || (prev.nilai_konversi ? prev.nilai_konversi / Math.max(1, konvBs) : 1);
-                    const nilaiSedang = Math.round(nilaiKecil / Math.max(1, konvSk));
-                    updatedItem.nilai_satuan_sedang = nilaiSedang.toString();
-                    updatedItem.nilai_satuan_besar = Math.round(nilaiSedang / Math.max(1, konvBs)).toString();
+                // Ketika nilai satuan berubah, cukup recompute nilai_konversi (product)
+                if (field === 'nilai_satuan_besar' || field === 'nilai_satuan_sedang' || field === 'nilai_satuan_kecil') {
+                    const nilaiBesarCount =
+                        parseInt((field === 'nilai_satuan_besar' ? (value as string) : prev.nilai_satuan_besar || '1') as string) || 1;
+                    const nilaiSedangCount =
+                        parseInt((field === 'nilai_satuan_sedang' ? (value as string) : prev.nilai_satuan_sedang || '1') as string) || 1;
+                    const nilaiKecilCount =
+                        parseInt((field === 'nilai_satuan_kecil' ? (value as string) : prev.nilai_satuan_kecil || '1') as string) || 1;
+                    updatedItem.nilai_konversi = (Math.max(1, nilaiBesarCount) * Math.max(1, nilaiSedangCount) * Math.max(1, nilaiKecilCount)) as any;
                 }
 
                 if (field === 'kemasan_besar') {
                     if (value) {
-                        // Saat beralih ke kemasan besar, konversi harga dari kecil->besar bila perlu (qty tidak diubah)
-                        const konvBs = prev.nilai_konversi_bs || 1;
-                        const konvSk = prev.nilai_konversi_sk || (prev.nilai_konversi ? prev.nilai_konversi / Math.max(1, konvBs) : 1);
-                        const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
-                        const hargaBesar = parseFloat(prev.harga_satuan_besar || '0');
-                        const hargaKecil = parseFloat(prev.harga_satuan_kecil || '0');
-                        const hargaTerpakai = hargaBesar || hargaKecil * totalKonv;
-                        updatedItem.harga_satuan_besar = (hargaTerpakai || 0).toString();
-                        updatedItem.harga_satuan_sedang = ((hargaTerpakai || 0) / Math.max(1, konvBs)).toString();
-                        updatedItem.harga_satuan_kecil = ((hargaTerpakai || 0) / totalKonv).toString();
-                        updatedItem.harga_satuan = (hargaTerpakai || 0).toString();
+                        // Saat beralih ke kemasan besar, konversi harga dari kecil->besar (qty kecil -> besar)
+                        const nilaiBesarCount = parseInt(prev.nilai_satuan_besar || '1') || 1;
+                        const konvBs = parseInt(prev.nilai_satuan_sedang || '1') || 1;
+                        const konvSk = parseInt(prev.nilai_satuan_kecil || '1') || 1;
+                        const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
+
+                        // Gunakan qty_aktual (satuan kecil) untuk konversi harga
+                        const qtyAktual = parseFloat(prev.qty || '0') || 0;
+                        const baseHargaKecil = parseFloat(prev.harga_satuan_kecil || '0');
+                        const qtyBesarSaatIni = totalKonv > 0 ? qtyAktual / totalKonv : 0;
+                        const computedHargaBesar =
+                            baseHargaKecil > 0 && qtyAktual > 0 && qtyBesarSaatIni > 0
+                                ? (baseHargaKecil * qtyAktual) / qtyBesarSaatIni
+                                : parseFloat(prev.harga_satuan_besar || '0');
+
+                        updatedItem.harga_satuan_besar = (computedHargaBesar || 0).toString();
+                        updatedItem.harga_satuan_sedang = ((computedHargaBesar || 0) / Math.max(1, konvBs)).toString();
+                        updatedItem.harga_satuan_kecil = ((computedHargaBesar || 0) / totalKonv).toString();
+                        updatedItem.harga_satuan = (computedHargaBesar || 0).toString();
+
+                        // Ubah qty pembelian dari satuan kecil -> besar
+                        const qtyKecil = qtyAktual;
+                        const qtyBesarBaru = qtyKecil / totalKonv;
+                        updatedItem.qty = qtyBesarBaru.toString();
                     } else {
-                        // Saat beralih ke kemasan kecil, konversi harga dari besar->kecil bila perlu (qty tidak diubah)
-                        const konvBs = prev.nilai_konversi_bs || 1;
-                        const konvSk = prev.nilai_konversi_sk || (prev.nilai_konversi ? prev.nilai_konversi / Math.max(1, konvBs) : 1);
-                        const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
-                        const hargaBesar = parseFloat(prev.harga_satuan_besar || '0');
-                        const hargaKecil = parseFloat(prev.harga_satuan_kecil || '0');
-                        const hargaTerpakai = hargaKecil || hargaBesar / totalKonv;
-                        updatedItem.harga_satuan_kecil = (hargaTerpakai || 0).toString();
-                        updatedItem.harga_satuan_sedang = ((hargaTerpakai || 0) * Math.max(1, konvSk)).toString();
-                        updatedItem.harga_satuan_besar = ((hargaTerpakai || 0) * totalKonv).toString();
-                        updatedItem.harga_satuan = (hargaTerpakai || 0).toString();
+                        // Saat beralih ke kemasan kecil, konversi harga dari besar->kecil (qty besar -> kecil)
+                        const nilaiBesarCount = parseInt(prev.nilai_satuan_besar || '1') || 1;
+                        const konvBs = parseInt(prev.nilai_satuan_sedang || '1') || 1;
+                        const konvSk = parseInt(prev.nilai_satuan_kecil || '1') || 1;
+                        const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
+
+                        // qty_aktual (satuan kecil) = qty besar × totalKonv
+                        const qtyBesar = parseFloat(prev.qty || '0') || 0;
+                        const qtyAktual = qtyBesar * totalKonv;
+                        const baseHargaBesar = parseFloat(prev.harga_satuan_besar || '0');
+                        const computedHargaKecil =
+                            baseHargaBesar > 0 && qtyAktual > 0
+                                ? (baseHargaBesar * qtyBesar) / qtyAktual
+                                : parseFloat(prev.harga_satuan_kecil || '0');
+
+                        updatedItem.harga_satuan_kecil = (computedHargaKecil || 0).toString();
+                        updatedItem.harga_satuan_sedang = ((computedHargaKecil || 0) * Math.max(1, konvSk)).toString();
+                        updatedItem.harga_satuan_besar = ((computedHargaKecil || 0) * totalKonv).toString();
+                        updatedItem.harga_satuan = (computedHargaKecil || 0).toString();
+
+                        // Ubah qty pembelian menjadi dalam satuan kecil
+                        const qtyKecilBaru = qtyAktual;
+                        updatedItem.qty = qtyKecilBaru.toString();
                     }
                 }
 
@@ -482,10 +502,11 @@ export default function PembelianIndex() {
 
                 // Jika nilai konversi berubah, sinkronkan harga besar/kecil yang saling terkait
                 if (field === 'nilai_konversi') {
-                    const newKonversi = (value as number) || parseFloat(value as string) || 1;
-                    const konvBs = updatedItem.nilai_konversi_bs || prev.nilai_konversi_bs || 1;
-                    const konvSk = Math.max(1, Math.round(newKonversi / Math.max(1, konvBs)));
-                    updatedItem.nilai_konversi_sk = konvSk;
+                    const nilaiBesarCount = parseInt(updatedItem.nilai_satuan_besar || prev.nilai_satuan_besar || '1') || 1;
+                    const konvBs = parseInt(updatedItem.nilai_satuan_sedang || prev.nilai_satuan_sedang || '1') || 1;
+                    const konvSk = parseInt(updatedItem.nilai_satuan_kecil || prev.nilai_satuan_kecil || '1') || 1;
+                    const newKonversi = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
+                    updatedItem.nilai_konversi = newKonversi as any;
 
                     const hargaBesar = parseFloat(updatedItem.harga_satuan_besar || prev.harga_satuan_besar || '0');
                     const hargaKecil = parseFloat(updatedItem.harga_satuan_kecil || prev.harga_satuan_kecil || '0');
@@ -516,16 +537,14 @@ export default function PembelianIndex() {
 
             // Recompute qty_aktual (satuan kecil) dari qty & kemasan
             {
-                const konvBs = (updatedItem.nilai_konversi_bs || prev.nilai_konversi_bs || 1) as number;
-                const derivedSk =
-                    updatedItem.nilai_konversi || prev.nilai_konversi
-                        ? ((updatedItem.nilai_konversi as number) || (prev.nilai_konversi as number) || 1) / Math.max(1, konvBs)
-                        : 1;
-                const konvSk = (updatedItem.nilai_konversi_sk || prev.nilai_konversi_sk || derivedSk) as number;
-                const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
+                const nilaiBesarCount = parseInt((updatedItem.nilai_satuan_besar || prev.nilai_satuan_besar || '1') as string) || 1;
+                const konvBs = parseInt((updatedItem.nilai_satuan_sedang || prev.nilai_satuan_sedang || '1') as string) || 1;
+                const konvSk = parseInt((updatedItem.nilai_satuan_kecil || prev.nilai_satuan_kecil || '1') as string) || 1;
+                const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
                 const qtyNum = parseFloat(updatedItem.qty || '0') || 0;
                 const qtyAktual = updatedItem.kemasan_besar ? qtyNum * totalKonv : qtyNum;
                 updatedItem.qty_aktual = qtyAktual.toString();
+                updatedItem.nilai_konversi = totalKonv as any;
             }
 
             // Calculate sub_total
@@ -571,6 +590,20 @@ export default function PembelianIndex() {
         const diskonNominal = current.diskon_persen ? qty * harga * (diskonValue / 100) : diskonValue;
         const subtotal = qty * harga - diskonNominal;
         const itemToSave: PembelianDetail = { ...current, qty_aktual: qtyAktualNum.toString(), sub_total: subtotal.toString() };
+
+        console.log('DBG konversi (saveModalData)', {
+            kemasan_besar: current.kemasan_besar,
+            nilai_konversi_bs: konvBs,
+            nilai_konversi_sk: konvSk,
+            totalKonv,
+            qty,
+            qty_aktual: qtyAktualNum,
+            harga,
+            diskon_persen: current.diskon_persen,
+            diskonValue,
+            diskonNominal,
+            subtotal,
+        });
 
         if (editingItem) {
             // Update existing item
@@ -681,15 +714,26 @@ export default function PembelianIndex() {
                 details: pembelianDetails.map((detail) => {
                     // Untuk obat, pastikan qty dalam satuan kecil
                     let qtyToSend = detail.qty;
+                    let hargaToSend = detail.harga_satuan;
 
                     if (isObatType) {
-                        // kirim qty dalam satuan kecil menggunakan qty_aktual yang sudah disimpan
-                        qtyToSend = detail.qty_aktual || '0';
+                        // Recompute qty kecil (qty_aktual) secara deterministik saat submit
+                        const nilaiBesar = parseInt(detail.nilai_satuan_besar || '1') || 1;
+                        const nilaiSedang = parseInt(detail.nilai_satuan_sedang || '1') || 1;
+                        const nilaiKecil = parseInt(detail.nilai_satuan_kecil || '1') || 1;
+                        const totalKonv = Math.max(1, nilaiBesar) * Math.max(1, nilaiSedang) * Math.max(1, nilaiKecil);
+                        const qtyNum = parseFloat(detail.qty || '0') || 0;
+                        const qtyAktualCalc = detail.kemasan_besar ? qtyNum * totalKonv : qtyNum;
+
+                        qtyToSend = qtyAktualCalc.toString();
+                        // kirim harga satuan kecil sebagai harga yang disimpan di DB
+                        hargaToSend = detail.harga_satuan_kecil || detail.harga_satuan || '0';
                     }
 
                     return {
                         ...detail,
                         qty: qtyToSend,
+                        harga_satuan: hargaToSend,
                         // Hapus id yang hanya untuk frontend
                         id: undefined,
                     };
@@ -1347,10 +1391,19 @@ export default function PembelianIndex() {
                                                     </div>
 
                                                     {/* Info readonly */}
-                                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                                                         <div className="space-y-2">
                                                             <Label>Qty Aktual (Satuan Kecil)</Label>
                                                             <Input type="number" value={modalData.qty_aktual || '0'} readOnly />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label>Harga Satuan Kecil</Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={modalData.harga_satuan_kecil || '0'}
+                                                                readOnly
+                                                                className="dark:bg-black"
+                                                            />
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>Sub Total</Label>
