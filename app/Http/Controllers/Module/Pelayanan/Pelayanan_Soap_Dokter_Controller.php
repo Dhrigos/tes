@@ -482,9 +482,9 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
             // Get HTT data
             $httPemeriksaan = Htt_Pemeriksaan::with('htt_subpemeriksaans')->get();
 
-            // Get ICD data
-            $icd10 = Icd10::all();
-            $icd9 = Icd9::all();
+            // Get ICD data (kirim semua data, batasi kolom, bisa di-cache agar cepat)
+            $icd10 = Icd10::select('kode', 'nama')->orderBy('kode')->get();
+            $icd9  = Icd9::select('kode', 'nama')->orderBy('kode')->get();
 
             // Get Diet master data
             $jenisDiet = Jenis_Diet::all();
