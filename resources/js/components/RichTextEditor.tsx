@@ -4,6 +4,8 @@ import type { Editor as TinyMCEEditor } from 'tinymce';
 interface RichTextEditorProps {
     value?: string;
     onChange?: (content: string) => void;
+    // Debounce interval for onChange to mengurangi lag saat mengetik
+    onChangeDebounceMs?: number;
     placeholder?: string;
     height?: number;
     id?: string;
@@ -14,9 +16,10 @@ interface RichTextEditorProps {
     onAiClick?: (editor: TinyMCEEditor) => void;
 }
 
-const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, placeholder = 'Masukkan teks...', height = 200, id, name, showAiButton = false, onAiClick }) => {
+const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, onChangeDebounceMs = 300, placeholder = 'Masukkan teks...', height = 200, id, name, showAiButton = false, onAiClick }) => {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const editorRef = useRef<TinyMCEEditor | null>(null);
+    const changeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Initialize TinyMCE (Community) on mount
     useEffect(() => {
@@ -84,7 +87,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, p
                             // Simple microphone SVG icon
                             '<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H9v2h6v-2h-2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>'
                         );
-                    } catch {}
+                    } catch { }
 
                     // Register AI icon and button if requested
                     if (showAiButton) {
@@ -93,7 +96,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, p
                                 'ai',
                                 '<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M12 2l1.76 3.57L17.7 6.2l-2.7 2.63.64 3.86L12 10.96 8.36 12.69l.64-3.86L6.3 6.2l3.94-.63L12 2zm-6 14.5l2-1 .5-2 1.5 1.4 2-.4-1 1.9.9 1.8-2-.3-1.4 1.5-.2-2.1-1.8-.9z"/></svg>'
                             );
-                        } catch {}
+                        } catch { }
 
                         const handleAiAction = async () => {
                             try {
@@ -159,7 +162,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, p
                                     if (lastRange) {
                                         editor.selection.setRng(lastRange);
                                     }
-                                } catch {}
+                                } catch { }
                                 editor.insertContent(finalTranscript);
                                 safeDispatch('change');
                             }
@@ -207,10 +210,19 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, p
                     });
 
                     const handler = () => {
-                        const content = editor.getContent();
-                        if (onChange) onChange(content);
+                        if (!onChange) return;
+                        if (changeTimeoutRef.current) {
+                            clearTimeout(changeTimeoutRef.current);
+                        }
+                        changeTimeoutRef.current = setTimeout(() => {
+                            try {
+                                const content = editor.getContent();
+                                onChange(content);
+                            } catch { }
+                        }, Math.max(0, onChangeDebounceMs || 0));
                     };
-                    editor.on('change input undo redo keyup', handler);
+                    // Kurangi event: hindari keyup agar tidak trigger tiap ketikan
+                    editor.on('input undo redo change', handler);
                 },
             });
         };
@@ -224,18 +236,29 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value = '', onChange, p
                     editorRef.current.remove();
                     editorRef.current = null;
                 }
+                if (changeTimeoutRef.current) {
+                    clearTimeout(changeTimeoutRef.current);
+                    changeTimeoutRef.current = null;
+                }
             } catch {
                 // ignore
             }
         };
-         
+
     }, []);
 
     // Sync external value changes into the editor
     useEffect(() => {
         const ed = editorRef.current;
-        if (ed && typeof value === 'string' && value !== ed.getContent()) {
-            ed.setContent(value);
+        // Hindari setContent saat editor fokus agar tidak mengganggu mengetik
+        if (ed && typeof value === 'string') {
+            let current = '';
+            try {
+                current = ed.getContent();
+            } catch { }
+            if (value !== current && !ed.hasFocus()) {
+                ed.setContent(value);
+            }
         }
     }, [value]);
 

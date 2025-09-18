@@ -349,13 +349,13 @@ export default function PemeriksaanSoapDokter() {
             jenis_alergi: Array.isArray((soap_dokter as any)?.jenis_alergi)
                 ? ((soap_dokter as any).jenis_alergi as string[])
                 : Array.isArray(p?.jenis_alergi)
-                  ? (p?.jenis_alergi as string[])
-                  : [],
+                    ? (p?.jenis_alergi as string[])
+                    : [],
             alergi: Array.isArray((soap_dokter as any)?.alergi)
                 ? ((soap_dokter as any).alergi as string[])
                 : Array.isArray(p?.alergi)
-                  ? (p?.alergi as string[])
-                  : [],
+                    ? (p?.alergi as string[])
+                    : [],
             eye: soap_dokter?.eye || (p?.eye !== undefined && p?.eye !== null ? String(p.eye) : ''),
             verbal: soap_dokter?.verbal || (p?.verbal !== undefined && p?.verbal !== null ? String(p.verbal) : ''),
             motorik: soap_dokter?.motorik || (p?.motorik !== undefined && p?.motorik !== null ? String(p.motorik) : ''),
@@ -491,7 +491,7 @@ export default function PemeriksaanSoapDokter() {
         if (!jumlahOk) {
             try {
                 toast.error('Mohon isi Jumlah Diberikan');
-            } catch {}
+            } catch { }
             return;
         }
         if (editIndexObat !== null) {
@@ -660,22 +660,22 @@ export default function PemeriksaanSoapDokter() {
         try {
             const icd10Prefill = Array.isArray(saved_icd10 as any)
                 ? (saved_icd10 as any).map((x: any) => ({
-                      kode_icd10: x.kode,
-                      nama_icd10: x.nama,
-                      priority_icd10: x.priority,
-                  }))
+                    kode_icd10: x.kode,
+                    nama_icd10: x.nama,
+                    priority_icd10: x.priority,
+                }))
                 : [];
             if (icd10Prefill.length) setIcd10List(icd10Prefill);
-        } catch {}
+        } catch { }
         try {
             const icd9Prefill = Array.isArray(saved_icd9 as any)
                 ? (saved_icd9 as any).map((x: any) => ({
-                      kode_icd9: x.kode,
-                      nama_icd9: x.nama,
-                  }))
+                    kode_icd9: x.kode,
+                    nama_icd9: x.nama,
+                }))
                 : [];
             if (icd9Prefill.length) setIcd9List(icd9Prefill);
-        } catch {}
+        } catch { }
 
         // 2) Prefill tindakan list or single form values
         try {
@@ -691,13 +691,13 @@ export default function PemeriksaanSoapDokter() {
                     })),
                 );
             }
-        } catch {}
+        } catch { }
 
         // 3) Prefill obat list
         try {
             const resep = Array.isArray(obat_saved as any) ? (obat_saved as any) : [];
             if (resep.length) setObatList(resep as any);
-        } catch {}
+        } catch { }
 
         // 4) Prefill keluhan dari tableData (tanpa preload HTT)
         try {
@@ -706,7 +706,7 @@ export default function PemeriksaanSoapDokter() {
             if (parsed && typeof parsed === 'object') {
                 if (Array.isArray(parsed.keluhanList)) setKeluhanList(parsed.keluhanList);
             }
-        } catch {}
+        } catch { }
     }, [soap_dokter]);
 
     // Tindakan state
@@ -1398,13 +1398,13 @@ export default function PemeriksaanSoapDokter() {
         const tindakan_nama = tindakanList.length
             ? tindakanList.map((t) => t.nama)
             : tindakanData.jenis_tindakan
-              ? [tindakanData.jenis_tindakan]
-              : [];
+                ? [tindakanData.jenis_tindakan]
+                : [];
         const tindakan_pelaksana = tindakanList.length
             ? tindakanList.map((t) => t.pelaksana)
             : tindakanData.jenis_pelaksana
-              ? [tindakanData.jenis_pelaksana]
-              : [];
+                ? [tindakanData.jenis_pelaksana]
+                : [];
         const tindakan_harga = tindakanList.length ? tindakanList.map((t) => t.harga) : tindakanData.harga ? [Number(tindakanData.harga)] : [];
 
         // Compose tableData to include current keluhanList (HTT tidak disimpan di tableData lagi)
@@ -1416,7 +1416,7 @@ export default function PemeriksaanSoapDokter() {
                     try {
                         const parsed = JSON.parse(td);
                         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) existing = parsed;
-                    } catch {}
+                    } catch { }
                 } else if (typeof td === 'object' && !Array.isArray(td)) {
                     existing = td;
                 }
@@ -1609,7 +1609,7 @@ export default function PemeriksaanSoapDokter() {
                 if (Array.isArray(td.keluhanList)) setKeluhanList(td.keluhanList);
                 if (Array.isArray(td.httItems)) setHttpItems(td.httItems);
             }
-        } catch {}
+        } catch { }
 
         // 2) Resep (array of item)
         try {
@@ -1618,7 +1618,7 @@ export default function PemeriksaanSoapDokter() {
                 const parsed = typeof resep === 'string' ? JSON.parse(resep) : resep;
                 if (Array.isArray(parsed)) setObatList(parsed);
             }
-        } catch {}
+        } catch { }
 
         // 3) ICD10
         const icd10Codes: string[] = (soap_dokter as any).icd10_code || [];
@@ -2082,8 +2082,8 @@ export default function PemeriksaanSoapDokter() {
                                                                             {formData.alergi.length > 0
                                                                                 ? formData.alergi.join(', ')
                                                                                 : formData.jenis_alergi.length === 0
-                                                                                  ? 'Pilih jenis terlebih dahulu'
-                                                                                  : 'Pilih detail alergi'}
+                                                                                    ? 'Pilih jenis terlebih dahulu'
+                                                                                    : 'Pilih detail alergi'}
                                                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                                         </Button>
                                                                     </PopoverTrigger>
@@ -2375,10 +2375,10 @@ export default function PemeriksaanSoapDokter() {
                                                                         index < 8
                                                                             ? index
                                                                             : index < 13
-                                                                              ? index - 8 + 1.5
-                                                                              : index < 18
-                                                                                ? index - 13 + 1.5
-                                                                                : index - 18;
+                                                                                ? index - 8 + 1.5
+                                                                                : index < 18
+                                                                                    ? index - 13 + 1.5
+                                                                                    : index - 18;
                                                                     const x = col * 60 + (isLeft ? 0 : 500);
                                                                     const y = row * 60;
 
@@ -2687,25 +2687,25 @@ export default function PemeriksaanSoapDokter() {
                                                     {openAssessment ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            <div
-                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openAssessment ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
-                                            >
-                                                <CardContent className="space-y-4">
-                                                    <div>
-                                                        <Label htmlFor="assesmen">Diagnosis / Assessment</Label>
-                                                        <div className="mt-1">
-                                                            <RichTextEditor
-                                                                id="assesmen"
-                                                                value={formData.assesmen}
-                                                                onChange={(value) =>
-                                                                    handleInputChange({ target: { name: 'assesmen', value } } as any)
-                                                                }
-                                                                placeholder="Masukkan diagnosis atau assessment pasien..."
-                                                            />
+                                            {openAssessment && (
+                                                <div className={`transition-all duration-300 ease-in-out`}>
+                                                    <CardContent className="space-y-4">
+                                                        <div>
+                                                            <Label htmlFor="assesmen">Diagnosis / Assessment</Label>
+                                                            <div className="mt-1">
+                                                                <RichTextEditor
+                                                                    id="assesmen"
+                                                                    value={formData.assesmen}
+                                                                    onChange={(value) =>
+                                                                        handleInputChange({ target: { name: 'assesmen', value } } as any)
+                                                                    }
+                                                                    placeholder="Masukkan diagnosis atau assessment pasien..."
+                                                                />
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </CardContent>
-                                            </div>
+                                                    </CardContent>
+                                                </div>
+                                            )}
                                         </Card>
 
                                         {/* ICD Section */}
@@ -2716,237 +2716,236 @@ export default function PemeriksaanSoapDokter() {
                                                     {openIcd ? '▼' : '▶'}
                                                 </Button>
                                             </CardHeader>
-                                            <div
-                                                className={`overflow-hidden transition-all duration-300 ease-in-out ${openIcd ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
-                                            >
-                                                <CardContent className="space-y-6">
-                                                    {/* 2-Column Layout for ICD10 and ICD9 */}
-                                                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                                                        {/* ICD 10 Column */}
-                                                        <div className="space-y-4">
-                                                            <h3 className="border-b pb-2 text-lg font-medium">Diagnosa (ICD 10)</h3>
+                                            {openIcd && (
+                                                <div className={`transition-all duration-300 ease-in-out`}>
+                                                    <CardContent className="space-y-6">
+                                                        {/* 2-Column Layout for ICD10 and ICD9 */}
+                                                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                                                            {/* ICD 10 Column */}
+                                                            <div className="space-y-4">
+                                                                <h3 className="border-b pb-2 text-lg font-medium">Diagnosa (ICD 10)</h3>
 
-                                                            {/* ICD 10 Input Form */}
-                                                            <div className="space-y-3">
-                                                                <div className="flex items-end gap-4">
-                                                                    <div className="flex-1">
-                                                                        <Label htmlFor="icd10">KODE ICD 10</Label>
-                                                                        <Select
-                                                                            value={icdData.kode_icd10 || ''}
-                                                                            onValueChange={(value) => {
-                                                                                const selectedIcd = icd10.find((icd) => icd.kode === value);
-                                                                                setIcdData((prev) => ({
-                                                                                    ...prev,
-                                                                                    kode_icd10: value,
-                                                                                    nama_icd10: selectedIcd ? selectedIcd.nama : '',
-                                                                                }));
-                                                                            }}
-                                                                        >
-                                                                            <SelectTrigger className="text-sm">
-                                                                                <SelectValue placeholder="-- Pilih --" />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent>
-                                                                                {icd10.map((item) => (
-                                                                                    <SelectItem key={item.kode} value={item.kode}>
-                                                                                        {item.kode} -{' '}
-                                                                                        {item.nama.length > 25
-                                                                                            ? item.nama.substring(0, 25) + '...'
-                                                                                            : item.nama}
-                                                                                    </SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
+                                                                {/* ICD 10 Input Form */}
+                                                                <div className="space-y-3">
+                                                                    <div className="flex items-end gap-4">
+                                                                        <div className="flex-1">
+                                                                            <Label htmlFor="icd10">KODE ICD 10</Label>
+                                                                            <Select
+                                                                                value={icdData.kode_icd10 || ''}
+                                                                                onValueChange={(value) => {
+                                                                                    const selectedIcd = icd10.find((icd) => icd.kode === value);
+                                                                                    setIcdData((prev) => ({
+                                                                                        ...prev,
+                                                                                        kode_icd10: value,
+                                                                                        nama_icd10: selectedIcd ? selectedIcd.nama : '',
+                                                                                    }));
+                                                                                }}
+                                                                            >
+                                                                                <SelectTrigger className="text-sm">
+                                                                                    <SelectValue placeholder="-- Pilih --" />
+                                                                                </SelectTrigger>
+                                                                                <SelectContent>
+                                                                                    {(icd10 || []).slice(0, 200).map((item) => (
+                                                                                        <SelectItem key={item.kode} value={item.kode}>
+                                                                                            {item.kode} -{' '}
+                                                                                            {item.nama.length > 25
+                                                                                                ? item.nama.substring(0, 25) + '...'
+                                                                                                : item.nama}
+                                                                                        </SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                        </div>
 
-                                                                    <div className="flex-1">
-                                                                        <Label htmlFor="priority_icd10">Prioritas</Label>
-                                                                        <Select
-                                                                            value={icdData.priority_icd10 || ''}
-                                                                            onValueChange={(value) =>
-                                                                                setIcdData((prev) => ({ ...prev, priority_icd10: value }))
-                                                                            }
-                                                                        >
-                                                                            <SelectTrigger className="text-sm">
-                                                                                <SelectValue placeholder="-- Pilih --" />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent>
-                                                                                <SelectItem value="Primary">Primary</SelectItem>
-                                                                                <SelectItem value="Secondary">Secondary</SelectItem>
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
-
-                                                                    <Button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            if (icdData.kode_icd10 && icdData.nama_icd10 && icdData.priority_icd10) {
-                                                                                // Prevent multiple Primary entries
-                                                                                const hasPrimary = icd10List.some(
-                                                                                    (it) => (it.priority_icd10 || '').toLowerCase() === 'primary',
-                                                                                );
-                                                                                if (
-                                                                                    (icdData.priority_icd10 || '').toLowerCase() === 'primary' &&
-                                                                                    hasPrimary
-                                                                                ) {
-                                                                                    toast.warning(
-                                                                                        'Prioritas Primary untuk ICD10 sudah ada. Tidak boleh lebih dari satu.',
-                                                                                    );
-                                                                                    return;
+                                                                        <div className="flex-1">
+                                                                            <Label htmlFor="priority_icd10">Prioritas</Label>
+                                                                            <Select
+                                                                                value={icdData.priority_icd10 || ''}
+                                                                                onValueChange={(value) =>
+                                                                                    setIcdData((prev) => ({ ...prev, priority_icd10: value }))
                                                                                 }
-                                                                                setIcd10List((prev) => [...prev, { ...icdData }]);
-                                                                                setIcdData((prev) => ({
-                                                                                    ...prev,
-                                                                                    kode_icd10: '',
-                                                                                    nama_icd10: '',
-                                                                                    priority_icd10: '',
-                                                                                }));
-                                                                            }
-                                                                        }}
-                                                                        size="sm"
-                                                                    >
-                                                                        + Tambah
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
+                                                                            >
+                                                                                <SelectTrigger className="text-sm">
+                                                                                    <SelectValue placeholder="-- Pilih --" />
+                                                                                </SelectTrigger>
+                                                                                <SelectContent>
+                                                                                    <SelectItem value="Primary">Primary</SelectItem>
+                                                                                    <SelectItem value="Secondary">Secondary</SelectItem>
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                        </div>
 
-                                                            {/* ICD 10 Table */}
-                                                            <div>
-                                                                <Table>
-                                                                    <TableHeader>
-                                                                        <TableRow>
-                                                                            <TableHead>Kode</TableHead>
-                                                                            <TableHead>Nama Penyakit</TableHead>
-                                                                            <TableHead>Prioritas</TableHead>
-                                                                            <TableHead>Aksi</TableHead>
-                                                                        </TableRow>
-                                                                    </TableHeader>
-                                                                    <TableBody>
-                                                                        {icd10List.map((item, index) => (
-                                                                            <TableRow key={index}>
-                                                                                <TableCell className="font-mono">{item.kode_icd10}</TableCell>
-                                                                                <TableCell className="text-sm">
-                                                                                    {truncate(item.nama_icd10 || '', 30)}
-                                                                                </TableCell>
-                                                                                <TableCell>
-                                                                                    <span
-                                                                                        className={`rounded px-2 py-1 text-xs ${
-                                                                                            item.priority_icd10 === 'Primary'
+                                                                        <Button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                if (icdData.kode_icd10 && icdData.nama_icd10 && icdData.priority_icd10) {
+                                                                                    // Prevent multiple Primary entries
+                                                                                    const hasPrimary = icd10List.some(
+                                                                                        (it) => (it.priority_icd10 || '').toLowerCase() === 'primary',
+                                                                                    );
+                                                                                    if (
+                                                                                        (icdData.priority_icd10 || '').toLowerCase() === 'primary' &&
+                                                                                        hasPrimary
+                                                                                    ) {
+                                                                                        toast.warning(
+                                                                                            'Prioritas Primary untuk ICD10 sudah ada. Tidak boleh lebih dari satu.',
+                                                                                        );
+                                                                                        return;
+                                                                                    }
+                                                                                    setIcd10List((prev) => [...prev, { ...icdData }]);
+                                                                                    setIcdData((prev) => ({
+                                                                                        ...prev,
+                                                                                        kode_icd10: '',
+                                                                                        nama_icd10: '',
+                                                                                        priority_icd10: '',
+                                                                                    }));
+                                                                                }
+                                                                            }}
+                                                                            size="sm"
+                                                                        >
+                                                                            + Tambah
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* ICD 10 Table */}
+                                                                <div>
+                                                                    <Table>
+                                                                        <TableHeader>
+                                                                            <TableRow>
+                                                                                <TableHead>Kode</TableHead>
+                                                                                <TableHead>Nama Penyakit</TableHead>
+                                                                                <TableHead>Prioritas</TableHead>
+                                                                                <TableHead>Aksi</TableHead>
+                                                                            </TableRow>
+                                                                        </TableHeader>
+                                                                        <TableBody>
+                                                                            {icd10List.map((item, index) => (
+                                                                                <TableRow key={index}>
+                                                                                    <TableCell className="font-mono">{item.kode_icd10}</TableCell>
+                                                                                    <TableCell className="text-sm">
+                                                                                        {truncate(item.nama_icd10 || '', 30)}
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        <span
+                                                                                            className={`rounded px-2 py-1 text-xs ${item.priority_icd10 === 'Primary'
                                                                                                 ? 'bg-blue-100 text-blue-800'
                                                                                                 : 'bg-gray-100 text-gray-800'
-                                                                                        }`}
-                                                                                    >
-                                                                                        {item.priority_icd10}
-                                                                                    </span>
-                                                                                </TableCell>
-                                                                                <TableCell>
-                                                                                    <Button
-                                                                                        type="button"
-                                                                                        variant="destructive"
-                                                                                        size="sm"
-                                                                                        onClick={() =>
-                                                                                            setIcd10List((prev) => prev.filter((_, i) => i !== index))
-                                                                                        }
-                                                                                    >
-                                                                                        Hapus
-                                                                                    </Button>
-                                                                                </TableCell>
-                                                                            </TableRow>
-                                                                        ))}
-                                                                    </TableBody>
-                                                                </Table>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* ICD 9 Column */}
-                                                        <div className="space-y-4">
-                                                            <h3 className="border-b pb-2 text-lg font-medium">Tindakan (ICD 9)</h3>
-
-                                                            {/* ICD 9 Input Form */}
-                                                            <div className="space-y-3">
-                                                                <div className="flex items-end gap-4">
-                                                                    <div className="flex-1">
-                                                                        <Label htmlFor="icd9">KODE ICD 9</Label>
-                                                                        <Select
-                                                                            value={icdData.kode_icd9 || ''}
-                                                                            onValueChange={(value) => {
-                                                                                const selectedIcd = icd9.find((icd) => icd.kode === value);
-                                                                                setIcdData((prev) => ({
-                                                                                    ...prev,
-                                                                                    kode_icd9: value,
-                                                                                    nama_icd9: selectedIcd ? selectedIcd.nama : '',
-                                                                                }));
-                                                                            }}
-                                                                        >
-                                                                            <SelectTrigger className="text-sm">
-                                                                                <SelectValue placeholder="-- Pilih --" />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent>
-                                                                                {icd9.map((item) => (
-                                                                                    <SelectItem key={item.kode} value={item.kode}>
-                                                                                        {item.kode} - {item.nama}
-                                                                                    </SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
-
-                                                                    <Button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            if (icdData.kode_icd9 && icdData.nama_icd9) {
-                                                                                setIcd9List((prev) => [...prev, { ...icdData }]);
-                                                                                setIcdData((prev) => ({
-                                                                                    ...prev,
-                                                                                    kode_icd9: '',
-                                                                                    nama_icd9: '',
-                                                                                }));
-                                                                            }
-                                                                        }}
-                                                                        size="sm"
-                                                                    >
-                                                                        + Tambah
-                                                                    </Button>
+                                                                                                }`}
+                                                                                        >
+                                                                                            {item.priority_icd10}
+                                                                                        </span>
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="destructive"
+                                                                                            size="sm"
+                                                                                            onClick={() =>
+                                                                                                setIcd10List((prev) => prev.filter((_, i) => i !== index))
+                                                                                            }
+                                                                                        >
+                                                                                            Hapus
+                                                                                        </Button>
+                                                                                    </TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                        </TableBody>
+                                                                    </Table>
                                                                 </div>
                                                             </div>
 
-                                                            {/* ICD 9 Table */}
-                                                            <div>
-                                                                <Table>
-                                                                    <TableHeader>
-                                                                        <TableRow>
-                                                                            <TableHead>Kode</TableHead>
-                                                                            <TableHead>Nama Penyakit</TableHead>
-                                                                            <TableHead>Aksi</TableHead>
-                                                                        </TableRow>
-                                                                    </TableHeader>
-                                                                    <TableBody>
-                                                                        {icd9List.map((item, index) => (
-                                                                            <TableRow key={index}>
-                                                                                <TableCell className="font-mono">{item.kode_icd9}</TableCell>
-                                                                                <TableCell className="text-sm">
-                                                                                    {truncate(item.nama_icd9 || '', 30)}
-                                                                                </TableCell>
-                                                                                <TableCell>
-                                                                                    <Button
-                                                                                        type="button"
-                                                                                        variant="destructive"
-                                                                                        size="sm"
-                                                                                        onClick={() =>
-                                                                                            setIcd9List((prev) => prev.filter((_, i) => i !== index))
-                                                                                        }
-                                                                                    >
-                                                                                        Hapus
-                                                                                    </Button>
-                                                                                </TableCell>
+                                                            {/* ICD 9 Column */}
+                                                            <div className="space-y-4">
+                                                                <h3 className="border-b pb-2 text-lg font-medium">Tindakan (ICD 9)</h3>
+
+                                                                {/* ICD 9 Input Form */}
+                                                                <div className="space-y-3">
+                                                                    <div className="flex items-end gap-4">
+                                                                        <div className="flex-1">
+                                                                            <Label htmlFor="icd9">KODE ICD 9</Label>
+                                                                            <Select
+                                                                                value={icdData.kode_icd9 || ''}
+                                                                                onValueChange={(value) => {
+                                                                                    const selectedIcd = icd9.find((icd) => icd.kode === value);
+                                                                                    setIcdData((prev) => ({
+                                                                                        ...prev,
+                                                                                        kode_icd9: value,
+                                                                                        nama_icd9: selectedIcd ? selectedIcd.nama : '',
+                                                                                    }));
+                                                                                }}
+                                                                            >
+                                                                                <SelectTrigger className="text-sm">
+                                                                                    <SelectValue placeholder="-- Pilih --" />
+                                                                                </SelectTrigger>
+                                                                                <SelectContent>
+                                                                                    {(icd9 || []).slice(0, 200).map((item) => (
+                                                                                        <SelectItem key={item.kode} value={item.kode}>
+                                                                                            {item.kode} - {item.nama}
+                                                                                        </SelectItem>
+                                                                                    ))}
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                        </div>
+
+                                                                        <Button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                if (icdData.kode_icd9 && icdData.nama_icd9) {
+                                                                                    setIcd9List((prev) => [...prev, { ...icdData }]);
+                                                                                    setIcdData((prev) => ({
+                                                                                        ...prev,
+                                                                                        kode_icd9: '',
+                                                                                        nama_icd9: '',
+                                                                                    }));
+                                                                                }
+                                                                            }}
+                                                                            size="sm"
+                                                                        >
+                                                                            + Tambah
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* ICD 9 Table */}
+                                                                <div>
+                                                                    <Table>
+                                                                        <TableHeader>
+                                                                            <TableRow>
+                                                                                <TableHead>Kode</TableHead>
+                                                                                <TableHead>Nama Penyakit</TableHead>
+                                                                                <TableHead>Aksi</TableHead>
                                                                             </TableRow>
-                                                                        ))}
-                                                                    </TableBody>
-                                                                </Table>
+                                                                        </TableHeader>
+                                                                        <TableBody>
+                                                                            {icd9List.map((item, index) => (
+                                                                                <TableRow key={index}>
+                                                                                    <TableCell className="font-mono">{item.kode_icd9}</TableCell>
+                                                                                    <TableCell className="text-sm">
+                                                                                        {truncate(item.nama_icd9 || '', 30)}
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="destructive"
+                                                                                            size="sm"
+                                                                                            onClick={() =>
+                                                                                                setIcd9List((prev) => prev.filter((_, i) => i !== index))
+                                                                                            }
+                                                                                        >
+                                                                                            Hapus
+                                                                                        </Button>
+                                                                                    </TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                        </TableBody>
+                                                                    </Table>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </CardContent>
-                                            </div>
+                                                    </CardContent>
+                                                </div>
+                                            )}
                                         </Card>
 
                                         {/* Tindakan Section */}
@@ -3466,10 +3465,10 @@ export default function PemeriksaanSoapDokter() {
                                                                 <SelectContent>
                                                                     {penggunaanOptions.length
                                                                         ? penggunaanOptions.map((opt) => (
-                                                                              <SelectItem key={opt.id} value={opt.nama}>
-                                                                                  {opt.nama}
-                                                                              </SelectItem>
-                                                                          ))
+                                                                            <SelectItem key={opt.id} value={opt.nama}>
+                                                                                {opt.nama}
+                                                                            </SelectItem>
+                                                                        ))
                                                                         : null}
                                                                 </SelectContent>
                                                             </Select>
@@ -3553,8 +3552,8 @@ export default function PemeriksaanSoapDokter() {
                                                                                     ? isTabletLike
                                                                                         ? `No ${qty}`
                                                                                         : unit
-                                                                                          ? `${qty} ${obat.satuan_gudang}`.trim()
-                                                                                          : `${qty}`
+                                                                                            ? `${qty} ${obat.satuan_gudang}`.trim()
+                                                                                            : `${qty}`
                                                                                     : '';
                                                                                 lines.push(
                                                                                     `${obat.nama_obat}${qtyDisplay ? ` ${qtyDisplay}` : ''}`.trim(),
