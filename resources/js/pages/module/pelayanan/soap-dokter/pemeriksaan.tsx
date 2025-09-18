@@ -2745,7 +2745,7 @@ export default function PemeriksaanSoapDokter() {
                                                                                     <SelectValue placeholder="-- Pilih --" />
                                                                                 </SelectTrigger>
                                                                                 <SelectContent>
-                                                                                    {(icd10 || []).slice(0, 200).map((item) => (
+                                                                                    {(icd10 || []).slice(0, 10).map((item) => (
                                                                                         <SelectItem key={item.kode} value={item.kode}>
                                                                                             {item.kode} -{' '}
                                                                                             {item.nama.length > 25
