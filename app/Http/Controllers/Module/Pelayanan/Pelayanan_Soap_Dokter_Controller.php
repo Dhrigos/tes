@@ -93,7 +93,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
 
 
             // Diagnosa (ICD)
-            $icds = Pelayanan_Soap_Dokter_Icd::where('no_rawat', $pelayanan->no_rawat)
+            $icds = Pelayanan_Soap_Dokter_Icd::where('no_rawat', $pelayanan->nomor_register)
                 ->pluck('kode_icd10')
                 ->toArray();
 
