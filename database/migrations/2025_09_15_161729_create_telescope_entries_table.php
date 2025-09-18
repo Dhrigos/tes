@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('telescope_entries', function (Blueprint $table) {
-            $table->unsignedBigInteger('sequence');
+            $table->bigIncrements('sequence');
             $table->char('uuid', 36);
             $table->char('batch_id', 36);
             $table->string('family_hash', 255)->nullable();
