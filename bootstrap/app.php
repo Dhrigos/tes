@@ -20,7 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
-        OpenTelemetryTracing::class,
+
+        $middleware->append([
+            OpenTelemetryTracing::class,
+        ]); 
 
         $middleware->web(append: [
             HandleAppearance::class,

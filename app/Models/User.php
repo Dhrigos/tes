@@ -6,6 +6,8 @@ namespace App\Models;
 
 use App\Models\Module\Master\Data\Manajemen\Posker;
 use App\Models\Module\SDM\Staff;
+use App\Models\Module\SDM\Dokter;
+use App\Models\perawat;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -56,8 +58,17 @@ class User extends Authenticatable
      */
     public function getRolesFromPosker(): array
     {
-        // Find staff record linked to this user
+        // Cari staff record yang terkait dengan user ini
+        // Prioritas: Staff -> Dokter -> Perawat
         $staff = Staff::where('users', $this->id)->first();
+        
+        if (!$staff) {
+            $staff = Dokter::where('users', $this->id)->first();
+        }
+        
+        if (!$staff) {
+            $staff = perawat::where('users', $this->id)->first();
+        }
 
         if (!$staff || !$staff->status_pegawaian) {
             return ['Admin']; // Default to Admin if no posker found
