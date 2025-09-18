@@ -7,8 +7,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
-use OpenTelemetry\SDK\Trace\Exporter\OtlpExporter;
-use OpenTelemetry\Context\ScopeInterface;
+use OpenTelemetry\Contrib\Otlp\SpanExporterFactory;
+use OpenTelemetry\API\Trace\StatusCode;
 
 class OpenTelemetryTracing
 {
@@ -17,7 +17,19 @@ class OpenTelemetryTracing
 
     public function __construct()
     {
-        $exporter = new OtlpExporter(env('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://localhost:4318/v1/traces'));
+        // Set environment variables for OTLP configuration
+        if (!env('OTEL_EXPORTER_OTLP_ENDPOINT')) {
+            putenv('OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces');
+        }
+        if (!env('OTEL_SERVICE_NAME')) {
+            putenv('OTEL_SERVICE_NAME=laravel-app');
+        }
+
+        // Create OTLP exporter using factory
+        $exporterFactory = new SpanExporterFactory();
+        $exporter = $exporterFactory->create();
+        
+        // Create tracer provider with simple span processor
         $tracerProvider = new TracerProvider(
             new SimpleSpanProcessor($exporter)
         );
@@ -42,10 +54,10 @@ class OpenTelemetryTracing
              $span->setAttribute('http.method', $request->method());
              $span->setAttribute('http.route', $request->path());
              $span->setAttribute('http.status_code', $response->getStatusCode());
-         } catch (\Throwable $e) {
-             $span->recordException($e);
-             $span->setStatus(\OpenTelemetry\API\Trace\StatusCode::STATUS_ERROR, $e->getMessage());
-             throw $e;
+        } catch (\Throwable $e) {
+            $span->recordException($e);
+            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            throw $e;
          } finally {
              $span->end();
              $scope->detach();

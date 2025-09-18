@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Models\User;
 use App\Models\Module\Master\Data\Manajemen\Posker;
 use App\Models\Module\SDM\Staff;
+use App\Models\Module\SDM\Dokter;
+use App\Models\perawat;
 use Illuminate\Console\Command;
 
 class CheckUserRoles extends Command
@@ -48,17 +50,28 @@ class CheckUserRoles extends Command
 
         $this->info("=== CHECKING USER: {$user->name} (ID: {$user->id}) ===");
         
-        // Check staff record
+        // Check staff record (prioritas: Staff -> Dokter -> Perawat)
         $staff = Staff::where('users', $user->id)->first();
+        $staffType = 'Staff';
         
         if (!$staff) {
-            $this->warn("No staff record found for user {$user->name}");
+            $staff = Dokter::where('users', $user->id)->first();
+            $staffType = 'Dokter';
+        }
+        
+        if (!$staff) {
+            $staff = perawat::where('users', $user->id)->first();
+            $staffType = 'Perawat';
+        }
+        
+        if (!$staff) {
+            $this->warn("No staff/dokter/perawat record found for user {$user->name}");
             $this->info("Roles will default to: Admin");
             return;
         }
 
-        $this->info("Staff ID: {$staff->id}");
-        $this->info("Staff Status Pegawaian: " . ($staff->status_pegawaian ?? 'NULL'));
+        $this->info("{$staffType} ID: {$staff->id}");
+        $this->info("{$staffType} Status Pegawaian: " . ($staff->status_pegawaian ?? 'NULL'));
 
         if (!$staff->status_pegawaian) {
             $this->warn("No status_pegawaian set for staff");
@@ -101,9 +114,22 @@ class CheckUserRoles extends Command
         $users = User::all();
         
         $this->table(
-            ['ID', 'Name', 'Username', 'Staff ID', 'Posker ID', 'Posker Name', 'Roles'],
+            ['ID', 'Name', 'Username', 'Staff Type', 'Staff ID', 'Posker ID', 'Posker Name', 'Roles'],
             $users->map(function ($user) {
+                // Cari staff record (prioritas: Staff -> Dokter -> Perawat)
                 $staff = Staff::where('users', $user->id)->first();
+                $staffType = 'Staff';
+                
+                if (!$staff) {
+                    $staff = Dokter::where('users', $user->id)->first();
+                    $staffType = 'Dokter';
+                }
+                
+                if (!$staff) {
+                    $staff = perawat::where('users', $user->id)->first();
+                    $staffType = 'Perawat';
+                }
+                
                 $posker = $staff && $staff->status_pegawaian ? 
                     Posker::with('roles')->find($staff->status_pegawaian) : null;
                 
@@ -113,6 +139,7 @@ class CheckUserRoles extends Command
                     $user->id,
                     $user->name,
                     $user->username,
+                    $staff ? $staffType : 'N/A',
                     $staff ? $staff->id : 'N/A',
                     $posker ? $posker->id : 'N/A',
                     $posker ? $posker->nama : 'N/A',
