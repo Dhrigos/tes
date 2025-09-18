@@ -401,7 +401,7 @@ class Pcare_Controller extends Controller
     {
         $BASE_URL = env('BPJS_BaseUrl');
         $SERVICE_NAME = env('BPJS_Pcare_Service');
-        $feature = 'kunjungan';
+        $feature = 'kunjungan/v1';
         $token = $this->token(); // ambil cons_id, secret_key, timestamp, headers
 
         try {
