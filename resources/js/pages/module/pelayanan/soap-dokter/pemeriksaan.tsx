@@ -348,14 +348,10 @@ export default function PemeriksaanSoapDokter() {
             status_bmi: soap_dokter?.status_bmi || (p?.status_bmi ? String(p.status_bmi) : ''),
             jenis_alergi: Array.isArray((soap_dokter as any)?.jenis_alergi)
                 ? ((soap_dokter as any).jenis_alergi as string[])
-                : Array.isArray(p?.jenis_alergi)
-                    ? (p?.jenis_alergi as string[])
-                    : [],
+                : coerceToStringArray(p?.jenis_alergi),
             alergi: Array.isArray((soap_dokter as any)?.alergi)
                 ? ((soap_dokter as any).alergi as string[])
-                : Array.isArray(p?.alergi)
-                    ? (p?.alergi as string[])
-                    : [],
+                : coerceToStringArray(p?.alergi),
             eye: soap_dokter?.eye || (p?.eye !== undefined && p?.eye !== null ? String(p.eye) : ''),
             verbal: soap_dokter?.verbal || (p?.verbal !== undefined && p?.verbal !== null ? String(p.verbal) : ''),
             motorik: soap_dokter?.motorik || (p?.motorik !== undefined && p?.motorik !== null ? String(p.motorik) : ''),
@@ -475,6 +471,7 @@ export default function PemeriksaanSoapDokter() {
         dtd: '',
         jumlah_diberikan: '',
         dtd_mode: 'NON DTD',
+        racik: false,
     });
 
     const [obatList, setObatList] = useState<Array<typeof obatData>>([]);
@@ -484,6 +481,7 @@ export default function PemeriksaanSoapDokter() {
     const [satuanBarang, setSatuanBarang] = useState<Array<{ id: number; nama: string }>>([]);
     const [loadingObat, setLoadingObat] = useState(false);
     const [editIndexObat, setEditIndexObat] = useState<number | null>(null);
+    const [obatMode, setObatMode] = useState<'RACIK' | 'NON_RACIK'>('NON_RACIK');
 
     const tambahObat = () => {
         // validation: require jumlah_diberikan; DTD optional
@@ -513,6 +511,7 @@ export default function PemeriksaanSoapDokter() {
             dtd: '',
             jumlah_diberikan: '',
             dtd_mode: 'NON DTD',
+            racik: obatMode === 'RACIK',
         });
     };
 
@@ -534,6 +533,7 @@ export default function PemeriksaanSoapDokter() {
                     dtd: '',
                     jumlah_diberikan: '',
                     dtd_mode: 'NON DTD',
+                    racik: obatMode === 'RACIK',
                 });
             } else if (editIndexObat > index) {
                 setEditIndexObat(editIndexObat - 1);
@@ -560,6 +560,7 @@ export default function PemeriksaanSoapDokter() {
             dtd: '',
             jumlah_diberikan: '',
             dtd_mode: 'NON DTD',
+            racik: obatMode === 'RACIK',
         });
     };
 
@@ -748,6 +749,59 @@ export default function PemeriksaanSoapDokter() {
     // Collapsible states for Assesmen sections
     const [openAssessment, setOpenAssessment] = useState(true);
     const [openIcd, setOpenIcd] = useState(true);
+    // Pencarian ICD
+    const [icd10Query, setIcd10Query] = useState('');
+    const [icd9Query, setIcd9Query] = useState('');
+
+    // Util: normalisasi nilai menjadi array string (mendukung string dipisah koma)
+    function coerceToStringArray(input: any): string[] {
+        try {
+            if (Array.isArray(input)) return (input as any[]).map((x) => String(x)).filter((x) => x && x.trim() !== '');
+            if (input === null || input === undefined) return [];
+            if (typeof input === 'string') return input.split(',').map((s) => s.trim()).filter((s) => s !== '');
+            // object non-array: coba ambil nilai-nilai string
+            if (typeof input === 'object') {
+                const vals = Object.values(input as any).map((x) => String(x));
+                return vals.filter((x) => x && x.trim() !== '');
+            }
+            return [];
+        } catch {
+            return [];
+        }
+    }
+
+    // Util: potong teks ke panjang tertentu lalu tambahkan ellipsis
+    function truncateText(text: string, maxLength: number): string {
+        try {
+            const t = String(text || '');
+            if (t.length <= maxLength) return t;
+            return t.slice(0, Math.max(0, maxLength)) + '...';
+        } catch {
+            return String(text || '');
+        }
+    }
+
+    const icd10Array = useMemo(() => {
+        const raw: any = (icd10 as any);
+        return Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+    }, [icd10]);
+
+    const icd9Array = useMemo(() => {
+        const raw: any = (icd9 as any);
+        return Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+    }, [icd9]);
+
+    const icd10Filtered = useMemo(() => {
+        if (!icd10Query) return icd10Array;
+        const q = icd10Query.toLowerCase();
+        return icd10Array.filter((it: any) => (it.kode || '').toLowerCase().includes(q) || (it.nama || '').toLowerCase().includes(q));
+    }, [icd10Array, icd10Query]);
+
+    const icd9Filtered = useMemo(() => {
+        if (!icd9Query) return icd9Array;
+        const q = icd9Query.toLowerCase();
+        return icd9Array.filter((it: any) => (it.kode || '').toLowerCase().includes(q) || (it.nama || '').toLowerCase().includes(q));
+    }, [icd9Array, icd9Query]);
     const [openTindakan, setOpenTindakan] = useState(true);
     const [openObat, setOpenObat] = useState(true);
 
@@ -1772,7 +1826,7 @@ export default function PemeriksaanSoapDokter() {
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle>
-                                                    Daftar Keluhan <span className="text-red-500">*</span>
+                                                    Daftar Keluhan
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>
@@ -1834,7 +1888,7 @@ export default function PemeriksaanSoapDokter() {
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
                                                 <CardTitle className="text-lg">
-                                                    Tanda Vital <span className="text-red-500">*</span>
+                                                    Tanda Vital
                                                 </CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenVitalGroup(!openVitalGroup)}>
                                                     {openVitalGroup ? '▼' : '▶'}
@@ -1849,7 +1903,7 @@ export default function PemeriksaanSoapDokter() {
                                                         <h3 className="text-md mb-3 font-medium">Tanda Vital</h3>
                                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                                             <div>
-                                                                <Label htmlFor="tensi">Tekanan Darah (mmHg)</Label>
+                                                                <Label htmlFor="tensi">Tekanan Darah (mmHg) <span className="text-red-500">*</span></Label>
                                                                 <div className="flex items-center gap-2">
                                                                     <Input
                                                                         ref={sistolRef as any}
@@ -1879,7 +1933,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 </div>
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="suhu">Suhu (°C)</Label>
+                                                                <Label htmlFor="suhu">Suhu (°C) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={suhuRef as any}
                                                                     id="suhu"
@@ -1893,7 +1947,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="nadi">Nadi (/menit)</Label>
+                                                                <Label htmlFor="nadi">Nadi (/menit) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={nadiRef as any}
                                                                     id="nadi"
@@ -1907,7 +1961,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="rr">RR (/menit)</Label>
+                                                                <Label htmlFor="rr">RR (/menit) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={rrRef as any}
                                                                     id="rr"
@@ -1924,7 +1978,7 @@ export default function PemeriksaanSoapDokter() {
 
                                                         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                                             <div>
-                                                                <Label htmlFor="spo2">SpO2 (%)</Label>
+                                                                <Label htmlFor="spo2">SpO2 (%) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={spo2Ref as any}
                                                                     id="spo2"
@@ -1938,7 +1992,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="lingkar_perut">Lingkar Perut (cm)</Label>
+                                                                <Label htmlFor="lingkar_perut">Lingkar Perut (cm) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={lingkarPerutRef as any}
                                                                     id="lingkar_perut"
@@ -1955,7 +2009,7 @@ export default function PemeriksaanSoapDokter() {
                                                         <h3 className="text-md mb-3 font-medium">Antropometri</h3>
                                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                                             <div>
-                                                                <Label htmlFor="tinggi">Tinggi Badan (cm)</Label>
+                                                                <Label htmlFor="tinggi">Tinggi Badan (cm) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={tinggiRef as any}
                                                                     id="tinggi"
@@ -1969,7 +2023,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="berat">Berat Badan (kg)</Label>
+                                                                <Label htmlFor="berat">Berat Badan (kg) <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     ref={beratRef as any}
                                                                     id="berat"
@@ -1983,11 +2037,11 @@ export default function PemeriksaanSoapDokter() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="nilai_bmi">Nilai BMI</Label>
+                                                                <Label htmlFor="nilai_bmi">Nilai BMI <span className="text-red-500">*</span></Label>
                                                                 <Input id="nilai_bmi" name="nilai_bmi" value={formData.nilai_bmi} readOnly />
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="status_bmi">Status BMI</Label>
+                                                                <Label htmlFor="status_bmi">Status BMI <span className="text-red-500">*</span></Label>
                                                                 <Input id="status_bmi" name="status_bmi" value={formData.status_bmi} readOnly />
                                                             </div>
                                                         </div>
@@ -1999,7 +2053,7 @@ export default function PemeriksaanSoapDokter() {
                                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                             {/* Jenis Alergi */}
                                                             <div>
-                                                                <Label htmlFor="jenis_alergi">Jenis Alergi</Label>
+                                                                <Label htmlFor="jenis_alergi">Jenis Alergi <span className="text-red-500">*</span></Label>
                                                                 <Popover>
                                                                     <PopoverTrigger asChild>
                                                                         <Button variant="outline" className="w-full justify-between">
@@ -2071,7 +2125,7 @@ export default function PemeriksaanSoapDokter() {
 
                                                             {/* Detail Alergi */}
                                                             <div>
-                                                                <Label htmlFor="alergi">Detail Alergi</Label>
+                                                                <Label htmlFor="alergi">Detail Alergi <span className="text-red-500">*</span></Label>
                                                                 <Popover>
                                                                     <PopoverTrigger asChild>
                                                                         <Button
@@ -2148,7 +2202,7 @@ export default function PemeriksaanSoapDokter() {
                                                         <h3 className="text-md mb-3 font-medium">Glasgow Coma Scale (GCS)</h3>
                                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                                             <div>
-                                                                <Label htmlFor="eye">Eye Response</Label>
+                                                                <Label htmlFor="eye">Eye Response <span className="text-red-500">*</span></Label>
                                                                 <Select
                                                                     value={String(formData.eye)}
                                                                     onValueChange={(value) => handleSelectChange('eye', value)}
@@ -2166,7 +2220,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 </Select>
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="verbal">Verbal Response</Label>
+                                                                <Label htmlFor="verbal">Verbal Response <span className="text-red-500">*</span></Label>
                                                                 <Select
                                                                     value={String(formData.verbal)}
                                                                     onValueChange={(value) => handleSelectChange('verbal', value)}
@@ -2184,7 +2238,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 </Select>
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="motorik">Motor Response</Label>
+                                                                <Label htmlFor="motorik">Motor Response <span className="text-red-500">*</span></Label>
                                                                 <Select
                                                                     value={String(formData.motorik)}
                                                                     onValueChange={(value) => handleSelectChange('motorik', value)}
@@ -2202,7 +2256,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 </Select>
                                                             </div>
                                                             <div>
-                                                                <Label htmlFor="kesadaran">Kesadaran</Label>
+                                                                <Label htmlFor="kesadaran">Kesadaran <span className="text-red-500">*</span></Label>
                                                                 <Input
                                                                     id="kesadaran"
                                                                     name="kesadaran"
@@ -2222,7 +2276,7 @@ export default function PemeriksaanSoapDokter() {
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
                                                 <CardTitle className="text-lg">
-                                                    Head To Toe (HTT) <span className="text-red-500">*</span>
+                                                    Head To Toe (HTT)
                                                 </CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenHtt(!openHtt)}>
                                                     {openHtt ? '▼' : '▶'}
@@ -2235,7 +2289,7 @@ export default function PemeriksaanSoapDokter() {
                                                     {/* HTT Input Controls: 2 selects, 1 text, Add button */}
                                                     <div className="grid grid-cols-12 items-end gap-4">
                                                         <div className="col-span-12 sm:col-span-3">
-                                                            <Label className="text-sm">Pemeriksaan</Label>
+                                                            <Label className="text-sm">Pemeriksaan <span className="text-red-500">*</span></Label>
                                                             <Select value={selectedHtt} onValueChange={handleHttChange}>
                                                                 <SelectTrigger className="mt-1 text-sm">
                                                                     <SelectValue placeholder="-- Pilih Pemeriksaan --" />
@@ -2251,7 +2305,7 @@ export default function PemeriksaanSoapDokter() {
                                                         </div>
 
                                                         <div className="col-span-12 sm:col-span-3">
-                                                            <Label className="text-sm">Sub Pemeriksaan</Label>
+                                                            <Label className="text-sm">Sub Pemeriksaan <span className="text-red-500">*</span></Label>
                                                             <Select
                                                                 value={selectedSubHtt}
                                                                 onValueChange={(v) => setSelectedSubHtt(v)}
@@ -2277,7 +2331,7 @@ export default function PemeriksaanSoapDokter() {
                                                         </div>
 
                                                         <div className="col-span-12 sm:col-span-4">
-                                                            <Label className="text-sm">Detail</Label>
+                                                            <Label className="text-sm">Detail <span className="text-red-500">*</span></Label>
                                                             <Input
                                                                 className="mt-1"
                                                                 placeholder="Tulis detail pemeriksaan..."
@@ -2681,7 +2735,7 @@ export default function PemeriksaanSoapDokter() {
                                         <Card>
                                             <CardHeader className="flex flex-row items-center justify-between">
                                                 <CardTitle className="text-lg">
-                                                    Assessment <span className="text-red-500">*</span>
+                                                    Assessment
                                                 </CardTitle>
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpenAssessment(!openAssessment)}>
                                                     {openAssessment ? '▼' : '▶'}
@@ -2691,7 +2745,7 @@ export default function PemeriksaanSoapDokter() {
                                                 <div className={`transition-all duration-300 ease-in-out`}>
                                                     <CardContent className="space-y-4">
                                                         <div>
-                                                            <Label htmlFor="assesmen">Diagnosis / Assessment</Label>
+                                                            <Label htmlFor="assesmen">Diagnosis / Assessment <span className="text-red-500">*</span></Label>
                                                             <div className="mt-1">
                                                                 <RichTextEditor
                                                                     id="assesmen"
@@ -2723,7 +2777,7 @@ export default function PemeriksaanSoapDokter() {
                                                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                                                             {/* ICD 10 Column */}
                                                             <div className="space-y-4">
-                                                                <h3 className="border-b pb-2 text-lg font-medium">Diagnosa (ICD 10)</h3>
+                                                                <h3 className="border-b pb-2 text-lg font-medium">Diagnosa (ICD 10) <span className="text-red-500">*</span></h3>
 
                                                                 {/* ICD 10 Input Form */}
                                                                 <div className="space-y-3">
@@ -2733,7 +2787,7 @@ export default function PemeriksaanSoapDokter() {
                                                                             <Select
                                                                                 value={icdData.kode_icd10 || ''}
                                                                                 onValueChange={(value) => {
-                                                                                    const selectedIcd = icd10.find((icd) => icd.kode === value);
+                                                                                    const selectedIcd = (icd10Filtered as any[]).find((icd: any) => icd.kode === value);
                                                                                     setIcdData((prev) => ({
                                                                                         ...prev,
                                                                                         kode_icd10: value,
@@ -2741,18 +2795,43 @@ export default function PemeriksaanSoapDokter() {
                                                                                     }));
                                                                                 }}
                                                                             >
-                                                                                <SelectTrigger className="text-sm">
-                                                                                    <SelectValue placeholder="-- Pilih --" />
+                                                                                <SelectTrigger className="text-sm w-full">
+                                                                                    {icdData.kode_icd10 ? (
+                                                                                        <div className="flex w-full items-center gap-3" title={`${icdData.kode_icd10} - ${icdData.nama_icd10 || ''}`}>
+                                                                                            <span className="font-mono text-xs text-muted-foreground w-16 shrink-0 truncate">
+                                                                                                {icdData.kode_icd10}
+                                                                                            </span>
+                                                                                            <span className="truncate">
+                                                                                                {truncateText(icdData.nama_icd10 || '', 20)}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <span className="text-muted-foreground">-- Pilih --</span>
+                                                                                    )}
                                                                                 </SelectTrigger>
-                                                                                <SelectContent>
-                                                                                    {(icd10 || []).slice(0, 10).map((item) => (
-                                                                                        <SelectItem key={item.kode} value={item.kode}>
-                                                                                            {item.kode} -{' '}
-                                                                                            {item.nama.length > 25
-                                                                                                ? item.nama.substring(0, 25) + '...'
-                                                                                                : item.nama}
-                                                                                        </SelectItem>
-                                                                                    ))}
+                                                                                <SelectContent className="max-h-80 overflow-auto text-sm">
+                                                                                    <div className="p-2">
+                                                                                        <input
+                                                                                            value={icd10Query}
+                                                                                            onChange={(e) => setIcd10Query(e.target.value)}
+                                                                                            placeholder="Cari kode/nama ICD10..."
+                                                                                            className="w-full rounded border px-2 py-1 text-sm"
+                                                                                        />
+                                                                                        <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                                                                                            <span>Ditemukan {Array.isArray(icd10Filtered) ? icd10Filtered.length : 0} kode</span>
+                                                                                            <button type="button" className="underline" onClick={() => setIcd10Query('')}>Reset</button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    {(icd10Filtered as any[])
+                                                                                        .slice(0, 200)
+                                                                                        .map((item: any) => (
+                                                                                            <SelectItem key={item.kode} value={item.kode}>
+                                                                                                <div className="flex items-center gap-3">
+                                                                                                    <span className="font-mono text-xs text-muted-foreground w-20 truncate">{item.kode}</span>
+                                                                                                    <span className="truncate">{item.nama}</span>
+                                                                                                </div>
+                                                                                            </SelectItem>
+                                                                                        ))}
                                                                                 </SelectContent>
                                                                             </Select>
                                                                         </div>
@@ -2765,10 +2844,10 @@ export default function PemeriksaanSoapDokter() {
                                                                                     setIcdData((prev) => ({ ...prev, priority_icd10: value }))
                                                                                 }
                                                                             >
-                                                                                <SelectTrigger className="text-sm">
+                                                                                <SelectTrigger className="text-sm min-w-[140px]">
                                                                                     <SelectValue placeholder="-- Pilih --" />
                                                                                 </SelectTrigger>
-                                                                                <SelectContent>
+                                                                                <SelectContent className="z-50">
                                                                                     <SelectItem value="Primary">Primary</SelectItem>
                                                                                     <SelectItem value="Secondary">Secondary</SelectItem>
                                                                                 </SelectContent>
@@ -2867,7 +2946,7 @@ export default function PemeriksaanSoapDokter() {
                                                                             <Select
                                                                                 value={icdData.kode_icd9 || ''}
                                                                                 onValueChange={(value) => {
-                                                                                    const selectedIcd = icd9.find((icd) => icd.kode === value);
+                                                                                    const selectedIcd = (icd9Filtered as any[]).find((icd: any) => icd.kode === value);
                                                                                     setIcdData((prev) => ({
                                                                                         ...prev,
                                                                                         kode_icd9: value,
@@ -2878,12 +2957,25 @@ export default function PemeriksaanSoapDokter() {
                                                                                 <SelectTrigger className="text-sm">
                                                                                     <SelectValue placeholder="-- Pilih --" />
                                                                                 </SelectTrigger>
-                                                                                <SelectContent>
-                                                                                    {(icd9 || []).slice(0, 200).map((item) => (
-                                                                                        <SelectItem key={item.kode} value={item.kode}>
-                                                                                            {item.kode} - {item.nama}
-                                                                                        </SelectItem>
-                                                                                    ))}
+                                                                                <SelectContent className="max-h-80 overflow-auto text-sm">
+                                                                                    <div className="p-2">
+                                                                                        <input
+                                                                                            value={icd9Query}
+                                                                                            onChange={(e) => setIcd9Query(e.target.value)}
+                                                                                            placeholder="Cari kode/nama..."
+                                                                                            className="w-full rounded border px-2 py-1 text-sm"
+                                                                                        />
+                                                                                    </div>
+                                                                                    {(icd9Filtered as any[])
+                                                                                        .slice(0, 200)
+                                                                                        .map((item: any) => (
+                                                                                            <SelectItem key={item.kode} value={item.kode}>
+                                                                                                <div className="flex items-center gap-3">
+                                                                                                    <span className="font-mono text-xs text-muted-foreground w-20 truncate">{item.kode}</span>
+                                                                                                    <span className="truncate">{item.nama}</span>
+                                                                                                </div>
+                                                                                            </SelectItem>
+                                                                                        ))}
                                                                                 </SelectContent>
                                                                             </Select>
                                                                         </div>
@@ -3172,12 +3264,12 @@ export default function PemeriksaanSoapDokter() {
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle className="text-lg">
-                                                    Plan dan Edukasi <span className="text-red-500">*</span>
+                                                    Plan dan Edukasi
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent className="space-y-4">
                                                 <div>
-                                                    <Label htmlFor="plan">Plan dan Edukasi</Label>
+                                                    <Label htmlFor="plan">Plan dan Edukasi <span className="text-red-500">*</span></Label>
                                                     <div className="mt-1">
                                                         <RichTextEditor
                                                             id="plan"
@@ -3317,6 +3409,22 @@ export default function PemeriksaanSoapDokter() {
                                                 className={`overflow-hidden transition-all duration-300 ease-in-out ${openObat ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
                                             >
                                                 <CardContent className="space-y-4">
+                                                    {/* Mode Racik / Non-Racik */}
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                                        <div>
+                                                            <Label>Jenis Resep</Label>
+                                                            <Select value={obatMode} onValueChange={(v: any) => setObatMode(v)}>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Pilih jenis" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="NON_RACIK">Non Racik</SelectItem>
+                                                                    <SelectItem value="RACIK">Racik</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    </div>
+
                                                     {/* Medicine Selection Row */}
                                                     <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                                                         <div>
@@ -3346,113 +3454,7 @@ export default function PemeriksaanSoapDokter() {
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
-                                                        <div>
-                                                            <Label htmlFor="instruksi">Instruksi</Label>
-                                                            <Select
-                                                                value={obatData.instruksi}
-                                                                onValueChange={(value) => setObatData((prev) => ({ ...prev, instruksi: value }))}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="-- Pilih Instruksi --" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {instruksiObat.map((instruksi) => (
-                                                                        <SelectItem key={instruksi.id} value={instruksi.nama}>
-                                                                            {instruksi.nama}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                        <div>
-                                                            <Label htmlFor="jumlah_diberikan">Jumlah Diberikan</Label>
-                                                            <div className="flex items-center space-x-2">
-                                                                <Input
-                                                                    id="jumlah_diberikan"
-                                                                    name="jumlah_diberikan"
-                                                                    type="number"
-                                                                    value={obatData.jumlah_diberikan}
-                                                                    onChange={(e) =>
-                                                                        setObatData((prev) => ({ ...prev, jumlah_diberikan: e.target.value }))
-                                                                    }
-                                                                    placeholder="0"
-                                                                    className="w-28"
-                                                                />
-                                                                <Select
-                                                                    value={obatData.satuan_gudang}
-                                                                    onValueChange={(value) =>
-                                                                        setObatData((prev) => ({ ...prev, satuan_gudang: value }))
-                                                                    }
-                                                                >
-                                                                    <SelectTrigger className="w-40">
-                                                                        <SelectValue placeholder="Satuan" />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {satuanBarang.map((satuan) => (
-                                                                            <SelectItem key={satuan.id} value={satuan.nama}>
-                                                                                {satuan.nama}
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Signa + Satuan + Waktu + DTD Row */}
-                                                    <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                                                        {/* Signa */}
-
-                                                        <div>
-                                                            <Label>Signa</Label>
-                                                            <div className="flex items-center space-x-2">
-                                                                <Input
-                                                                    type="number"
-                                                                    value={obatData.signa.split('x')[0] || ''}
-                                                                    onChange={(e) => {
-                                                                        const parts = obatData.signa.split('x');
-                                                                        const newSigna = `${e.target.value || 0}x${parts[1] || 0}`;
-                                                                        setObatData((prev) => ({ ...prev, signa: newSigna }));
-                                                                    }}
-                                                                    placeholder="1"
-                                                                    className="w-20"
-                                                                />
-                                                                <span className="font-bold">x</span>
-                                                                <Input
-                                                                    type="number"
-                                                                    value={obatData.signa.split('x')[1] || ''}
-                                                                    onChange={(e) => {
-                                                                        const parts = obatData.signa.split('x');
-                                                                        const newSigna = `${parts[0] || 0}x${e.target.value || 0}`;
-                                                                        setObatData((prev) => ({ ...prev, signa: newSigna }));
-                                                                    }}
-                                                                    placeholder="3"
-                                                                    className="w-20"
-                                                                />
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Satuan signa */}
-                                                        <div>
-                                                            <Label htmlFor="satuan_gudang">Satuan signa</Label>
-                                                            <Select
-                                                                value={obatData.satuan_signa}
-                                                                onValueChange={(value) => setObatData((prev) => ({ ...prev, satuan_signa: value }))}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="Satuan signa" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {satuanBarang.map((satuan) => (
-                                                                        <SelectItem key={satuan.id} value={satuan.nama}>
-                                                                            {satuan.nama}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        {/* Waktu */}
+                                                        {/* Instruksi makan dipindah ke kolom 3 */}
                                                         <div>
                                                             <Label htmlFor="penggunaan">Instruksi makan</Label>
                                                             <Select
@@ -3473,32 +3475,143 @@ export default function PemeriksaanSoapDokter() {
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
-
-                                                        {/* DTD */}
                                                         <div>
-                                                            <Label>DTD</Label>
-                                                            <div className="flex items-center space-x-2">
+                                                            <Label htmlFor="jumlah_diberikan">Jumlah Diberikan</Label>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <Input
+                                                                    id="jumlah_diberikan"
+                                                                    name="jumlah_diberikan"
+                                                                    type="number"
+                                                                    value={obatData.jumlah_diberikan}
+                                                                    onChange={(e) =>
+                                                                        setObatData((prev) => ({ ...prev, jumlah_diberikan: e.target.value }))
+                                                                    }
+                                                                    placeholder="0"
+                                                                    className="w-36 md:w-48"
+                                                                />
                                                                 <Select
-                                                                    value={obatData.dtd_mode}
-                                                                    onValueChange={(value) => setObatData((prev) => ({ ...prev, dtd_mode: value }))}
+                                                                    value={obatData.satuan_gudang}
+                                                                    onValueChange={(value) =>
+                                                                        setObatData((prev) => ({ ...prev, satuan_gudang: value }))
+                                                                    }
                                                                 >
-                                                                    <SelectTrigger className="w-32">
-                                                                        <SelectValue placeholder="Pilih" />
+                                                                    <SelectTrigger className="w-44 md:w-56">
+                                                                        <SelectValue placeholder="Satuan" />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
-                                                                        <SelectItem value="DTD">DTD</SelectItem>
-                                                                        <SelectItem value="NON DTD">Non DTD</SelectItem>
+                                                                        {satuanBarang.map((satuan) => (
+                                                                            <SelectItem key={satuan.id} value={satuan.nama}>
+                                                                                {satuan.nama}
+                                                                            </SelectItem>
+                                                                        ))}
                                                                     </SelectContent>
                                                                 </Select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Signa + Satuan + Waktu + DTD Row */}
+                                                    <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                                                        {/* Signa */}
+
+                                                        <div>
+                                                            <Label>Signa</Label>
+                                                            <div className="flex flex-wrap items-center gap-2">
                                                                 <Input
-                                                                    id="dtd"
-                                                                    name="dtd"
-                                                                    value={obatData.dtd}
-                                                                    onChange={(e) => setObatData((prev) => ({ ...prev, dtd: e.target.value }))}
-                                                                    placeholder={obatData.dtd_mode === 'DTD' ? 'Contoh: No. 10' : 'Contoh: No. 10'}
-                                                                    className="flex-1"
+                                                                    type="number"
+                                                                    value={obatData.signa.split('x')[0] || ''}
+                                                                    onChange={(e) => {
+                                                                        const parts = obatData.signa.split('x');
+                                                                        const newSigna = `${e.target.value || 0}x${parts[1] || 0}`;
+                                                                        setObatData((prev) => ({ ...prev, signa: newSigna }));
+                                                                    }}
+                                                                    placeholder="1"
+                                                                    className="w-24 md:w-28"
+                                                                />
+                                                                <span className="font-bold">x</span>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={obatData.signa.split('x')[1] || ''}
+                                                                    onChange={(e) => {
+                                                                        const parts = obatData.signa.split('x');
+                                                                        const newSigna = `${parts[0] || 0}x${e.target.value || 0}`;
+                                                                        setObatData((prev) => ({ ...prev, signa: newSigna }));
+                                                                    }}
+                                                                    placeholder="3"
+                                                                    className="w-24 md:w-28"
                                                                 />
                                                             </div>
+                                                        </div>
+
+                                                        {/* Satuan signa */}
+                                                        <div>
+                                                            <Label htmlFor="satuan_gudang">Satuan signa</Label>
+                                                            <Select
+                                                                value={obatData.satuan_signa}
+                                                                onValueChange={(value) => setObatData((prev) => ({ ...prev, satuan_signa: value }))}
+                                                            >
+                                                                <SelectTrigger className="w-60 md:w-72">
+                                                                    <SelectValue placeholder="Satuan signa" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {satuanBarang.map((satuan) => (
+                                                                        <SelectItem key={satuan.id} value={satuan.nama}>
+                                                                            {satuan.nama}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+
+                                                        {/* Instruksi (Racik) + DTD (Racik) digabung dalam satu kolom */}
+                                                        <div className="space-y-3">
+                                                            {obatMode === 'RACIK' && (
+                                                                <div>
+                                                                    <Label htmlFor="instruksi">Instruksi</Label>
+                                                                    <Select
+                                                                        value={obatData.instruksi}
+                                                                        onValueChange={(value) => setObatData((prev) => ({ ...prev, instruksi: value }))}
+                                                                    >
+                                                                        <SelectTrigger>
+                                                                            <SelectValue placeholder="-- Pilih Instruksi --" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {instruksiObat.map((instruksi) => (
+                                                                                <SelectItem key={instruksi.id} value={instruksi.nama}>
+                                                                                    {instruksi.nama}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                            )}
+                                                            {obatMode === 'RACIK' && (
+                                                                <div>
+                                                                    <Label>DTD</Label>
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <Select
+                                                                            value={obatData.dtd_mode}
+                                                                            onValueChange={(value) => setObatData((prev) => ({ ...prev, dtd_mode: value }))}
+                                                                        >
+                                                                            <SelectTrigger className="w-32">
+                                                                                <SelectValue placeholder="Pilih" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="DTD">DTD</SelectItem>
+                                                                                <SelectItem value="NON DTD">Non DTD</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <Input
+                                                                            id="dtd"
+                                                                            name="dtd"
+                                                                            value={obatData.dtd}
+                                                                            onChange={(e) => setObatData((prev) => ({ ...prev, dtd: e.target.value }))}
+                                                                            placeholder={obatData.dtd_mode === 'DTD' ? 'Contoh: No. 10' : 'Contoh: No. 10'}
+                                                                            className="flex-1"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -3727,86 +3840,88 @@ export default function PemeriksaanSoapDokter() {
             </div>
 
             {/* Tooth Condition Modal */}
-            {showToothModal && selectedTooth && (
-                <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
-                    <div className="w-full max-w-md rounded-lg bg-white p-6">
-                        <h3 className="mb-4 text-lg font-bold">Tooth {selectedTooth} - Select Condition</h3>
+            {
+                showToothModal && selectedTooth && (
+                    <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+                        <div className="w-full max-w-md rounded-lg bg-white p-6">
+                            <h3 className="mb-4 text-lg font-bold">Tooth {selectedTooth} - Select Condition</h3>
 
-                        <div className="mb-6 space-y-3">
-                            <div className="flex items-center">
-                                <input
-                                    type="radio"
-                                    id="condition-normal"
-                                    name="toothCondition"
-                                    value=""
-                                    checked={!toothCondition}
-                                    onChange={() => setToothCondition('')}
-                                    className="mr-2"
-                                />
-                                <label htmlFor="condition-normal" className="flex items-center">
-                                    <img src="/img/odo/seri.png" alt="Normal" className="mr-2 h-8 w-8" />
-                                    <span>Normal</span>
-                                </label>
+                            <div className="mb-6 space-y-3">
+                                <div className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        id="condition-normal"
+                                        name="toothCondition"
+                                        value=""
+                                        checked={!toothCondition}
+                                        onChange={() => setToothCondition('')}
+                                        className="mr-2"
+                                    />
+                                    <label htmlFor="condition-normal" className="flex items-center">
+                                        <img src="/img/odo/seri.png" alt="Normal" className="mr-2 h-8 w-8" />
+                                        <span>Normal</span>
+                                    </label>
+                                </div>
+
+                                <div className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        id="condition-decayed"
+                                        name="toothCondition"
+                                        value="Decayed"
+                                        checked={toothCondition === 'Decayed'}
+                                        onChange={() => setToothCondition('Decayed')}
+                                        className="mr-2"
+                                    />
+                                    <label htmlFor="condition-decayed" className="flex items-center">
+                                        <img src="/img/odo/CAR.png" alt="Decayed" className="mr-2 h-8 w-8" />
+                                        <span>Decayed (Karies)</span>
+                                    </label>
+                                </div>
+
+                                <div className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        id="condition-missing"
+                                        name="toothCondition"
+                                        value="Missing"
+                                        checked={toothCondition === 'Missing'}
+                                        onChange={() => setToothCondition('Missing')}
+                                        className="mr-2"
+                                    />
+                                    <label htmlFor="condition-missing" className="flex items-center">
+                                        <img src="/img/odo/MIS.png" alt="Missing" className="mr-2 h-8 w-8" />
+                                        <span>Missing (Hilang)</span>
+                                    </label>
+                                </div>
+
+                                <div className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        id="condition-filled"
+                                        name="toothCondition"
+                                        value="Filled"
+                                        checked={toothCondition === 'Filled'}
+                                        onChange={() => setToothCondition('Filled')}
+                                        className="mr-2"
+                                    />
+                                    <label htmlFor="condition-filled" className="flex items-center">
+                                        <img src="/img/odo/CRT.png" alt="Filled" className="mr-2 h-8 w-8" />
+                                        <span>Filled (Tumpatan)</span>
+                                    </label>
+                                </div>
                             </div>
 
-                            <div className="flex items-center">
-                                <input
-                                    type="radio"
-                                    id="condition-decayed"
-                                    name="toothCondition"
-                                    value="Decayed"
-                                    checked={toothCondition === 'Decayed'}
-                                    onChange={() => setToothCondition('Decayed')}
-                                    className="mr-2"
-                                />
-                                <label htmlFor="condition-decayed" className="flex items-center">
-                                    <img src="/img/odo/CAR.png" alt="Decayed" className="mr-2 h-8 w-8" />
-                                    <span>Decayed (Karies)</span>
-                                </label>
+                            <div className="flex justify-end space-x-2">
+                                <Button variant="outline" onClick={() => setShowToothModal(false)}>
+                                    Cancel
+                                </Button>
+                                <Button onClick={saveToothCondition}>Save</Button>
                             </div>
-
-                            <div className="flex items-center">
-                                <input
-                                    type="radio"
-                                    id="condition-missing"
-                                    name="toothCondition"
-                                    value="Missing"
-                                    checked={toothCondition === 'Missing'}
-                                    onChange={() => setToothCondition('Missing')}
-                                    className="mr-2"
-                                />
-                                <label htmlFor="condition-missing" className="flex items-center">
-                                    <img src="/img/odo/MIS.png" alt="Missing" className="mr-2 h-8 w-8" />
-                                    <span>Missing (Hilang)</span>
-                                </label>
-                            </div>
-
-                            <div className="flex items-center">
-                                <input
-                                    type="radio"
-                                    id="condition-filled"
-                                    name="toothCondition"
-                                    value="Filled"
-                                    checked={toothCondition === 'Filled'}
-                                    onChange={() => setToothCondition('Filled')}
-                                    className="mr-2"
-                                />
-                                <label htmlFor="condition-filled" className="flex items-center">
-                                    <img src="/img/odo/CRT.png" alt="Filled" className="mr-2 h-8 w-8" />
-                                    <span>Filled (Tumpatan)</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end space-x-2">
-                            <Button variant="outline" onClick={() => setShowToothModal(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={saveToothCondition}>Save</Button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
             {/* Confirm Dialog */}
             <AlertDialog
                 open={confirmOpen}
@@ -3833,6 +3948,6 @@ export default function PemeriksaanSoapDokter() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </AppLayout>
+        </AppLayout >
     );
 }
