@@ -409,7 +409,7 @@ class Pcare_Controller extends Controller
 
             // Request ke BPJS
             $response = Http::withHeaders(array_merge(
-                ['Content-Type' => 'application/json; charset=utf-8'],
+                ['Content-Type' => 'text/plain; charset=utf-8'],
                 $token['headers']
             ))->post("{$BASE_URL}/{$SERVICE_NAME}/{$feature}", $data);
 
