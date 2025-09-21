@@ -5,7 +5,23 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, AlertCircle, CheckCircle, Clock, FileText, Plus, Printer, Search, Stethoscope, UserCheck, UserIcon, Users, X } from 'lucide-react';
+import {
+    Activity,
+    AlertCircle,
+    CheckCircle,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    FileText,
+    Plus,
+    Printer,
+    Search,
+    Stethoscope,
+    UserCheck,
+    UserIcon,
+    Users,
+    X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast, Toaster } from 'sonner';
 
@@ -165,6 +181,11 @@ const PendaftaranDashboard = () => {
 
     // Loading state
     const [loading, setLoading] = useState(false);
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [totalItems, setTotalItems] = useState(0);
 
     // Fetch data on mount
     useEffect(() => {
@@ -337,6 +358,7 @@ const PendaftaranDashboard = () => {
                 setPendaftaranData(data.data.pendaftaran || []);
                 setRekapDokter(data.data.rekap_dokter || []);
                 setStatistics(data.data.statistics || statistics);
+                setTotalItems(data.data.pendaftaran?.length || 0);
             } else {
                 console.error('API returned error:', data.message);
             }
@@ -582,6 +604,59 @@ const PendaftaranDashboard = () => {
         setSelectedDokter('');
     };
 
+    // Pagination functions
+    const getTotalPages = () => Math.ceil(totalItems / itemsPerPage);
+
+    const getCurrentPageData = () => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return pendaftaranData.slice(startIndex, endIndex);
+    };
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handleItemsPerPageChange = (newItemsPerPage: number) => {
+        setItemsPerPage(newItemsPerPage);
+        setCurrentPage(1); // Reset to first page when changing items per page
+    };
+
+    const getPageNumbers = () => {
+        const totalPages = getTotalPages();
+        const pages = [];
+        const maxVisiblePages = 5;
+
+        if (totalPages <= maxVisiblePages) {
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+        } else {
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (startPage > 1) {
+                pages.push(1);
+                if (startPage > 2) {
+                    pages.push('...');
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                pages.push(i);
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    pages.push('...');
+                }
+                pages.push(totalPages);
+            }
+        }
+
+        return pages;
+    };
+
     const buildTicketHtml = (item: PendaftaranData) => {
         return `
             <div id="printArea">
@@ -658,7 +733,7 @@ const PendaftaranDashboard = () => {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             {/* Main Content */}
-            <div className="px-4 py-6 sm:px-6 lg:px-8">
+            <div className="space-y-6 p-6">
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                     <Card>
@@ -723,8 +798,8 @@ const PendaftaranDashboard = () => {
                 </div>
 
                 {/* Data Table */}
-                <Card className="mt-6">
-                    <CardHeader>
+                <Card className="rounded-2xl shadow-md">
+                    <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Data Pendaftaran Hari Ini</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -748,8 +823,8 @@ const PendaftaranDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {pendaftaranData.length > 0 ? (
-                                            pendaftaranData.map((item) => (
+                                        {getCurrentPageData().length > 0 ? (
+                                            getCurrentPageData().map((item) => (
                                                 <tr key={item.id} className="border-b hover:bg-muted/50">
                                                     <td className="p-2">
                                                         <div className="flex flex-col">
@@ -913,6 +988,117 @@ const PendaftaranDashboard = () => {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+
+                        {/* Pagination */}
+                        {totalItems > 0 && (
+                            <div className="flex items-center justify-between border-t px-6 py-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="items-per-page" className="text-sm">
+                                            Tampilkan:
+                                        </Label>
+                                        <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
+                                            <SelectTrigger id="items-per-page" className="w-20">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="5">5</SelectItem>
+                                                <SelectItem value="10">10</SelectItem>
+                                                <SelectItem value="20">20</SelectItem>
+                                                <SelectItem value="50">50</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <span className="text-sm text-gray-500">
+                                        Halaman {currentPage} dari {getTotalPages()}
+                                    </span>
+                                </div>
+
+                                {getTotalPages() > 1 && (
+                                    <div className="flex items-center space-x-2">
+                                        {/* Previous Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="flex items-center gap-1"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                            Sebelumnya
+                                        </Button>
+
+                                        {/* Page Numbers */}
+                                        <div className="flex items-center space-x-1">
+                                            {/* First page */}
+                                            {currentPage > 3 && (
+                                                <>
+                                                    <Button variant="outline" size="sm" onClick={() => handlePageChange(1)} className="h-8 w-8 p-0">
+                                                        1
+                                                    </Button>
+                                                    {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
+                                                </>
+                                            )}
+
+                                            {/* Pages around current page */}
+                                            {Array.from({ length: Math.min(5, getTotalPages()) }, (_, i) => {
+                                                let pageNumber: number;
+                                                if (getTotalPages() <= 5) {
+                                                    pageNumber = i + 1;
+                                                } else if (currentPage <= 3) {
+                                                    pageNumber = i + 1;
+                                                } else if (currentPage >= getTotalPages() - 2) {
+                                                    pageNumber = getTotalPages() - 4 + i;
+                                                } else {
+                                                    pageNumber = currentPage - 2 + i;
+                                                }
+
+                                                if (pageNumber < 1 || pageNumber > getTotalPages()) return null;
+
+                                                return (
+                                                    <Button
+                                                        key={pageNumber}
+                                                        variant={pageNumber === currentPage ? 'default' : 'outline'}
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(pageNumber)}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        {pageNumber}
+                                                    </Button>
+                                                );
+                                            })}
+
+                                            {/* Last page */}
+                                            {currentPage < getTotalPages() - 2 && (
+                                                <>
+                                                    {currentPage < getTotalPages() - 3 && <span className="px-2 text-gray-500">...</span>}
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(getTotalPages())}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        {getTotalPages()}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Next Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === getTotalPages()}
+                                            className="flex items-center gap-1"
+                                        >
+                                            Selanjutnya
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </CardContent>

@@ -2,13 +2,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { Bell, CheckCircle, Edit, FileText, Search } from 'lucide-react';
+import { Bell, CheckCircle, ChevronLeft, ChevronRight, Edit, FileText, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -84,6 +86,10 @@ export default function PelayananSoPerawat() {
     const [selectedPasien, setSelectedPasien] = useState<PelayananData | null>(null);
     const [dokterList, setDokterList] = useState<Dokter[]>([]);
     const [selectedDokter, setSelectedDokter] = useState<string>('');
+
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     // Sync state when Inertia props change
     useEffect(() => {
@@ -194,6 +200,29 @@ export default function PelayananSoPerawat() {
             (p.nomor_register?.toLowerCase() || '').includes(s)
         );
     });
+
+    // Pagination functions
+    const getTotalPages = () => Math.ceil(filteredPelayanan.length / itemsPerPage);
+
+    const getCurrentPageData = () => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return filteredPelayanan.slice(startIndex, endIndex);
+    };
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handleItemsPerPageChange = (newItemsPerPage: number) => {
+        setItemsPerPage(newItemsPerPage);
+        setCurrentPage(1); // Reset to first page when changing items per page
+    };
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
 
     const getStatusBadge = (row: PelayananData) => {
         switch (row.tindakan_button) {
@@ -306,48 +335,165 @@ export default function PelayananSoPerawat() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="text-center">Status</TableHead>
-                                    <TableHead>No.RM</TableHead>
-                                    <TableHead>Pasien</TableHead>
-                                    <TableHead>No.Antrian</TableHead>
-                                    <TableHead>No.Registrasi</TableHead>
-                                    <TableHead>Tanggal Kunjungan</TableHead>
-                                    <TableHead>Poli</TableHead>
-                                    <TableHead>Dokter</TableHead>
-                                    <TableHead className="text-center">Tindakan</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredPelayanan.length > 0 ? (
-                                    filteredPelayanan.map((row) => (
-                                        <TableRow key={row.id}>
-                                            <TableCell className="text-center">{getStatusBadge(row)}</TableCell>
-                                            <TableCell className="font-mono">{row.nomor_rm}</TableCell>
-                                            <TableCell>{row.pasien?.nama}</TableCell>
-                                            <TableCell className="text-center font-mono">{row.pendaftaran?.antrian}</TableCell>
-                                            <TableCell className="text-center font-mono">{row.nomor_register}</TableCell>
-                                            <TableCell className="text-center">
-                                                {row.tanggal_kujungan ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id }) : '-'}
-                                            </TableCell>
-                                            <TableCell>{row.poli?.nama}</TableCell>
-                                            <TableCell>{row.dokter?.namauser?.name || row.dokter?.nama || 'Tidak ada data'}</TableCell>
-                                            <TableCell className="text-center">
-                                                <div className="flex flex-col items-center gap-2">{getActionButtons(row)}</div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={9} className="py-8 text-center text-gray-500">
-                                            {loading ? 'Memuat data...' : 'Tidak ada data pelayanan'}
-                                        </TableCell>
-                                    </TableRow>
+                        {loading ? (
+                            <div className="p-8 text-center text-muted-foreground">Memuat data...</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="p-2 text-center text-sm font-semibold">Status</th>
+                                            <th className="p-2 text-left text-sm font-semibold">No.RM</th>
+                                            <th className="p-2 text-left text-sm font-semibold">Pasien</th>
+                                            <th className="p-2 text-center text-sm font-semibold">No.Antrian</th>
+                                            <th className="p-2 text-center text-sm font-semibold">No.Registrasi</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Tanggal Kunjungan</th>
+                                            <th className="p-2 text-left text-sm font-semibold">Poli</th>
+                                            <th className="p-2 text-left text-sm font-semibold">Dokter</th>
+                                            <th className="p-2 text-center text-sm font-semibold">Tindakan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {getCurrentPageData().length > 0 ? (
+                                            getCurrentPageData().map((row) => (
+                                                <tr key={row.id} className="border-b hover:bg-muted/50">
+                                                    <td className="p-2 text-center">{getStatusBadge(row)}</td>
+                                                    <td className="p-2 font-mono">{row.nomor_rm}</td>
+                                                    <td className="p-2">{row.pasien?.nama}</td>
+                                                    <td className="p-2 text-center font-mono">{row.pendaftaran?.antrian}</td>
+                                                    <td className="p-2 text-center font-mono">{row.nomor_register}</td>
+                                                    <td className="p-2 text-center">
+                                                        {row.tanggal_kujungan ? format(new Date(row.tanggal_kujungan), 'dd-MM-yyyy', { locale: id }) : '-'}
+                                                    </td>
+                                                    <td className="p-2">{row.poli?.nama}</td>
+                                                    <td className="p-2">{row.dokter?.namauser?.name || row.dokter?.nama || 'Tidak ada data'}</td>
+                                                    <td className="p-2 text-center">
+                                                        <div className="flex flex-col items-center gap-2">{getActionButtons(row)}</div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                                                    Tidak ada data pelayanan
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Pagination */}
+                        {filteredPelayanan.length > 0 && (
+                            <div className="flex items-center justify-between border-t px-6 py-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="items-per-page" className="text-sm">
+                                            Tampilkan:
+                                        </Label>
+                                        <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
+                                            <SelectTrigger id="items-per-page" className="w-20">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="5">5</SelectItem>
+                                                <SelectItem value="10">10</SelectItem>
+                                                <SelectItem value="20">20</SelectItem>
+                                                <SelectItem value="50">50</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <span className="text-sm text-gray-500">
+                                        Halaman {currentPage} dari {getTotalPages()}
+                                    </span>
+                                </div>
+
+                                {getTotalPages() > 1 && (
+                                    <div className="flex items-center space-x-2">
+                                        {/* Previous Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="flex items-center gap-1"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                            Sebelumnya
+                                        </Button>
+
+                                        {/* Page Numbers */}
+                                        <div className="flex items-center space-x-1">
+                                            {/* First page */}
+                                            {currentPage > 3 && (
+                                                <>
+                                                    <Button variant="outline" size="sm" onClick={() => handlePageChange(1)} className="h-8 w-8 p-0">
+                                                        1
+                                                    </Button>
+                                                    {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
+                                                </>
+                                            )}
+
+                                            {/* Pages around current page */}
+                                            {Array.from({ length: Math.min(5, getTotalPages()) }, (_, i) => {
+                                                let pageNumber: number;
+                                                if (getTotalPages() <= 5) {
+                                                    pageNumber = i + 1;
+                                                } else if (currentPage <= 3) {
+                                                    pageNumber = i + 1;
+                                                } else if (currentPage >= getTotalPages() - 2) {
+                                                    pageNumber = getTotalPages() - 4 + i;
+                                                } else {
+                                                    pageNumber = currentPage - 2 + i;
+                                                }
+
+                                                if (pageNumber < 1 || pageNumber > getTotalPages()) return null;
+
+                                                return (
+                                                    <Button
+                                                        key={pageNumber}
+                                                        variant={pageNumber === currentPage ? 'default' : 'outline'}
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(pageNumber)}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        {pageNumber}
+                                                    </Button>
+                                                );
+                                            })}
+
+                                            {/* Last page */}
+                                            {currentPage < getTotalPages() - 2 && (
+                                                <>
+                                                    {currentPage < getTotalPages() - 3 && <span className="px-2 text-gray-500">...</span>}
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(getTotalPages())}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        {getTotalPages()}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Next Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === getTotalPages()}
+                                            className="flex items-center gap-1"
+                                        >
+                                            Selanjutnya
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 )}
-                            </TableBody>
-                        </Table>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

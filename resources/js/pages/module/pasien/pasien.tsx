@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { ChevronDown, Edit, Plus, RefreshCcw, Search, User, UserCheck, UserX, Users } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Edit, Plus, RefreshCcw, Search, User, UserCheck, UserX, Users, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -65,7 +65,7 @@ interface Pasien {
 }
 
 interface PageProps {
-    pasiens: {
+    pasiensData: {
         data: Pasien[];
         current_page: number;
         last_page: number;
@@ -97,7 +97,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Pasien', href: '/pasien' }];
 
 export default function PendaftaranPasien() {
     const {
-        pasiens,
+        pasiensData,
         pasienallold,
         pasienallnewnow,
         pasienall,
@@ -121,6 +121,8 @@ export default function PendaftaranPasien() {
     const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
     const [currentStep, setCurrentStep] = useState(1);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const [formLengkapi, setFormLengkapi] = useState({
         nomor_rm: '',
@@ -203,12 +205,31 @@ export default function PendaftaranPasien() {
         { label: 'Pasien Belum Verifikasi', value: pasiennoverif, icon: UserX, color: 'bg-red-500' },
     ];
 
-    const filteredPasiens = pasiens.data.filter(
+    // Client-side filtering untuk menghindari perubahan URL
+    const filteredPasiens = pasiensData.data.filter(
         (p: Pasien) =>
             p.nama.toLowerCase().includes(search.toLowerCase()) ||
             p.no_rm.toLowerCase().includes(search.toLowerCase()) ||
-            p.no_bpjs.toLowerCase().includes(search.toLowerCase()),
+            p.no_bpjs.toLowerCase().includes(search.toLowerCase()) ||
+            (p.nik && p.nik.toLowerCase().includes(search.toLowerCase())),
     );
+
+    // Client-side pagination
+    const totalPages = Math.max(1, Math.ceil(filteredPasiens.length / itemsPerPage));
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentPasiens = filteredPasiens.slice(startIndex, endIndex);
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+        // Scroll ke atas tabel
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Reset page saat search atau itemsPerPage berubah
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, itemsPerPage]);
 
     const [lengkapiOpen, setLengkapiOpen] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -474,8 +495,18 @@ export default function PendaftaranPasien() {
                                     placeholder="Cari pasien..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="w-64 pl-10"
+                                    className="w-64 pr-10 pl-10"
                                 />
+                                {search && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSearch('')}
+                                        className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2 p-0 hover:bg-gray-200"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </Button>
+                                )}
                             </div>
                             <Button size="sm" onClick={() => setOpenTambah(true)}>
                                 <Plus className="mr-2 h-4 w-4" /> Tambah Pasien
@@ -499,8 +530,8 @@ export default function PendaftaranPasien() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredPasiens.length > 0 ? (
-                                    filteredPasiens.map((pasien) => (
+                                {currentPasiens.length > 0 ? (
+                                    currentPasiens.map((pasien) => (
                                         <TableRow key={pasien.id}>
                                             <TableCell className="font-medium">{pasien.no_rm}</TableCell>
                                             <TableCell>{pasien.nama}</TableCell>
@@ -536,6 +567,118 @@ export default function PendaftaranPasien() {
                                 )}
                             </TableBody>
                         </Table>
+
+                        {/* Pagination */}
+                        {filteredPasiens.length > 0 && (
+                            <div className="flex items-center justify-between border-t px-6 py-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="items-per-page" className="text-sm ">
+                                            Tampilkan:
+                                        </Label>
+                                        <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
+                                            <SelectTrigger id="items-per-page" className="w-20">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="5">5</SelectItem>
+                                                <SelectItem value="10">10</SelectItem>
+                                                <SelectItem value="25">25</SelectItem>
+                                                <SelectItem value="50">50</SelectItem>
+                                                <SelectItem value="100">100</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <span className="text-sm text-gray-500">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                </div>
+
+                                {totalPages > 1 && (
+                                    <div className="flex items-center space-x-2">
+                                        {/* Previous Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="flex items-center gap-1"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                            Sebelumnya
+                                        </Button>
+
+                                        {/* Page Numbers */}
+                                        <div className="flex items-center space-x-1">
+                                            {/* First page */}
+                                            {currentPage > 3 && (
+                                                <>
+                                                    <Button variant="outline" size="sm" onClick={() => handlePageChange(1)} className="h-8 w-8 p-0">
+                                                        1
+                                                    </Button>
+                                                    {currentPage > 4 && <span className="px-2 text-gray-500">...</span>}
+                                                </>
+                                            )}
+
+                                            {/* Pages around current page */}
+                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                let pageNumber: number;
+                                                if (totalPages <= 5) {
+                                                    pageNumber = i + 1;
+                                                } else if (currentPage <= 3) {
+                                                    pageNumber = i + 1;
+                                                } else if (currentPage >= totalPages - 2) {
+                                                    pageNumber = totalPages - 4 + i;
+                                                } else {
+                                                    pageNumber = currentPage - 2 + i;
+                                                }
+
+                                                if (pageNumber < 1 || pageNumber > totalPages) return null;
+
+                                                return (
+                                                    <Button
+                                                        key={pageNumber}
+                                                        variant={pageNumber === currentPage ? 'default' : 'outline'}
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(pageNumber)}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        {pageNumber}
+                                                    </Button>
+                                                );
+                                            })}
+
+                                            {/* Last page */}
+                                            {currentPage < totalPages - 2 && (
+                                                <>
+                                                    {currentPage < totalPages - 3 && <span className="px-2 text-gray-500">...</span>}
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(totalPages)}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        {totalPages}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Next Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="flex items-center gap-1"
+                                        >
+                                            Selanjutnya
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 

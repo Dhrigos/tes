@@ -362,6 +362,7 @@ Route::middleware(['auth', 'verified'])->prefix('pasien')->as('pasien.')->group(
         Route::post('/verifikasi', [PasienController::class, 'verifikasi'])->name('verifikasi');
         Route::post('/update', [PasienController::class, 'update'])->name('update');
         Route::post('/panggil/{id}', [PasienController::class, 'panggil'])->name('panggil');
+        Route::get('/singkron', [PasienController::class, 'singkron'])->name('singkron');
         Route::get('/kabupaten/{provinceId}', [PasienController::class, 'getKabupaten'])->name('kabupaten');
         Route::get('/kecamatan/{regencyId}', [PasienController::class, 'getKecamatan'])->name('kecamatan');
         Route::get('/desa/{districtId}', [PasienController::class, 'getDesa'])->name('desa');

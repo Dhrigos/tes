@@ -1,10 +1,10 @@
+// @ts-ignore
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import laravel from 'laravel-vite-plugin';
 import { resolve } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
-import fs from 'fs'
-
 
 export default defineConfig(({ mode }) => {
     // Load env variables
@@ -50,18 +50,17 @@ export default defineConfig(({ mode }) => {
         server: isDevServer
             ? {
                   host: '0.0.0.0', // bisa diakses dari LAN/WAN
-                  port: 5173,
+                  port: parseInt(env.VITE_HMR_PORT) || 5173,
                   https: {
-                    key: fs.readFileSync('/etc/nginx/ssl/selfsigned.key'),
-                    cert: fs.readFileSync('/etc/nginx/ssl/selfsigned.crt'),
-                  },              
-                  cors: true, // <--- tambahkan
-                  hmr: {
-                    host: '100.106.3.92',  // <– IP/VPN server kamu
-                    protocol: 'wss',       // pakai wss karena https
-                    port: 5173,
+                      key: fs.readFileSync(env.VITE_SSL_KEY || '/etc/nginx/ssl/selfsigned.key'),
+                      cert: fs.readFileSync(env.VITE_SSL_CERT || '/etc/nginx/ssl/selfsigned.crt'),
                   },
-              
+                  //   cors: true,
+                  hmr: {
+                      host: env.VITE_HMR_HOST || '100.106.3.92',
+                      protocol: 'wss',
+                      port: parseInt(env.VITE_HMR_PORT) || 5173,
+                  },
               }
             : undefined, // kalau VITE_DEV_SERVER != true, pakai default
     };

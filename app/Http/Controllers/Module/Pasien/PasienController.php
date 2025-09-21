@@ -28,37 +28,91 @@ use Laravolt\Indonesia\Models\Village;
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
 use App\Models\Module\Pemdaftaran\Antrian_Pasien;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class PasienController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // Load data pasien dengan pagination untuk menghindari memory exhausted
-        $pasiens = Pasien::with('goldarRelation', 'provinsi', 'kabupaten', 'kecamatan', 'desa')->paginate(50);
+        // Load semua data pasien untuk client-side pagination
+        $pasiens = Pasien::with(['goldarRelation', 'provinsi', 'kabupaten', 'kecamatan', 'desa'])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        // Hitung statistik dengan query yang lebih efisien
-        $pasienallold = Pasien::where('verifikasi', 2)->count();
-        $pasienallnewnow = Pasien::whereMonth('created_at', now()->month)->count();
-        $pasienall = Pasien::count();
-        $pasiennoverif = Pasien::where('verifikasi', 1)->count();
+        // Hitung statistik dengan query yang lebih efisien - gunakan cache
+        $pasienallold = cache()->remember('pasien_verified_count', 300, function () {
+            return Pasien::where('verifikasi', 2)->count();
+        });
 
-        // Data master untuk dropdown menggunakan Laravolt Indonesia - hanya load yang diperlukan
-        $provinsi = Province::select('id', 'name', 'code')->orderBy('name')->get();
+        $pasienallnewnow = cache()->remember('pasien_new_this_month', 300, function () {
+            return Pasien::whereMonth('created_at', now()->month)->count();
+        });
 
-        // Data master lainnya - hanya load yang diperlukan
-        $kelamin = Kelamin::select('id', 'nama')->get();
-        $goldar = Goldar::select('id', 'nama', 'rhesus')->get();
-        $pernikahan = Pernikahan::select('id', 'nama')->get();
-        $agama = Agama::select('id', 'nama')->get();
-        $pendidikan = Pendidikan::select('id', 'nama')->get();
-        $pekerjaan = Pekerjaan::select('id', 'name')->get();
-        $suku = Suku::select('id', 'nama')->get();
-        $bangsa = Bangsa::select('id', 'nama')->get();
-        $bahasa = Bahasa::select('id', 'nama')->get();
-        $asuransi = Asuransi::select('id', 'nama')->get();
+        $pasienall = cache()->remember('pasien_total_count', 300, function () {
+            return Pasien::count();
+        });
+
+        $pasiennoverif = cache()->remember('pasien_unverified_count', 300, function () {
+            return Pasien::where('verifikasi', 1)->count();
+        });
+
+        // Data master untuk dropdown - gunakan cache
+        $provinsi = cache()->remember('provinces_list', 3600, function () {
+            return Province::select('id', 'name', 'code')->orderBy('name')->get();
+        });
+
+        // Data master lainnya - gunakan cache
+        $kelamin = cache()->remember('kelamin_list', 3600, function () {
+            return Kelamin::select('id', 'nama')->get();
+        });
+
+        $goldar = cache()->remember('goldar_list', 3600, function () {
+            return Goldar::select('id', 'nama', 'rhesus')->get();
+        });
+
+        $pernikahan = cache()->remember('pernikahan_list', 3600, function () {
+            return Pernikahan::select('id', 'nama')->get();
+        });
+
+        $agama = cache()->remember('agama_list', 3600, function () {
+            return Agama::select('id', 'nama')->get();
+        });
+
+        $pendidikan = cache()->remember('pendidikan_list', 3600, function () {
+            return Pendidikan::select('id', 'nama')->get();
+        });
+
+        $pekerjaan = cache()->remember('pekerjaan_list', 3600, function () {
+            return Pekerjaan::select('id', 'name')->get();
+        });
+
+        $suku = cache()->remember('suku_list', 3600, function () {
+            return Suku::select('id', 'nama')->get();
+        });
+
+        $bangsa = cache()->remember('bangsa_list', 3600, function () {
+            return Bangsa::select('id', 'nama')->get();
+        });
+
+        $bahasa = cache()->remember('bahasa_list', 3600, function () {
+            return Bahasa::select('id', 'nama')->get();
+        });
+
+        $asuransi = cache()->remember('asuransi_list', 3600, function () {
+            return Asuransi::select('id', 'nama')->get();
+        });
+
+        // Format data untuk frontend (simulasi pagination structure)
+        $pasiensData = [
+            'data' => $pasiens,
+            'current_page' => 1,
+            'last_page' => 1,
+            'per_page' => $pasiens->count(),
+            'total' => $pasiens->count(),
+        ];
 
         return Inertia::render('module/pasien/pasien', compact(
-            'pasiens',
+            'pasiensData',
             'pasienallold',
             'pasienallnewnow',
             'pasienall',
@@ -77,7 +131,7 @@ class PasienController extends Controller
         ));
     }
 
-     private function createNoRM()
+    private function createNoRM()
     {
         // Ambil No RM terbesar di database
         $lastNoRM = Pasien::max('no_rm');
@@ -112,94 +166,108 @@ class PasienController extends Controller
     }
     public function store(Request $request)
     {
-        $request->validate([
-            'nama' => 'required|string|max:255',
-            'nik' => 'required|string|max:20',
-            'tgl_lahir' => 'required|date',
-            'kelamin' => 'required',
-            'telepon' => 'nullable|string|max:20',
-            'alamat' => 'nullable|string|max:255',
-            'goldar' => 'nullable',
-            'pernikahan' => 'nullable',
-            'foto' => 'nullable|image|max:2048',
-        ]);
+        try {
+            $request->validate([
+                'nama' => 'required|string|max:255',
+                'nik' => 'required|string|max:20',
+                'tgl_lahir' => 'required|date',
+                'kelamin' => 'required',
+                'telepon' => 'nullable|string|max:20',
+                'alamat' => 'nullable|string|max:255',
+                'goldar' => 'nullable',
+                'pernikahan' => 'nullable',
+                'foto' => 'nullable|image|max:2048',
+            ]);
 
-        // Simpan foto jika ada
-        $fotoPath = null;
-        if ($request->hasFile('foto')) {
-            $fotoPath = $request->file('foto')->store('pasien_foto', 'public');
-        }
-
-        $pcareController = new Pcare_Controller();
-        $response = $pcareController->get_peserta($request->nik); // harus return JsonResponse
-
-        // Ambil data JSON langsung
-        $data = json_decode($response->getContent(), true); // decode ke array
-
-        $nik = $request->nik ?? $data['data']['noKTP'];
-
-        if (!$nik) {
-            return redirect()->back()->with('error', 'NIK pasien wajib diisi!');
-        }
-        // // Simpan data pasien baru (ganti dengan model pasien Anda)
-        $pasienData = [
-            'nik'                 => $nik,
-            'nama'                => $data['data']['nama'] ?? $request->nama,
-            'tanggal_lahir'       => $request->tgl_lahir,
-            'seks'                => $request->kelamin,
-            'telepon'             => $data['data']['noHP'] ?? $request->telepon,
-            'alamat'              => $request->alamat,
-            'goldar'              => $request->goldar,
-            'pernikahan'          => $request->pernikahan,
-            'no_bpjs'             => $data['data']['noKartu'],
-            'tgl_exp_bpjs'        => $data['data']['tglAkhirBerlaku'],
-            'kelas_bpjs'          => $data['data']['jnsKelas']['nama'],
-            'jenis_peserta_bpjs'  => $data['data']['jnsPeserta']['nama'],
-            'provide'             => $data['data']['kdProviderPst']['nmProvider'],
-            'kodeprovide'         => $data['data']['kdProviderPst']['kdProvider'],
-            'hubungan_keluarga'   => $data['data']['hubunganKeluarga'],
-            'kewarganegaraan'     => "wni",
-            'verifikasi'          => 1,
-            'foto'                => $fotoPath,
-        ];
-
-        // Pastikan UUID terisi saat insert pertama kali (kolom uuid NOT NULL)
-        $existing = Pasien::where('nik', $nik)
-            ->where('no_bpjs', $pasienData['no_bpjs'])
-            ->first();
-
-        if ($existing) {
-            $existing->update($pasienData);
-            $pasien = $existing;
-            if (empty($pasien->uuid)) {
-                $pasien->uuid = Str::uuid()->toString();
-                $pasien->save();
+            // Simpan foto jika ada
+            $fotoPath = null;
+            if ($request->hasFile('foto')) {
+                $fotoPath = $request->file('foto')->store('pasien_foto', 'public');
             }
-        } else {
-            $pasien = Pasien::create(array_merge($pasienData, [
-                'uuid' => Str::uuid()->toString(),
-                'no_rm' => $this->createNoRM(),
-            ]));
+
+            // Coba ambil data dari BPJS, jika gagal gunakan data input
+            $bpjsData = [];
+            try {
+                $pcareController = new Pcare_Controller();
+                $response = $pcareController->get_peserta($request->nik);
+                $data = json_decode($response->getContent(), true);
+
+                if (isset($data['data']) && $data['data']) {
+                    $bpjsData = $data['data'];
+                }
+            } catch (\Exception $e) {
+                FacadesLog::warning('BPJS data fetch failed: ' . $e->getMessage());
+                // Lanjutkan dengan data input saja
+            }
+
+            $nik = $request->nik ?? ($bpjsData['noKTP'] ?? null);
+
+            if (!$nik) {
+                return redirect()->back()->with('error', 'NIK pasien wajib diisi!');
+            }
+            // Simpan data pasien baru
+            $pasienData = [
+                'nik'                 => $nik,
+                'nama'                => $bpjsData['nama'] ?? $request->nama,
+                'tanggal_lahir'       => $request->tgl_lahir,
+                'seks'                => $request->kelamin,
+                'telepon'             => $bpjsData['noHP'] ?? $request->telepon,
+                'alamat'              => $request->alamat,
+                'goldar'              => $request->goldar,
+                'pernikahan'          => $request->pernikahan,
+                'no_bpjs'             => $bpjsData['noKartu'] ?? null,
+                'tgl_exp_bpjs'        => $bpjsData['tglAkhirBerlaku'] ?? null,
+                'kelas_bpjs'          => $bpjsData['jnsKelas']['nama'] ?? null,
+                'jenis_peserta_bpjs'  => $bpjsData['jnsPeserta']['nama'] ?? null,
+                'provide'             => $bpjsData['kdProviderPst']['nmProvider'] ?? null,
+                'kodeprovide'         => $bpjsData['kdProviderPst']['kdProvider'] ?? null,
+                'hubungan_keluarga'   => $bpjsData['hubunganKeluarga'] ?? null,
+                'kewarganegaraan'     => "wni",
+                'verifikasi'          => 1,
+                'foto'                => $fotoPath,
+            ];
+
+            // Pastikan UUID terisi saat insert pertama kali (kolom uuid NOT NULL)
+            $existing = Pasien::where('nik', $nik)
+                ->where('no_bpjs', $pasienData['no_bpjs'])
+                ->first();
+
+            if ($existing) {
+                $existing->update($pasienData);
+                $pasien = $existing;
+                if (empty($pasien->uuid)) {
+                    $pasien->uuid = Str::uuid()->toString();
+                    $pasien->save();
+                }
+            } else {
+                $pasien = Pasien::create(array_merge($pasienData, [
+                    'uuid' => Str::uuid()->toString(),
+                    'no_rm' => $this->createNoRM(),
+                ]));
+            }
+
+            $antrianData = $this->generateNomorAntrian('A');
+
+            $antrian = Antrian_Pasien::create([
+                'pasien_id' => $pasien->id,
+                'prefix'    => $antrianData['prefix'],
+                'nomor'     => $antrianData['nomor'],
+                'tanggal'   => $antrianData['tanggal'],
+            ]);
+
+            $antrianRecord = $antrian->prefix . '-' . $antrian->nomor;
+
+            // Clear cache setelah data berubah
+            $this->clearPasienCache();
+
+            return redirect()->back()->with([
+                'success'       => 'Pasien berhasil didaftarkan atau diperbarui!',
+                'nomor_antrian' => $antrianRecord, // ambil field nomor, bukan object
+            ]);
+        } catch (\Exception $e) {
+            FacadesLog::error('Error creating pasien: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Terjadi kesalahan saat menyimpan data pasien: ' . $e->getMessage());
         }
-
-        $antrianData = $this->generateNomorAntrian('A');
-
-        $antrian = Antrian_Pasien::create([
-            'pasien_id' => $pasien->id,
-            'prefix'    => $antrianData['prefix'],
-            'nomor'     => $antrianData['nomor'],
-            'tanggal'   => $antrianData['tanggal'],
-        ]);
-
-        $antrianRecord = $antrian->prefix . '-' . $antrian->nomor;
-
-
-        return redirect()->back()->with([
-            'success'       => 'Pasien berhasil didaftarkan atau diperbarui!',
-            'nomor_antrian' => $antrianRecord, // ambil field nomor, bukan object
-        ]);
-
-
     }
     public function verifikasi(Request $request)
     {
@@ -316,6 +384,9 @@ class PasienController extends Controller
         if ((string) env('PASIEN_SYNC_GROUP', '0') === '1') {
             $this->sendPasienSyncToRemotes($pasien, 'upsert');
         }
+
+        // Clear cache setelah data berubah
+        $this->clearPasienCache();
 
         // Log untuk debugging
         FacadesLog::info('Pasien verifikasi berhasil', [
@@ -442,6 +513,13 @@ class PasienController extends Controller
             $file->storeAs('public/pasien', $filename);
             $pasien->update(['foto' => $filename]);
         }
+
+        // Clear cache setelah data berubah
+        $this->clearPasienCache();
+
+        $message = $isDataComplete ? 'Data pasien berhasil diperbarui dan terverifikasi!' : 'Data pasien berhasil diperbarui!';
+
+        return redirect()->back()->with('success', $message);
     }
 
     /**
@@ -819,7 +897,7 @@ class PasienController extends Controller
 
         // Gabungkan histories ke tiap pasien
         $patientsWithHistories = $patients->map(function ($patient) use ($histories) {
-            return [                
+            return [
                 $patient,
                 // tambahkan kolom pasien lain sesuai kebutuhan                
                 'histories' => $histories->get($patient->no_rm, []),
@@ -829,6 +907,53 @@ class PasienController extends Controller
             'status' => 'success',
             'data'   => $patientsWithHistories,
         ]);
-        
+    }
+
+    /**
+     * Clear cache untuk data pasien dan statistik
+     */
+    private function clearPasienCache()
+    {
+        Cache::forget('pasien_verified_count');
+        Cache::forget('pasien_new_this_month');
+        Cache::forget('pasien_total_count');
+        Cache::forget('pasien_unverified_count');
+    }
+
+    /**
+     * Clear semua cache master data
+     */
+    public function clearMasterDataCache()
+    {
+        Cache::forget('provinces_list');
+        Cache::forget('kelamin_list');
+        Cache::forget('goldar_list');
+        Cache::forget('pernikahan_list');
+        Cache::forget('agama_list');
+        Cache::forget('pendidikan_list');
+        Cache::forget('pekerjaan_list');
+        Cache::forget('suku_list');
+        Cache::forget('bangsa_list');
+        Cache::forget('bahasa_list');
+        Cache::forget('asuransi_list');
+
+        return response()->json(['message' => 'Master data cache cleared successfully']);
+    }
+
+    /**
+     * Method untuk singkronisasi pasien
+     */
+    public function singkron()
+    {
+        try {
+            // Clear cache terlebih dahulu
+            $this->clearPasienCache();
+            $this->clearMasterDataCache();
+
+            return redirect()->back()->with('success', 'Data pasien berhasil disingkronisasi!');
+        } catch (\Exception $e) {
+            FacadesLog::error('Error during sync: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Terjadi kesalahan saat singkronisasi: ' . $e->getMessage());
+        }
     }
 }

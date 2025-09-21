@@ -3,7 +3,6 @@
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HandleCsrfToken;
-use App\Http\Middleware\SystemMonitoringMiddleware;
 use App\Http\Middleware\OpenTelemetryTracing;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->append([
             OpenTelemetryTracing::class,
-        ]); 
+        ]);
 
         $middleware->web(append: [
             HandleAppearance::class,
@@ -31,13 +30,6 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        $middleware->api(append: [
-            SystemMonitoringMiddleware::class,
-        ]);
-
-        $middleware->web(append: [
-            SystemMonitoringMiddleware::class,
-        ]);
 
         // Replace default CSRF middleware with custom one
         $middleware->web(replace: [

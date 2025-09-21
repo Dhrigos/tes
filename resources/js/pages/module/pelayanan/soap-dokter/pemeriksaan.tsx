@@ -2797,12 +2797,12 @@ export default function PemeriksaanSoapDokter() {
                                                                             >
                                                                                 <SelectTrigger className="text-sm w-full">
                                                                                     {icdData.kode_icd10 ? (
-                                                                                        <div className="flex w-full items-center gap-3" title={`${icdData.kode_icd10} - ${icdData.nama_icd10 || ''}`}>
-                                                                                            <span className="font-mono text-xs text-muted-foreground w-16 shrink-0 truncate">
+                                                                                        <div className="flex w-full items-center gap-1" title={`${icdData.kode_icd10} - ${icdData.nama_icd10 || ''}`}>
+                                                                                            <span className="font-mono text-xs text-muted-foreground shrink-0">
                                                                                                 {icdData.kode_icd10}
                                                                                             </span>
                                                                                             <span className="truncate">
-                                                                                                {truncateText(icdData.nama_icd10 || '', 20)}
+                                                                                                {truncateText(icdData.nama_icd10 || '', 15)}
                                                                                             </span>
                                                                                         </div>
                                                                                     ) : (
@@ -2826,8 +2826,8 @@ export default function PemeriksaanSoapDokter() {
                                                                                         .slice(0, 200)
                                                                                         .map((item: any) => (
                                                                                             <SelectItem key={item.kode} value={item.kode}>
-                                                                                                <div className="flex items-center gap-3">
-                                                                                                    <span className="font-mono text-xs text-muted-foreground w-20 truncate">{item.kode}</span>
+                                                                                                <div className="flex items-center gap-1">
+                                                                                                    <span className="font-mono text-xs text-muted-foreground truncate">{item.kode}</span>
                                                                                                     <span className="truncate">{item.nama}</span>
                                                                                                 </div>
                                                                                             </SelectItem>
@@ -2844,7 +2844,7 @@ export default function PemeriksaanSoapDokter() {
                                                                                     setIcdData((prev) => ({ ...prev, priority_icd10: value }))
                                                                                 }
                                                                             >
-                                                                                <SelectTrigger className="text-sm min-w-[140px]">
+                                                                                <SelectTrigger className="text-sm">
                                                                                     <SelectValue placeholder="-- Pilih --" />
                                                                                 </SelectTrigger>
                                                                                 <SelectContent className="z-50">
@@ -2868,6 +2868,17 @@ export default function PemeriksaanSoapDokter() {
                                                                                     ) {
                                                                                         toast.warning(
                                                                                             'Prioritas Primary untuk ICD10 sudah ada. Tidak boleh lebih dari satu.',
+                                                                                        );
+                                                                                        return;
+                                                                                    }
+
+                                                                                    // Prevent same ICD10 code in both Primary and Secondary
+                                                                                    const existingCode = icd10List.find(
+                                                                                        (it) => it.kode_icd10 === icdData.kode_icd10
+                                                                                    );
+                                                                                    if (existingCode) {
+                                                                                        toast.warning(
+                                                                                            `Kode ICD10 ${icdData.kode_icd10} sudah ada dengan prioritas ${existingCode.priority_icd10}. Tidak boleh duplikasi.`,
                                                                                         );
                                                                                         return;
                                                                                     }
@@ -2903,7 +2914,9 @@ export default function PemeriksaanSoapDokter() {
                                                                                 <TableRow key={index}>
                                                                                     <TableCell className="font-mono">{item.kode_icd10}</TableCell>
                                                                                     <TableCell className="text-sm">
-                                                                                        {truncate(item.nama_icd10 || '', 30)}
+                                                                                        <span title={item.nama_icd10 || ''}>
+                                                                                            {truncate(item.nama_icd10 || '', 20)}
+                                                                                        </span>
                                                                                     </TableCell>
                                                                                     <TableCell>
                                                                                         <span
@@ -3418,8 +3431,8 @@ export default function PemeriksaanSoapDokter() {
                                                                     <SelectValue placeholder="Pilih jenis" />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    <SelectItem value="NON_RACIK">Non Racik</SelectItem>
-                                                                    <SelectItem value="RACIK">Racik</SelectItem>
+                                                                    <SelectItem value="NON_RACIK">Non Racikan</SelectItem>
+                                                                    <SelectItem value="RACIK">Racikan</SelectItem>
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
