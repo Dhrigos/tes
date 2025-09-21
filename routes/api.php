@@ -94,6 +94,14 @@ Route::prefix('pelayanan')->group(function () {
     Route::delete('/batal/{norawat}', [PelayananController::class, 'batalPelayanan']);
 });
 
+// API permintaan cetak
+Route::prefix('pelayanan/permintaan')->group(function () {
+    Route::get('/cetak-data/{norawat}', [App\Http\Controllers\Module\Pelayanan\Pelayanan_Permintaan_Controller::class, 'getCetakData']);
+    Route::post('/mark-printed/{id}', [App\Http\Controllers\Module\Pelayanan\Pelayanan_Permintaan_Controller::class, 'markAsPrinted']);
+    Route::delete('/delete-cetak/{id}', [App\Http\Controllers\Module\Pelayanan\Pelayanan_Permintaan_Controller::class, 'deleteCetakData']);
+    Route::post('/store', [App\Http\Controllers\Module\Pelayanan\Pelayanan_Permintaan_Controller::class, 'storeApi']);
+});
+
 Route::post('/pembelian/generate-faktur', [Pembelian_Controller::class, 'generateFakturPembelian']);
 Route::post('/pembelian/generate-inventaris', [Pembelian_Controller::class, 'generatePembelianInventaris']);
 
@@ -102,6 +110,7 @@ Route::get('/barang/list', [Daftar_Barang_Controller::class, 'list']);
 // Kasir API Routes
 Route::prefix('kasir')->group(function () {
     Route::get('/pdf/{kode_faktur}', [Kasir_Controller::class, 'generatePdf']);
+    Route::post('/previewData', [Kasir_Controller::class, 'previewData']);
 });
 
 // Daftar Barang Sync Routes

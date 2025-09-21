@@ -5,6 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
 import React from 'react';
+import { Printer } from 'lucide-react';
+import { toast, Toaster } from 'sonner';
 
 type AnyRecord = Record<string, any>;
 
@@ -12,6 +14,7 @@ interface Props {
     title: string;
     apotek: AnyRecord[];
     tindakan: AnyRecord[];
+    rujukanData: Record<string, AnyRecord>;
 }
 
 const formatCurrency = (n: number | string) => {
@@ -19,7 +22,7 @@ const formatCurrency = (n: number | string) => {
     return `Rp ${num.toLocaleString('id-ID')}`;
 };
 
-export default function KasirIndex({ title, apotek = [], tindakan = [] }: Props) {
+export default function KasirIndex({ title, apotek = [], tindakan = [], rujukanData = {} }: Props) {
     const [previewRows, setPreviewRows] = React.useState<Array<{ nama: string; harga: number; qty: number | string; subtotal: number }>>([]);
     const [activeKey, setActiveKey] = React.useState<string | null>(null);
     const [showDetailModal, setShowDetailModal] = React.useState(false);
@@ -104,6 +107,90 @@ export default function KasirIndex({ title, apotek = [], tindakan = [] }: Props)
         return base + totalTindakan;
     };
 
+    const printSuratRujuk = (row: AnyRecord) => {
+        try {
+            // Cek apakah ada data rujukan untuk pasien ini
+            const no_rawat = row?.no_rawat || row?.nomor_register || '';
+            const rujukan = rujukanData[no_rawat];
+            
+            if (!rujukan) {
+                toast.error('Tidak ada data rujukan untuk pasien ini');
+                return;
+            }
+
+            // Coba dengan route alias tanpa prefix
+            const rujukUrl = `/rujukan/cetak/${no_rawat}`;
+            console.log('Print URL:', rujukUrl);
+            console.log('Original no_rawat:', no_rawat);
+            
+            // Print dengan iframe tersembunyi (sama seperti di rujukan.tsx)
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.top = '-9999px';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            
+            document.body.appendChild(iframe);
+            
+            iframe.onload = () => {
+                try {
+                    // Tunggu sebentar untuk memastikan konten terload
+                    setTimeout(() => {
+                        iframe.contentWindow?.focus();
+                        iframe.contentWindow?.print();
+                        
+                        // Deteksi kapan print dialog ditutup
+                        let printCompleted = false;
+                        
+                        const cleanup = () => {
+                            if (!printCompleted && document.body.contains(iframe)) {
+                                printCompleted = true;
+                                setTimeout(() => {
+                                    if (document.body.contains(iframe)) {
+                                        document.body.removeChild(iframe);
+                                    }
+                                }, 2000); // Tunggu 2 detik setelah print
+                            }
+                        };
+                        
+                        // Event listener untuk mendeteksi print dialog
+                        iframe.contentWindow?.addEventListener('afterprint', cleanup);
+                        iframe.contentWindow?.addEventListener('beforeprint', () => {
+                            console.log('Print dialog opened');
+                        });
+                        
+                        // Fallback jika event tidak terdeteksi - tunggu lebih lama
+                        setTimeout(() => {
+                            if (!printCompleted) {
+                                cleanup();
+                            }
+                        }, 5000); // Fallback setelah 5 detik
+                    }, 1000);
+                } catch (e) {
+                    console.error('Print error:', e);
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                }
+            };
+            
+            iframe.onerror = () => {
+                console.error('Failed to load print document');
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+                toast.error('Gagal memuat dokumen untuk dicetak');
+            };
+            
+            iframe.src = rujukUrl;
+        } catch (error) {
+            console.error('Print setup error:', error);
+            toast.error('Gagal menyiapkan dokumen untuk dicetak');
+        }
+    };
+
     return (
         <AppLayout
             breadcrumbs={[
@@ -149,22 +236,43 @@ export default function KasirIndex({ title, apotek = [], tindakan = [] }: Props)
                                                         <TableCell className="text-center">{grandTotal.toLocaleString('id-ID')}</TableCell>
                                                         <TableCell className="text-center">{a.tanggal}</TableCell>
                                                         <TableCell className="text-center">
-                                                            <Button
-                                                                size="sm"
-                                                                className="mr-2"
-                                                                variant="outline"
-                                                                onClick={() => openDetailModalApotek(a)}
-                                                            >
-                                                                Detail
-                                                            </Button>
-                                                            <Button size="sm">
-                                                                <a
-                                                                    href={`/kasir/pembayaran/${encodeURIComponent(a.kode_faktur || '')}?no_rawat=${encodeURIComponent(a.no_rawat || '')}`}
-                                                                >
-                                                                    {' '}
-                                                                    Bayar{' '}
-                                                                </a>
-                                                            </Button>
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex gap-1 justify-center">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        onClick={() => openDetailModalApotek(a)}
+                                                                    >
+                                                                        Detail
+                                                                    </Button>
+                                                                    <Button size="sm">
+                                                                        <a
+                                                                            href={`/kasir/pembayaran/${encodeURIComponent(a.kode_faktur || '')}?no_rawat=${encodeURIComponent(a.no_rawat || '')}`}
+                                                                        >
+                                                                            {' '}
+                                                                            Bayar{' '}
+                                                                        </a>
+                                                                    </Button>
+                                                                </div>
+                                                                {/* Button Print Surat Rujuk jika ada data rujukan */}
+                                                                {(() => {
+                                                                    const no_rawat = a?.no_rawat || a?.nomor_register || '';
+                                                                    const hasRujukan = rujukanData[no_rawat];
+                                                                    return hasRujukan ? (
+                                                                        <div className="flex justify-center items-center w-full">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="text-green-600 hover:bg-green-50"
+                                                                                onClick={() => printSuratRujuk(a)}
+                                                                            >
+                                                                                <Printer className="mr-1 h-3 w-3" />
+                                                                                Print Rujuk
+                                                                            </Button>
+                                                                        </div>
+                                                                    ) : null;
+                                                                })()}
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -188,21 +296,42 @@ export default function KasirIndex({ title, apotek = [], tindakan = [] }: Props)
                                                         <TableCell className="text-center">{sumHarga.toLocaleString('id-ID')}</TableCell>
                                                         <TableCell className="text-center">{(t.created_at || '').slice(0, 10)}</TableCell>
                                                         <TableCell className="text-center">
-                                                            <Button
-                                                                size="sm"
-                                                                className="mr-2"
-                                                                variant="outline"
-                                                                onClick={() => openDetailModalTindakan(t)}
-                                                            >
-                                                                Detail
-                                                            </Button>
-                                                            <Button size="sm">
-                                                                <a
-                                                                    href={`/kasir/pembayaran/${encodeURIComponent(t.kode_faktur || '')}?no_rawat=${encodeURIComponent(t.no_rawat || '')}`}
-                                                                >
-                                                                    Bayar
-                                                                </a>
-                                                            </Button>
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex gap-1 justify-center">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        onClick={() => openDetailModalTindakan(t)}
+                                                                    >
+                                                                        Detail
+                                                                    </Button>
+                                                                    <Button size="sm">
+                                                                        <a
+                                                                            href={`/kasir/pembayaran/${encodeURIComponent(t.kode_faktur || '')}?no_rawat=${encodeURIComponent(t.no_rawat || '')}`}
+                                                                        >
+                                                                            Bayar
+                                                                        </a>
+                                                                    </Button>
+                                                                </div>
+                                                                {/* Button Print Surat Rujuk jika ada data rujukan */}
+                                                                {(() => {
+                                                                    const no_rawat = t?.no_rawat || t?.nomor_register || '';
+                                                                    const hasRujukan = rujukanData[no_rawat];
+                                                                    return hasRujukan ? (
+                                                                        <div className="flex justify-center items-center w-full">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="text-green-600 hover:bg-green-50"
+                                                                                onClick={() => printSuratRujuk(t)}
+                                                                            >
+                                                                                <Printer className="mr-1 h-3 w-3" />
+                                                                                Print Rujuk
+                                                                            </Button>
+                                                                        </div>
+                                                                    ) : null;
+                                                                })()}
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -254,6 +383,7 @@ export default function KasirIndex({ title, apotek = [], tindakan = [] }: Props)
                     </DialogContent>
                 </Dialog>
             </div>
+            <Toaster position="top-right" />
         </AppLayout>
     );
 }

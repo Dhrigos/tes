@@ -7,10 +7,12 @@ use App\Models\Module\Pelayanan\Pelayanan;
 use App\Models\Module\Pelayanan\Pelayanan_Permintaan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
+use App\Models\Module\Pelayanan\Permintaan_Cetak;
 use App\Models\Module\Master\Data\Medis\Radiologi_Pemeriksaan;
 use App\Models\Module\Pasien\Pasien_History;
 use App\Services\PelayananStatusService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Illuminate\Http\RedirectResponse;
@@ -179,6 +181,77 @@ class Pelayanan_Permintaan_Controller extends Controller
     }
 
     /**
+     * Store permintaan via API (JSON response)
+     */
+    public function storeApi(Request $request): JsonResponse
+    {
+        try {
+            // Validate request data
+            $validated = $request->validate([
+                'nomor_register' => ['required', 'string'],
+                'jenis_permintaan' => ['required', 'string', Rule::in(['radiologi', 'laboratorium', 'surat_sakit', 'surat_sehat', 'surat_kematian', 'skdp'])],
+                'detail_permintaan' => ['nullable', 'array'],
+                'judul' => ['nullable', 'string'],
+                'keterangan' => ['nullable', 'string'],
+            ]);
+
+            // Add auth info
+            $validated['tanggal_permintaan'] = now();
+            $validated['status'] = 0; // draft/pending
+            $validated['no_rawat'] = $validated['nomor_register'];
+            
+            // Optional enrich
+            try {
+                $pel = Pelayanan::where('nomor_register', $validated['no_rawat'])->first();
+                if ($pel) {
+                    $validated['nomor_rm'] = $pel->nomor_rm ?? null;
+                }
+            } catch (\Exception $e) {
+                // ignore error
+            }
+
+            // Save to database
+            $permintaan = Pelayanan_Permintaan::create($validated);
+
+            // Simpan ke CPPT history
+            try {
+                Pasien_History::create([
+                    'no_rm' => $validated['nomor_rm'] ?? '',
+                    'nama' => '',
+                    'history' => [
+                        'type' => 'permintaan_tambah',
+                        'no_rawat' => $validated['no_rawat'],
+                        'timestamp' => now()->toISOString(),
+                        'data' => [
+                            'nomor_register' => $validated['no_rawat'],
+                            'jenis_permintaan' => $validated['jenis_permintaan'],
+                            'detail_permintaan' => $validated['detail_permintaan'] ?? [],
+                            'judul' => $request->input('judul'),
+                            'keterangan' => $request->input('keterangan'),
+                        ],
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                // ignore error
+            }
+
+            // Update status dokter berdasarkan jenis permintaan
+            $this->updateDokterStatus($validated['no_rawat'], $validated['jenis_permintaan']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Permintaan berhasil disimpan',
+                'data' => $permintaan
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan permintaan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Update an existing permintaan
      */
     public function update(Request $request, $norawat): RedirectResponse
@@ -256,6 +329,12 @@ class Pelayanan_Permintaan_Controller extends Controller
                     $detailArray = [];
                 }
             }
+
+            // Simpan data cetak ke database
+            $this->saveCetakData($nomor_register, $jenis, $detailArray, $request);
+            
+            // Update status menjadi printed saat halaman cetak dibuka
+            $this->markAsPrintedOnCetak($nomor_register, $jenis);
 
             $viewMap = [
                 'radiologi' => 'pdf.permintaan_radiologi',
@@ -368,9 +447,157 @@ class Pelayanan_Permintaan_Controller extends Controller
                 ];
             }
 
+            // Tambahkan parameter auto print
+            $autoPrint = $request->query('auto_print', false);
+            $common['auto_print'] = $autoPrint;
+            
             return view($view, array_merge($common, $payload));
         } catch (\Exception $e) {
             return response('Gagal memuat halaman cetak: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Update status menjadi printed saat halaman cetak dibuka
+     */
+    private function markAsPrintedOnCetak(string $nomorRegister, string $jenis): void
+    {
+        try {
+            $cetak = Permintaan_Cetak::where('no_rawat', $nomorRegister)
+                ->where('jenis_permintaan', $jenis)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($cetak) {
+                $cetak->update([
+                    'status' => 'printed',
+                    'tanggal_cetak' => now(),
+                    'printed_by' => Auth::id() ?? Auth::user()?->name ?? 'system',
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Log error but don't fail the request
+            Log::error('Failed to mark as printed on cetak: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Simpan data cetak ke database
+     */
+    private function saveCetakData(string $nomorRegister, string $jenis, array $detailArray, Request $request): void
+    {
+        try {
+            // Ambil nomor RM dari pelayanan
+            $nomorRm = null;
+            try {
+                $pelayanan = Pelayanan::where('nomor_register', $nomorRegister)->first();
+                $nomorRm = $pelayanan?->nomor_rm;
+            } catch (\Exception $e) {
+                // ignore error
+            }
+
+            // Cek apakah sudah ada data cetak untuk no_rawat dan jenis yang sama
+            $existingCetak = Permintaan_Cetak::where('no_rawat', $nomorRegister)
+                ->where('jenis_permintaan', $jenis)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            $cetakData = [
+                'no_rawat' => $nomorRegister,
+                'nomor_rm' => $nomorRm,
+                'jenis_permintaan' => $jenis,
+                'detail_permintaan' => $detailArray,
+                'judul' => $request->query('judul'),
+                'keterangan' => $request->query('keterangan'),
+                'created_by' => Auth::id() ?? Auth::user()?->name ?? 'system',
+            ];
+
+            if ($existingCetak) {
+                // Update data yang sudah ada (baik draft maupun printed)
+                $existingCetak->update($cetakData);
+            } else {
+                // Buat data baru hanya jika belum ada sama sekali
+                Permintaan_Cetak::create($cetakData);
+            }
+        } catch (\Exception $e) {
+            // Log error but don't fail the request
+            Log::error('Failed to save cetak data: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Ambil data cetak yang tersimpan berdasarkan no_rawat
+     */
+    public function getCetakData(Request $request, $norawat)
+    {
+        try {
+            $nomor_register = base64_decode($norawat, true) ?: $norawat;
+            $jenis = $request->query('jenis');
+
+            $query = Permintaan_Cetak::where('no_rawat', $nomor_register);
+
+            if ($jenis) {
+                $query->where('jenis_permintaan', $jenis);
+            }
+
+            $cetakData = $query->orderBy('created_at', 'desc')->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $cetakData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data cetak: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update status cetak menjadi printed
+     */
+    public function markAsPrinted(Request $request, $id)
+    {
+        try {
+            $cetak = Permintaan_Cetak::findOrFail($id);
+            
+            $cetak->update([
+                'status' => 'printed',
+                'tanggal_cetak' => now(),
+                'printed_by' => Auth::id() ?? Auth::user()?->name ?? 'system',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status cetak berhasil diperbarui'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui status cetak: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Hapus data cetak
+     */
+    public function deleteCetakData($id)
+    {
+        try {
+            $cetak = Permintaan_Cetak::findOrFail($id);
+            $cetak->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data cetak berhasil dihapus'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus data cetak: ' . $e->getMessage()
+            ], 500);
         }
     }
 

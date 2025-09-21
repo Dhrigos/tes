@@ -154,6 +154,7 @@ const PendaftaranDashboard = () => {
     const [showBatalModal, setShowBatalModal] = useState(false);
     const [showHadirModal, setShowHadirModal] = useState(false);
     const [showUbahDokterModal, setShowUbahDokterModal] = useState(false);
+    const [showCetakPermintaanModal, setShowCetakPermintaanModal] = useState(false);
 
     // Form states
     const [selectedPasien, setSelectedPasien] = useState('');
@@ -176,8 +177,11 @@ const PendaftaranDashboard = () => {
         nomor_register: string;
         nama: string;
         type: string;
+        data?: any[];
     } | null>(null);
     const [alasanBatal, setAlasanBatal] = useState('');
+    const [availablePermintaan, setAvailablePermintaan] = useState<any[]>([]);
+    const [selectedPermintaan, setSelectedPermintaan] = useState('');
 
     // Loading state
     const [loading, setLoading] = useState(false);
@@ -602,6 +606,27 @@ const PendaftaranDashboard = () => {
         setSelectedAction(null);
         setAlasanBatal('');
         setSelectedDokter('');
+        setAvailablePermintaan([]);
+        setSelectedPermintaan('');
+    };
+
+    const handleCetakPermintaanSelected = async () => {
+        if (!selectedAction || !selectedPermintaan) {
+            toast.error('Pilih surat yang akan dicetak');
+            return;
+        }
+
+        const permintaan = availablePermintaan.find(p => p.id.toString() === selectedPermintaan);
+        if (!permintaan) {
+            toast.error('Data surat tidak valid');
+            return;
+        }
+
+        const encodedNorawat = btoa(selectedAction.nomor_register);
+        await cetakSuratPermintaan(permintaan, encodedNorawat);
+        
+        setShowCetakPermintaanModal(false);
+        resetActionState();
     };
 
     // Pagination functions
@@ -684,6 +709,137 @@ const PendaftaranDashboard = () => {
         } catch (err) {
             console.error('Print error:', err);
             toast.error('Gagal mencetak tiket');
+        }
+    };
+
+    const handleCetakPermintaan = async (item: PendaftaranData, selectedPermintaan?: any) => {
+        try {
+            setLoading(true);
+            
+            // Ambil data permintaan cetak dari database
+            const encodedNorawat = btoa(item.nomor_register);
+            const response = await fetch(`/api/pelayanan/permintaan/cetak-data/${encodedNorawat}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success && result.data && result.data.length > 0) {
+                // Jika ada surat yang dipilih, gunakan surat tersebut
+                // Jika tidak, tampilkan modal pilihan
+                if (selectedPermintaan) {
+                    await cetakSuratPermintaan(selectedPermintaan, encodedNorawat);
+                } else {
+                    // Simpan data permintaan yang tersedia
+                    setAvailablePermintaan(result.data);
+                    // Tampilkan modal pilihan surat
+                    setSelectedAction({
+                        id: item.id,
+                        nomor_register: item.nomor_register,
+                        nama: item.pasien.nama,
+                        type: 'cetak-permintaan',
+                        data: result.data
+                    });
+                    setShowCetakPermintaanModal(true);
+                }
+            } else {
+                toast.error('Tidak ada data permintaan cetak tersimpan untuk pasien ini');
+            }
+        } catch (error) {
+            console.error('Error fetching permintaan data:', error);
+            toast.error('Gagal mengambil data permintaan cetak: ' + (error as Error).message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const printDocument = (url: string) => {
+        try {
+            // Buat iframe tersembunyi untuk print
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.top = '-9999px';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            
+            document.body.appendChild(iframe);
+            
+            iframe.onload = () => {
+                try {
+                    // Tunggu sebentar untuk memastikan konten terload
+                    setTimeout(() => {
+                        iframe.contentWindow?.focus();
+                        iframe.contentWindow?.print();
+                        
+                        // Hapus iframe setelah print
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                        }, 1000);
+                    }, 1000);
+                } catch (e) {
+                    console.error('Print error:', e);
+                    document.body.removeChild(iframe);
+                }
+            };
+            
+            iframe.onerror = () => {
+                console.error('Failed to load print document');
+                document.body.removeChild(iframe);
+                toast.error('Gagal memuat dokumen untuk dicetak');
+            };
+            
+            iframe.src = url;
+        } catch (error) {
+            console.error('Print setup error:', error);
+            toast.error('Gagal menyiapkan dokumen untuk dicetak');
+        }
+    };
+
+    const cetakSuratPermintaan = async (permintaan: any, encodedNorawat: string) => {
+        try {
+            // Print langsung tanpa buka tab baru
+            const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${permintaan.jenis_permintaan}&detail=${encodeURIComponent(JSON.stringify(permintaan.detail_permintaan))}&judul=${encodeURIComponent(permintaan.judul || '')}&keterangan=${encodeURIComponent(permintaan.keterangan || '')}`;
+            
+            printDocument(cetakUrl);
+            toast.success('Surat permintaan sedang dicetak');
+        } catch (error) {
+            console.error('Error printing permintaan:', error);
+            toast.error('Gagal mencetak surat permintaan: ' + (error as Error).message);
+        }
+    };
+
+    const markAsPrinted = async (cetakId: number) => {
+        try {
+            const response = await fetch(`/api/pelayanan/permintaan/mark-printed/${cetakId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (!result.success) {
+                console.warn('Failed to mark as printed:', result.message);
+            }
+        } catch (error) {
+            console.error('Error marking as printed:', error);
         }
     };
 
@@ -966,15 +1122,29 @@ const PendaftaranDashboard = () => {
                                                                     Batal
                                                                 </Button>
                                                             )}
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="h-7 px-2 text-xs hover:bg-gray-50"
-                                                                onClick={() => handleCetak(item)}
-                                                            >
-                                                                <Printer className="mr-1 h-3 w-3" />
-                                                                Cetak
-                                                            </Button>
+                                                            {/* Tombol Cetak berdasarkan status */}
+                                                            {String(item.status?.status_pendaftaran) === '1' ? (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 px-2 text-xs hover:bg-gray-50"
+                                                                    onClick={() => handleCetak(item)}
+                                                                >
+                                                                    <Printer className="mr-1 h-3 w-3" />
+                                                                    Cetak Antrian
+                                                                </Button>
+                                                            ) : String(item.status?.status_pendaftaran) === '2' ? (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 px-2 text-xs hover:bg-blue-50 text-blue-600"
+                                                                    onClick={() => handleCetakPermintaan(item)}
+                                                                    disabled={loading}
+                                                                >
+                                                                    <Printer className="mr-1 h-3 w-3" />
+                                                                    {loading ? 'Loading...' : 'Cetak Permintaan'}
+                                                                </Button>
+                                                            ) : null}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -1643,6 +1813,70 @@ const PendaftaranDashboard = () => {
                         </Button>
                         <Button onClick={handleUbahDokter} disabled={loading || !selectedDokter}>
                             {loading ? 'Mengupdate...' : 'Update Dokter'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Cetak Permintaan Modal */}
+            <Dialog open={showCetakPermintaanModal} onOpenChange={setShowCetakPermintaanModal}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Printer className="h-5 w-5" />
+                            Pilih Surat Permintaan
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                            <p className="text-sm text-blue-800">
+                                <strong>Pasien:</strong> {selectedAction?.nama}
+                            </p>
+                            <p className="text-sm text-blue-800">
+                                <strong>Total Surat:</strong> {availablePermintaan.length} surat tersedia
+                            </p>
+                        </div>
+                        <div>
+                            <div className="mb-2 flex items-center justify-between">
+                                <Label htmlFor="surat-permintaan">Pilih Surat yang Akan Dicetak</Label>
+                            </div>
+                            <Select value={selectedPermintaan} onValueChange={setSelectedPermintaan}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih Surat Permintaan" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availablePermintaan.map((permintaan) => (
+                                        <SelectItem key={permintaan.id} value={permintaan.id.toString()}>
+                                            <div className="flex flex-col">
+                                                <div className="font-medium">
+                                                    {permintaan.jenis_permintaan === 'radiologi' && 'Permintaan Radiologi'}
+                                                    {permintaan.jenis_permintaan === 'laboratorium' && 'Permintaan Laboratorium'}
+                                                    {permintaan.jenis_permintaan === 'surat_sakit' && 'Surat Sakit'}
+                                                    {permintaan.jenis_permintaan === 'surat_sehat' && 'Surat Sehat'}
+                                                    {permintaan.jenis_permintaan === 'surat_kematian' && 'Surat Kematian'}
+                                                    {permintaan.jenis_permintaan === 'skdp' && 'SKDP'}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {permintaan.judul && `Judul: ${permintaan.judul}`}
+                                                    {permintaan.status === 'printed' && ' (Sudah Dicetak)'}
+                                                    {permintaan.status === 'draft' && ' (Draft)'}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Dibuat: {new Date(permintaan.created_at).toLocaleDateString('id-ID')}
+                                                </div>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCetakPermintaanModal(false)}>
+                            Batal
+                        </Button>
+                        <Button onClick={handleCetakPermintaanSelected} disabled={loading || !selectedPermintaan}>
+                            {loading ? 'Mencetak...' : 'Cetak Surat'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

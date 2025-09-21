@@ -104,7 +104,7 @@ export default function KasirIndex({
     const pasienUmur = computeAgeString(pasienTanggalLahir) || apotek?.data_soap?.umur || tindakan?.data_soap?.umur || '';
     const pasienAlamat = apotek?.alamat || tindakan?.data_soap?.pasien?.alamat || '';
     const pasienPoli = apotek?.poli || tindakan?.data_soap?.pendaftaran?.poli?.nama || '';
-    const pasienDokter = apotek?.dokter || tindakan?.data_soap?.pendaftaran?.dokter?.namauser?.name || '';
+    const pasienDokter = apotek?.dokter || tindakan?.data_soap?.pendaftaran?.dokter?.namauser?.name || tindakan?.data_soap?.pendaftaran?.dokter?.nama || '';
     const defaultPenjamin = apotek?.penjamin || tindakan?.data_soap?.penjamin || '';
 
     // State pembayaran & perhitungan

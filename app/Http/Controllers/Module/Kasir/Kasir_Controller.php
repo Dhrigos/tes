@@ -15,6 +15,7 @@ use App\Models\Module\Pelayanan\Pelayanan;
 use App\Models\Module\Master\Data\Medis\Tindakan;
 use App\Models\Module\Master\Data\Medis\Kategori_Tindakan;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Tindakan;
+use App\Models\Module\Pelayanan\Rujukan;
 use App\Models\Settings\Web_Setting;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -36,8 +37,17 @@ class Kasir_Controller extends Controller
 
         $tindakan = Pelayanan_Soap_Dokter_Tindakan::where('status_kasir', 0)
             ->whereDoesntHave('cek_resep')
-            ->with('data_soap')
+            ->with(['data_soap.pendaftaran.poli', 'data_soap.pendaftaran.dokter.namauser', 'data_soap.pasien'])
             ->get();
+
+        // Ambil data rujukan untuk setiap tindakan
+        $rujukanData = [];
+        foreach ($tindakan as $t) {
+            $rujukan = Rujukan::where('nomor_register', $t->no_rawat)->first();
+            if ($rujukan) {
+                $rujukanData[$t->no_rawat] = $rujukan;
+            }
+        }
 
         $latestFaktur = Kasir::where('kode_faktur', 'LIKE', "TND-{$tanggal}-%")
             ->orderBy('kode_faktur', 'desc')
@@ -74,6 +84,7 @@ class Kasir_Controller extends Controller
             'title' => $title,
             'apotek' => $apotek,
             'tindakan' => $tindakan,
+            'rujukanData' => $rujukanData,
         ]);
     }
 
@@ -81,8 +92,8 @@ class Kasir_Controller extends Controller
     {
         $title = "Detail Pembayaran Kasir";
         $no_rawat = $request->query('no_rawat');
-        $apotek = apotek::with('data_soap', 'detail_obat')->where('kode_faktur', $kode_faktur)->first();
-        $tindakan = pelayanan_soap_dokter_tindakan::with('data_soap')->where('no_rawat', $no_rawat)->first();
+        $apotek = apotek::with(['data_soap.pendaftaran.poli', 'data_soap.pendaftaran.dokter.namauser', 'data_soap.pasien', 'detail_obat'])->where('kode_faktur', $kode_faktur)->first();
+        $tindakan = pelayanan_soap_dokter_tindakan::with(['data_soap.pendaftaran.poli', 'data_soap.pendaftaran.dokter.namauser', 'data_soap.pasien'])->where('no_rawat', $no_rawat)->first();
 
         $apotekTabel = apotek_prebayar::where('kode_faktur', $kode_faktur)->get();
         $tindakanTabel = pelayanan_soap_dokter_tindakan::with('data_soap')->where('no_rawat', $no_rawat)->whereNotNull('jenis_pelaksana')->get();
@@ -291,6 +302,38 @@ class Kasir_Controller extends Controller
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function previewData(Request $request)
+    {
+        try {
+            $no_rawat = $request->input('no_rawat');
+            
+            if (!$no_rawat) {
+                return response()->json(['error' => 'No rawat is required'], 400);
+            }
+
+            // Ambil data tindakan berdasarkan no_rawat
+            $tindakan = Tindakan::where('no_rawat', $no_rawat)->get();
+            
+            if ($tindakan->isEmpty()) {
+                return response()->json([]);
+            }
+
+            // Format data untuk preview
+            $formattedData = $tindakan->map(function ($item) {
+                return [
+                    'jenis_tindakan' => $item->jenis_tindakan ?? '-',
+                    'harga' => $item->harga ?? 0,
+                    'jenis_pelaksana' => $item->jenis_pelaksana ?? '-',
+                ];
+            });
+
+            return response()->json($formattedData);
+        } catch (\Exception $e) {
+            \Log::error('Error in previewData: ' . $e->getMessage());
+            return response()->json(['error' => 'Terjadi kesalahan saat mengambil data'], 500);
         }
     }
 

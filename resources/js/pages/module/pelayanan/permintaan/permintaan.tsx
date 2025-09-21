@@ -155,14 +155,8 @@ export default function Permintaan() {
 
             const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
-            // Buka tab cetak terlebih dahulu (popup blockers butuh sync user gesture)
-            const encodedNorawat = btoa(pelayanan.nomor_register);
-            const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
-            const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
-                jenis_permintaan,
-            )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
-            const printWin = window.open(cetakUrl, '_blank');
-            const res = await fetch('/pelayanan/permintaan', {
+            // Hanya simpan ke database tanpa buka halaman cetak
+            const res = await fetch('/api/pelayanan/permintaan/store', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -186,10 +180,6 @@ export default function Permintaan() {
                     onSuccess && onSuccess();
                 } else {
                     toast.error(data?.message || 'Gagal menyimpan permintaan');
-                    // Tutup tab cetak bila gagal simpan
-                    try {
-                        printWin && printWin.close();
-                    } catch {}
                 }
             } catch {
                 if (res.ok) {
@@ -197,9 +187,6 @@ export default function Permintaan() {
                     onSuccess && onSuccess();
                 } else {
                     toast.error('Gagal menyimpan permintaan');
-                    try {
-                        printWin && printWin.close();
-                    } catch {}
                 }
             }
         } catch (e) {
@@ -369,7 +356,51 @@ export default function Permintaan() {
         toast.info(`Cetak ${label} belum terhubung.`);
     };
 
-    const handleGlobalPrint = () => {
+    const printDocument = (url: string) => {
+        try {
+            // Buat iframe tersembunyi untuk print
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.top = '-9999px';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            
+            document.body.appendChild(iframe);
+            
+            iframe.onload = () => {
+                try {
+                    // Tunggu sebentar untuk memastikan konten terload
+                    setTimeout(() => {
+                        iframe.contentWindow?.focus();
+                        iframe.contentWindow?.print();
+                        
+                        // Hapus iframe setelah print
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                        }, 1000);
+                    }, 1000);
+                } catch (e) {
+                    console.error('Print error:', e);
+                    document.body.removeChild(iframe);
+                }
+            };
+            
+            iframe.onerror = () => {
+                console.error('Failed to load print document');
+                document.body.removeChild(iframe);
+                toast.error('Gagal memuat dokumen untuk dicetak');
+            };
+            
+            iframe.src = url;
+        } catch (error) {
+            console.error('Print setup error:', error);
+            toast.error('Gagal menyiapkan dokumen untuk dicetak');
+        }
+    };
+
+    const handleGlobalPrint = async () => {
         const jenis_permintaan = jenisMap[activeTab] || 'surat_sakit';
         const detail_permintaan = buildDetailForTab(activeTab);
 
@@ -402,12 +433,49 @@ export default function Permintaan() {
             return;
         }
 
-        const encodedNorawat = btoa(pelayanan.nomor_register);
-        const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
-        const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
-            jenis_permintaan,
-        )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
-        window.open(cetakUrl, '_blank');
+        try {
+            // Simpan ke database terlebih dahulu
+            const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch('/api/pelayanan/permintaan/store', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({
+                    nomor_register: pelayanan.nomor_register,
+                    jenis_permintaan,
+                    detail_permintaan,
+                    judul,
+                    keterangan,
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+
+            const result = await res.json();
+
+            if (result.success) {
+                // Simpan berhasil, sekarang print langsung tanpa buka tab baru
+                const encodedNorawat = btoa(pelayanan.nomor_register);
+                const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
+                const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
+                    jenis_permintaan,
+                )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
+                
+                // Print langsung tanpa buka tab baru
+                printDocument(cetakUrl);
+                toast.success('Permintaan disimpan dan sedang dicetak');
+            } else {
+                throw new Error(result.message || 'Gagal menyimpan permintaan');
+            }
+        } catch (error) {
+            console.error('Error saving and printing permintaan:', error);
+            toast.error('Gagal menyimpan permintaan: ' + (error as Error).message);
+        }
     };
 
     return (

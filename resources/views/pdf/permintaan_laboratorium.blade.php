@@ -246,6 +246,17 @@
             </tr>
         </table>
     </div>
+
+    @if($auto_print ?? false)
+    <script>
+        // Auto print saat halaman selesai load
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500); // Delay 500ms untuk memastikan halaman selesai render
+        };
+    </script>
+    @endif
 </body>
 
 </html>

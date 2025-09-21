@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,6 +10,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { toast, Toaster } from 'sonner';
 
 interface PatientData {
     nomor_rm: string;
@@ -48,6 +50,7 @@ interface PageProps {
     subspesialis: Subspesialis[];
     sarana: Sarana[];
     spesialis: Spesialis[];
+    existingRujukan?: any;
     isKia?: boolean;
     errors?: Record<string, string>;
     flash?: {
@@ -62,13 +65,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Rujukan() {
-    const { pelayanan, Ref_TACC, subspesialis, sarana, spesialis, isKia } = usePage().props as unknown as PageProps;
+    const { pelayanan, Ref_TACC, subspesialis, sarana, spesialis, existingRujukan, isKia } = usePage().props as unknown as PageProps;
 
     const [activeTab, setActiveTab] = useState('jenis-rujukan');
     const [errorOpen, setErrorOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
-    const [successOpen, setSuccessOpen] = useState(false);
-    const [successMessage, setSuccessMessage] = useState('');
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [formData, setFormData] = useState({
         // Step 1
         jenis_rujukan: '',
@@ -129,6 +131,33 @@ export default function Rujukan() {
         }
     }, [activeTab, formData.opsi_rujukan]);
 
+    // Load existing rujukan data if available
+    useEffect(() => {
+        if (existingRujukan) {
+            console.log('Loading existing rujukan data:', existingRujukan);
+            setFormData({
+                jenis_rujukan: existingRujukan.jenis_rujukan || '',
+                tujuan_rujukan: existingRujukan.tujuan_rujukan || '',
+                opsi_rujukan: existingRujukan.opsi_rujukan || '',
+                igd_rujukan_khusus: existingRujukan.igd_rujukan_khusus || '',
+                subspesialis_khusus: existingRujukan.subspesialis_khusus || '',
+                tanggal_rujukan_khusus: existingRujukan.tanggal_rujukan_khusus || '',
+                tujuan_rujukan_khusus: existingRujukan.tujuan_rujukan_khusus || '',
+                aktifkan_sarana: !!existingRujukan.sarana,
+                sarana: existingRujukan.sarana || '',
+                kategori_rujukan: existingRujukan.kategori_rujukan || '',
+                alasan_rujukan: existingRujukan.alasanTacc || '',
+                spesialis: existingRujukan.spesialis || '',
+                sub_spesialis: existingRujukan.sub_spesialis || '',
+                tanggal_rujukan: existingRujukan.tanggal_rujukan || '',
+                tujuan_rujukan_spesialis: existingRujukan.tujuan_rujukan_spesialis || '',
+            });
+
+            // Show toast if data exists
+            toast.success('Data rujukan sudah tersimpan di database. Anda dapat mengedit atau mencetak ulang.');
+        }
+    }, [existingRujukan]);
+
     // Handle input changes
     const handleInputChange = (name: string, value: string | boolean) => {
         setFormData((prev) => ({
@@ -186,9 +215,81 @@ export default function Rujukan() {
         }
     };
 
-    // Handle form submission
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // Fungsi untuk print document dengan iframe (sama seperti di permintaan)
+    const printDocument = (url: string) => {
+        try {
+            // Buat iframe tersembunyi untuk print
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.top = '-9999px';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            
+            document.body.appendChild(iframe);
+            
+            iframe.onload = () => {
+                try {
+                    // Tunggu sebentar untuk memastikan konten terload
+                    setTimeout(() => {
+                        iframe.contentWindow?.focus();
+                        iframe.contentWindow?.print();
+                        
+                        // Deteksi kapan print dialog ditutup
+                        let printCompleted = false;
+                        
+                        const cleanup = () => {
+                            if (!printCompleted && document.body.contains(iframe)) {
+                                printCompleted = true;
+                                setTimeout(() => {
+                                    if (document.body.contains(iframe)) {
+                                        document.body.removeChild(iframe);
+                                    }
+                                }, 2000); // Tunggu 2 detik setelah print
+                            }
+                        };
+                        
+                        // Event listener untuk mendeteksi print dialog
+                        iframe.contentWindow?.addEventListener('afterprint', cleanup);
+                        iframe.contentWindow?.addEventListener('beforeprint', () => {
+                            console.log('Print dialog opened');
+                        });
+                        
+                        // Fallback jika event tidak terdeteksi - tunggu lebih lama
+                        setTimeout(() => {
+                            if (!printCompleted) {
+                                cleanup();
+                            }
+                        }, 5000); // Fallback setelah 5 detik
+                    }, 1000);
+                } catch (e) {
+                    console.error('Print error:', e);
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                }
+            };
+            
+            iframe.onerror = () => {
+                console.error('Failed to load print document');
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+                setErrorMessage('Gagal memuat dokumen untuk dicetak');
+                setErrorOpen(true);
+            };
+            
+            iframe.src = url;
+        } catch (error) {
+            console.error('Print setup error:', error);
+            setErrorMessage('Gagal menyiapkan dokumen untuk dicetak');
+            setErrorOpen(true);
+        }
+    };
+
+    // Fungsi untuk menyimpan data ke database
+    const saveRujukanData = async () => {
         try {
             const payload: Record<string, unknown> = {
                 nomor_rm: pelayanan.nomor_rm,
@@ -203,6 +304,7 @@ export default function Rujukan() {
                 payload['sarana'] = formData.aktifkan_sarana ? formData.sarana || null : null;
                 payload['kategori_rujukan'] = formData.kategori_rujukan;
                 payload['alasanTacc'] = formData.alasan_rujukan || null;
+                payload['spesialis'] = formData.spesialis;
                 payload['sub_spesialis'] = formData.sub_spesialis;
                 payload['tanggal_rujukan'] = formData.tanggal_rujukan;
                 payload['tujuan_rujukan_spesialis'] = formData.tujuan_rujukan_spesialis;
@@ -215,6 +317,8 @@ export default function Rujukan() {
                 payload['tujuan_rujukan_khusus'] = formData.tujuan_rujukan_khusus;
             }
 
+            console.log('Saving rujukan data:', payload);
+
             const res = await fetch('/pelayanan/rujukan', {
                 method: 'POST',
                 headers: {
@@ -226,24 +330,18 @@ export default function Rujukan() {
             });
 
             if (res.ok) {
-                // Pastikan backend mengembalikan JSON success untuk AJAX
                 let json: any = null;
                 try {
                     json = await res.json();
                 } catch (_) {}
+                
                 if (json?.success) {
-                    window.open(`/rujukan/cetak/${pelayanan.nomor_register}`, '_blank');
-                    const target = isKia ? 'soap-bidan' : 'soap-dokter';
-                    window.location.href = `/pelayanan/${target}/${pelayanan.nomor_register}`;
-                    return;
+                    return { success: true, data: json.data };
                 }
-                // Jika bukan JSON (mis. redirect HTML), tetap lanjutkan fallback
-                window.open(`/rujukan/cetak/${pelayanan.nomor_register}`, '_blank');
-                const target2 = isKia ? 'soap-bidan' : 'soap-dokter';
-                window.location.href = `/pelayanan/${target2}/${pelayanan.nomor_register}`;
-                return;
+                
+                return { success: true, data: null };
             }
-            // Extract error message from JSON or fallback to text/HTTP status
+            
             let message = 'Gagal menyimpan data rujukan';
             try {
                 const err = await res.json();
@@ -251,15 +349,49 @@ export default function Rujukan() {
             } catch (_) {
                 try {
                     const text = await res.text();
-                    // If server returned HTML (e.g., <!DOCTYPE), keep generic message
                     if (text && !/^<!DOCTYPE/i.test(text.trim())) message = text;
                 } catch (_) {}
             }
             throw new Error(message);
         } catch (error: any) {
-            setErrorMessage(error?.message || 'Terjadi kesalahan dalam menyimpan data!');
-            setErrorOpen(true);
+            console.error('Save error:', error);
+            throw error;
         }
+    };
+
+    // Handle simpan saja (database)
+    const handleSimpan = async () => {
+        try {
+            await saveRujukanData();
+            toast.success('Rujukan berhasil disimpan ke database!');
+            setShowConfirmModal(false);
+        } catch (error: any) {
+            toast.error('Gagal menyimpan rujukan: ' + (error?.message || 'Unknown error'));
+        }
+    };
+
+    // Handle simpan + print
+    const handlePrint = async () => {
+        try {
+            await saveRujukanData();
+            toast.success('Rujukan disimpan dan sedang dicetak!');
+            setShowConfirmModal(false);
+            
+            // Print document dengan delay untuk memastikan data tersimpan
+            setTimeout(() => {
+                // Coba dengan route alias tanpa prefix
+                const printUrl = `/rujukan/cetak/${pelayanan.nomor_register}`;               
+                printDocument(printUrl);
+            }, 1000); // Tambah delay lebih lama
+        } catch (error: any) {
+            toast.error('Gagal menyimpan dan mencetak rujukan: ' + (error?.message || 'Unknown error'));
+        }
+    };
+
+    // Handle form submission - tampilkan modal konfirmasi
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setShowConfirmModal(true);
     };
 
     const formatTanggal = (raw: string) => {
@@ -272,8 +404,7 @@ export default function Rujukan() {
         const sar = formData.sarana || '0';
         const tgl = formatTanggal(formData.tanggal_rujukan);
         if (!spes || !sar || !tgl) {
-            setErrorMessage('Harap isi Sub Spesialis, Sarana, dan Tanggal Rujukan terlebih dahulu.');
-            setErrorOpen(true);
+            toast.error('Harap isi Sub Spesialis, Sarana, dan Tanggal Rujukan terlebih dahulu.');
             return;
         }
         try {
@@ -289,11 +420,9 @@ export default function Rujukan() {
             }
             const list = (json?.data?.list || []) as Array<{ kdppk: string; nmppk: string }>;
             setTujuanRujukanSpesialisOptions(list);
-            setSuccessMessage(`Berhasil! Ditemukan ${list.length} provider.`);
-            setSuccessOpen(true);
+            toast.success(`Berhasil! Ditemukan ${list.length} provider.`);
         } catch (e: any) {
-            setErrorMessage(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
-            setErrorOpen(true);
+            toast.error(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
         }
     };
 
@@ -303,8 +432,7 @@ export default function Rujukan() {
         const nobpjs = pelayanan.no_bpjs || '0';
         const tgl = formatTanggal(formData.tanggal_rujukan_khusus);
         if (!tujuan || !nobpjs || !tgl) {
-            setErrorMessage('Harap isi Spesialis, No BPJS, dan Tanggal Rujukan terlebih dahulu.');
-            setErrorOpen(true);
+            toast.error('Harap isi Spesialis, No BPJS, dan Tanggal Rujukan terlebih dahulu.');
             return;
         }
         let url = '';
@@ -324,11 +452,9 @@ export default function Rujukan() {
             }
             const list = (json?.data?.list || []) as Array<{ kdppk: string; nmppk: string }>;
             setTujuanRujukanKhususOptions(list);
-            setSuccessMessage(`Berhasil! Ditemukan ${list.length} provider.`);
-            setSuccessOpen(true);
+            toast.success(`Berhasil! Ditemukan ${list.length} provider.`);
         } catch (e: any) {
-            setErrorMessage(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
-            setErrorOpen(true);
+            toast.error(e?.message || 'Terjadi kesalahan saat mengambil data provider.');
         }
     };
 
@@ -351,23 +477,56 @@ export default function Rujukan() {
                         </div>
                     </div>
                 )}
-                {successOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-black/30" onClick={() => setSuccessOpen(false)}></div>
-                        <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-lg">
-                            <h3 className="mb-2 text-lg font-semibold text-card-foreground">Berhasil</h3>
-                            <p className="mb-4 text-sm text-muted-foreground">{successMessage}</p>
-                            <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setSuccessOpen(false)}>
-                                    Tutup
+
+                {/* Modal Konfirmasi Simpan/Print */}
+                <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Konfirmasi Rujukan</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Pilih aksi yang ingin dilakukan dengan data rujukan ini:
+                            </p>
+                            <div className="flex flex-col gap-3">
+                                <Button 
+                                    onClick={handleSimpan}
+                                    className="w-full"
+                                    variant="outline"
+                                >
+                                    <i className="fas fa-save mr-2"></i>
+                                    Simpan ke Database
+                                </Button>
+                                <Button 
+                                    onClick={handlePrint}
+                                    className="w-full"
+                                >
+                                    <i className="fas fa-print mr-2"></i>
+                                    Simpan & Print
                                 </Button>
                             </div>
                         </div>
-                    </div>
-                )}
+                        <DialogFooter>
+                            <Button 
+                                variant="ghost" 
+                                onClick={() => setShowConfirmModal(false)}
+                            >
+                                Batal
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Pelayanan Rujuk</CardTitle>
+                        <CardTitle className="flex items-center justify-between">
+                            <span>Pelayanan Rujuk</span>
+                            {existingRujukan && (
+                                <div className="flex items-center gap-2 text-sm text-green-600">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span>Data tersimpan di database</span>
+                                </div>
+                            )}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
                         {/* Patient Information */}
@@ -860,6 +1019,7 @@ export default function Rujukan() {
                     </CardContent>
                 </Card>
             </div>
+            <Toaster position="top-right" />
         </AppLayout>
     );
 }

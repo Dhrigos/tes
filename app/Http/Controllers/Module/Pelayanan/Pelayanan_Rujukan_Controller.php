@@ -130,12 +130,16 @@ class Pelayanan_Rujukan_Controller extends Controller
                 ['kode' => 'UMU', 'nama' => 'Umum']
             ];
 
+            // Ambil data rujukan yang sudah ada (jika ada)
+            $existingRujukan = Rujukan::where('nomor_register', $nomor_register)->first();
+
             return Inertia::render('module/pelayanan/rujukan/rujukan', [
                 'pelayanan' => $patientData,
                 'Ref_TACC' => $refTacc,
                 'subspesialis' => $subspesialis,
                 'sarana' => $sarana,
-                'spesialis' => $spesialis
+                'spesialis' => $spesialis,
+                'existingRujukan' => $existingRujukan
             ]);
         } catch (\Exception $e) {
             return Inertia::render('module/pelayanan/rujukan/rujukan', [
@@ -159,7 +163,7 @@ class Pelayanan_Rujukan_Controller extends Controller
             ]);
 
             // Save to database
-            $created = Rujukan::create([
+            $rujukanData = [
                 'nomor_rm' => $request->input('nomor_rm'),
                 'nomor_register' => $request->input('no_rawat'),
                 'penjamin' => $request->input('penjamin'),
@@ -179,7 +183,12 @@ class Pelayanan_Rujukan_Controller extends Controller
                 'subspesialis_khusus' => $request->input('subspesialis_khusus'),
                 'tanggal_rujukan_khusus' => $request->input('tanggal_rujukan_khusus'),
                 'tujuan_rujukan_khusus' => $request->input('tujuan_rujukan_khusus'),
-            ]);
+            ];
+
+            // Log data yang akan disimpan untuk debugging
+            Log::info('Saving rujukan data:', $rujukanData);
+
+            $created = Rujukan::create($rujukanData);
 
             // Simpan ke Pasien History (best-effort)
             try {
@@ -210,14 +219,17 @@ class Pelayanan_Rujukan_Controller extends Controller
                 Log::error('Failed to save Pasien_History (rujukan_tambah): ' . $e->getMessage());
             }
 
+            Log::info('Rujukan created successfully with ID: ' . $created->id);
+
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Rujukan berhasil disimpan',
+                    'message' => 'Rujukan berhasil disimpan ke database',
                     'id' => $created->id,
+                    'data' => $created
                 ]);
             }
-            return redirect()->back()->with('success', 'Rujukan berhasil disimpan');
+            return redirect()->back()->with('success', 'Rujukan berhasil disimpan ke database');
         } catch (\Exception $e) {
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
