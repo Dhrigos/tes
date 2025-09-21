@@ -12,10 +12,10 @@ Request ke Laravel App → Middleware → Check Interval → Dispatch Job → Se
 
 ```
 1. User/System → Request ke Laravel App
-2. SystemMonitoringMiddleware → Cek interval (60 detik)
-3. Jika sudah waktunya → SimpleSystemMonitoringService
-4. Dispatch SendSystemDataJob → Background processing
-5. SystemDataService → Collect data dari Telescope & Pulse
+2. SimpleSystemMonitoringService → Cek interval (60 detik)
+3. Jika sudah waktunya → Dispatch SendSystemDataJob
+4. Background processing → SystemDataService
+5. Collect data dari Telescope & Pulse
 6. HTTP POST → Server Monitoring dengan header X-API-Token
 7. Server → Process data dan response
 ```
@@ -24,8 +24,8 @@ Request ke Laravel App → Middleware → Check Interval → Dispatch Job → Se
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Laravel App   │    │  Middleware      │    │  Simple Service │
-│                 │───▶│  Monitoring      │───▶│  Monitoring     │
+│   Laravel App   │    │  Simple Service  │    │  Background Job │
+│                 │───▶│  Monitoring      │───▶│  Processing     │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                                          │
                                                          ▼

@@ -1,0 +1,26 @@
+[Unit]
+Description=Vite Development Server for Apps Dev
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/apps-dev
+Environment=NODE_ENV=development
+ExecStart=/var/www/apps-dev/scripts/start-vite.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vite-dev
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/apps-dev
+
+[Install]
+WantedBy=multi-user.target

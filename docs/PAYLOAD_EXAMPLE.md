@@ -33,12 +33,6 @@
                 "created_at": "2025-09-14 19:48:49",
                 "batch_id": "9fe0d14c-d6ab-4d5e-a4ff-f8e86695857b"
             },
-            {
-                "type": "request",
-                "content": "{\"ip_address\":\"100.99.20.71\",\"uri\":\"\\\/api\\\/system-monitoring\\\/test\",\"method\":\"GET\",\"controller_action\":\"App\\\\Http\\\\Controllers\\\\SystemMonitoringController@test\",\"middleware\":[\"api\",\"Laravel\\\\Nightwatch\\\\Hooks\\\\RouteMiddleware\"],\"headers\":{...},\"payload\":[],\"session\":[],\"response_headers\":{\"cache-control\":\"no-cache, private\",\"date\":\"Sun, 14 Sep 2025 19:46:58 GMT\",\"content-type\":\"application\\\/json\",\"access-control-allow-origin\":\"*\"},\"response_status\":400,\"response\":{...},\"duration\":2078,\"memory\":4,\"hostname\":\"ubuntu\"}",
-                "created_at": "2025-09-14 19:46:58",
-                "batch_id": "9fe0d0a2-9aee-4211-99e6-3de1aeab0fbc"
-            }
         ]
     },
     "pulse": {
@@ -57,13 +51,6 @@
                 "key": "simple_system_monitoring_last_execution",
                 "value": null
             },
-            {
-                "id": 2899,
-                "timestamp": 1757879216,
-                "type": "slow_request",
-                "key": "[\"GET\",\"\\\/api\\\/system-monitoring\\\/test\",\"App\\\\Http\\\\Controllers\\\\SystemMonitoringController@test\"]",
-                "value": 2118
-            }
         ]
     },
     "server_info": {

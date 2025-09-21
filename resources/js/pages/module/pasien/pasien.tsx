@@ -121,6 +121,8 @@ export default function PendaftaranPasien() {
     const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
     const [currentStep, setCurrentStep] = useState(1);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(pasiens.current_page || 1);
+    const [isSearching, setIsSearching] = useState(false);
 
     const [formLengkapi, setFormLengkapi] = useState({
         nomor_rm: '',
@@ -188,6 +190,11 @@ export default function PendaftaranPasien() {
         }
     }, [flash]);
 
+    // Sync current page with pagination data
+    useEffect(() => {
+        setCurrentPage(pasiens.current_page || 1);
+    }, [pasiens.current_page]);
+
     useEffect(() => {
         if (formLengkapi.tanggal_lahir) {
             setDate(new Date(formLengkapi.tanggal_lahir));
@@ -203,12 +210,51 @@ export default function PendaftaranPasien() {
         { label: 'Pasien Belum Verifikasi', value: pasiennoverif, icon: UserX, color: 'bg-red-500' },
     ];
 
-    const filteredPasiens = pasiens.data.filter(
-        (p: Pasien) =>
-            p.nama.toLowerCase().includes(search.toLowerCase()) ||
-            p.no_rm.toLowerCase().includes(search.toLowerCase()) ||
-            p.no_bpjs.toLowerCase().includes(search.toLowerCase()),
-    );
+    // Handle search with debouncing
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            // Trim dan validasi input
+            const trimmedSearch = search.trim();
+
+            if (trimmedSearch !== '') {
+                setIsSearching(true);
+            }
+
+            // Always reset to page 1 when searching
+            router.get(
+                '/pasien',
+                { search: trimmedSearch || undefined, page: 1 },
+                {
+                    preserveState: true,
+                    replace: true,
+                    onFinish: () => setIsSearching(false),
+                    onError: () => {
+                        setIsSearching(false);
+                        toast.error('Gagal melakukan pencarian. Silakan coba lagi.');
+                    },
+                },
+            );
+            setCurrentPage(1);
+        }, 500);
+
+        return () => clearTimeout(timeoutId);
+    }, [search]);
+
+    // Handle page changes
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+        router.get(
+            '/pasien',
+            { search: search || undefined, page },
+            {
+                preserveState: true,
+                replace: true,
+                onError: () => {
+                    toast.error('Gagal memuat halaman. Silakan coba lagi.');
+                },
+            },
+        );
+    };
 
     const [lengkapiOpen, setLengkapiOpen] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -471,11 +517,25 @@ export default function PendaftaranPasien() {
                             <div className="relative">
                                 <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
                                 <Input
-                                    placeholder="Cari pasien..."
+                                    placeholder="Cari pasien (nama, no RM, NIK, BPJS, telepon)..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="w-64 pl-10"
+                                    className="w-80 pr-10 pl-10"
+                                    disabled={isSearching}
                                 />
+                                {isSearching && (
+                                    <div className="absolute top-1/2 right-8 h-4 w-4 -translate-y-1/2">
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+                                    </div>
+                                )}
+                                {search && (
+                                    <button
+                                        onClick={() => setSearch('')}
+                                        className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        ×
+                                    </button>
+                                )}
                             </div>
                             <Button size="sm" onClick={() => setOpenTambah(true)}>
                                 <Plus className="mr-2 h-4 w-4" /> Tambah Pasien
@@ -499,8 +559,8 @@ export default function PendaftaranPasien() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredPasiens.length > 0 ? (
-                                    filteredPasiens.map((pasien) => (
+                                {pasiens.data.length > 0 ? (
+                                    pasiens.data.map((pasien) => (
                                         <TableRow key={pasien.id}>
                                             <TableCell className="font-medium">{pasien.no_rm}</TableCell>
                                             <TableCell>{pasien.nama}</TableCell>
@@ -530,13 +590,93 @@ export default function PendaftaranPasien() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={7} className="py-8 text-center text-gray-500">
-                                            Tidak ada data pasien
+                                            {search ? (
+                                                <>
+                                                    Tidak ada data pasien yang cocok dengan pencarian "{search}"
+                                                    <br />
+                                                    <button
+                                                        onClick={() => setSearch('')}
+                                                        className="mt-2 text-blue-500 underline hover:text-blue-700"
+                                                    >
+                                                        Hapus pencarian
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                'Tidak ada data pasien'
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </CardContent>
+
+                    {/* Pagination Controls */}
+                    {pasiens.last_page > 1 && (
+                        <div className="flex items-center justify-between border-t px-6 py-4">
+                            <div className="text-sm text-muted-foreground">
+                                {search ? (
+                                    <>
+                                        Menampilkan {(pasiens.current_page - 1) * pasiens.per_page + 1} sampai{' '}
+                                        {Math.min(pasiens.current_page * pasiens.per_page, pasiens.total)} dari {pasiens.total} hasil pencarian "
+                                        {search}"
+                                    </>
+                                ) : (
+                                    <>
+                                        Menampilkan {(pasiens.current_page - 1) * pasiens.per_page + 1} sampai{' '}
+                                        {Math.min(pasiens.current_page * pasiens.per_page, pasiens.total)} dari {pasiens.total} data
+                                    </>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={pasiens.current_page <= 1}
+                                    onClick={() => handlePageChange(pasiens.current_page - 1)}
+                                >
+                                    Sebelumnya
+                                </Button>
+
+                                {/* Page Numbers */}
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: Math.min(5, pasiens.last_page) }, (_, i) => {
+                                        let pageNum: number;
+                                        if (pasiens.last_page <= 5) {
+                                            pageNum = i + 1;
+                                        } else if (pasiens.current_page <= 3) {
+                                            pageNum = i + 1;
+                                        } else if (pasiens.current_page >= pasiens.last_page - 2) {
+                                            pageNum = pasiens.last_page - 4 + i;
+                                        } else {
+                                            pageNum = pasiens.current_page - 2 + i;
+                                        }
+
+                                        return (
+                                            <Button
+                                                key={pageNum}
+                                                variant={pasiens.current_page === pageNum ? 'default' : 'outline'}
+                                                size="sm"
+                                                onClick={() => handlePageChange(pageNum)}
+                                                className="h-8 w-8 p-0"
+                                            >
+                                                {pageNum}
+                                            </Button>
+                                        );
+                                    })}
+                                </div>
+
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={pasiens.current_page >= pasiens.last_page}
+                                    onClick={() => handlePageChange(pasiens.current_page + 1)}
+                                >
+                                    Selanjutnya
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </Card>
 
                 {/* Modal Lengkapi Data */}

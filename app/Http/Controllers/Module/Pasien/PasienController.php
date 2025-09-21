@@ -31,10 +31,48 @@ use Illuminate\Support\Str;
 
 class PasienController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // Get search parameter
+        $search = $request->get('search', '');
+
+        // Build query with search functionality
+        $query = Pasien::with('goldarRelation', 'provinsi', 'kabupaten', 'kecamatan', 'desa');
+
+        if (!empty($search)) {
+            // Validasi dan sanitasi input
+            $search = trim($search);
+            $search = addslashes($search);
+
+            // Batasi panjang search untuk mencegah abuse
+            if (strlen($search) > 100) {
+                $search = substr($search, 0, 100);
+            }
+
+            $query->where(function ($q) use ($search) {
+                $q->where('nama', 'like', '%' . $search . '%')
+                    ->orWhere('no_rm', 'like', '%' . $search . '%')
+                    ->orWhere('no_bpjs', 'like', '%' . $search . '%')
+                    ->orWhere('nik', 'like', '%' . $search . '%')
+                    ->orWhere('telepon', 'like', '%' . $search . '%');
+            });
+        }
+
         // Load data pasien dengan pagination untuk menghindari memory exhausted
-        $pasiens = Pasien::with('goldarRelation', 'provinsi', 'kabupaten', 'kecamatan', 'desa')->paginate(50);
+        $pasiens = $query->orderBy('created_at', 'desc')->paginate(50);
+
+        // Append search parameter to pagination links
+        if (!empty($search)) {
+            $pasiens->appends(['search' => $search]);
+        }
+
+        // Log untuk debugging
+        FacadesLog::info('Pasien search', [
+            'search_term' => $search,
+            'total_results' => $pasiens->total(),
+            'current_page' => $pasiens->currentPage(),
+            'per_page' => $pasiens->perPage()
+        ]);
 
         // Hitung statistik dengan query yang lebih efisien
         $pasienallold = Pasien::where('verifikasi', 2)->count();
@@ -77,7 +115,7 @@ class PasienController extends Controller
         ));
     }
 
-     private function createNoRM()
+    private function createNoRM()
     {
         // Ambil No RM terbesar di database
         $lastNoRM = Pasien::max('no_rm');
@@ -114,7 +152,7 @@ class PasienController extends Controller
     {
         $request->validate([
             'nama' => 'required|string|max:255',
-            'nik' => 'required|string|max:20',
+            'nik' => 'nullable|string|max:20',
             'tgl_lahir' => 'required|date',
             'kelamin' => 'required',
             'telepon' => 'nullable|string|max:20',
@@ -198,8 +236,6 @@ class PasienController extends Controller
             'success'       => 'Pasien berhasil didaftarkan atau diperbarui!',
             'nomor_antrian' => $antrianRecord, // ambil field nomor, bukan object
         ]);
-
-
     }
     public function verifikasi(Request $request)
     {
@@ -323,6 +359,7 @@ class PasienController extends Controller
             'goldar' => $request->goldar,
             'is_complete' => $isDataComplete
         ]);
+
 
         return redirect()->back()->with('success', $message);
     }
@@ -503,6 +540,7 @@ class PasienController extends Controller
 
         // Upsert berdasarkan no_rm
         Pasien::updateOrCreate($lookup, $write);
+
 
         return response()->json(['status' => 'ok']);
     }
@@ -819,7 +857,7 @@ class PasienController extends Controller
 
         // Gabungkan histories ke tiap pasien
         $patientsWithHistories = $patients->map(function ($patient) use ($histories) {
-            return [                
+            return [
                 $patient,
                 // tambahkan kolom pasien lain sesuai kebutuhan                
                 'histories' => $histories->get($patient->no_rm, []),
@@ -829,6 +867,5 @@ class PasienController extends Controller
             'status' => 'success',
             'data'   => $patientsWithHistories,
         ]);
-        
     }
 }

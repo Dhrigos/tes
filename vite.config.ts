@@ -1,10 +1,8 @@
-import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import laravel from 'laravel-vite-plugin';
 import { resolve } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
-import fs from 'fs'
-
 
 export default defineConfig(({ mode }) => {
     // Load env variables
@@ -21,7 +19,6 @@ export default defineConfig(({ mode }) => {
                 refresh: true,
             }),
             react(),
-            tailwindcss(),
         ],
         esbuild: {
             jsx: 'automatic',
@@ -47,21 +44,46 @@ export default defineConfig(({ mode }) => {
             // Force re-optimization on dev server start to prevent "Outdated Optimize Dep" cache mismatches
             force: isDevServer,
         },
+        build: {
+            outDir: 'public/build',
+            emptyOutDir: true,
+            manifest: true,
+            rollupOptions: {
+                input: {
+                    app: 'resources/js/app.tsx',
+                    css: 'resources/css/app.css',
+                },
+            },
+        },
         server: isDevServer
             ? {
                   host: '0.0.0.0', // bisa diakses dari LAN/WAN
-                  port: 5173,
-                  https: {
-                    key: fs.readFileSync('/etc/nginx/ssl/selfsigned.key'),
-                    cert: fs.readFileSync('/etc/nginx/ssl/selfsigned.crt'),
-                  },              
-                  cors: true, // <--- tambahkan
+                  port: parseInt(env.VITE_HMR_PORT || '5173'),
+                  https: (() => {
+                      try {
+                          const keyPath = env.VITE_SSL_KEY || '/etc/nginx/ssl/selfsigned.key';
+                          const certPath = env.VITE_SSL_CERT || '/etc/nginx/ssl/selfsigned.crt';
+
+                          if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+                              return {
+                                  key: fs.readFileSync(keyPath),
+                                  cert: fs.readFileSync(certPath),
+                              };
+                          }
+                          return undefined; // fallback to HTTP
+                      } catch (error) {
+                          console.warn('SSL certificates not found, using HTTP');
+                          return undefined;
+                      }
+                  })(),
+                  cors: true,
                   hmr: {
-                    host: '100.106.3.92',  // <– IP/VPN server kamu
-                    protocol: 'wss',       // pakai wss karena https
-                    port: 5173,
+                      host: env.VITE_HMR_HOST || 'localhost',
+                      protocol: env.VITE_HTTPS === 'true' ? 'wss' : 'ws',
+                      port: parseInt(env.VITE_HMR_PORT || '5173'),
                   },
-              
+                  strictPort: false,
+                  open: false,
               }
             : undefined, // kalau VITE_DEV_SERVER != true, pakai default
     };

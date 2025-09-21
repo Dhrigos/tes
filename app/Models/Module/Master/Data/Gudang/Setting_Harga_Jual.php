@@ -16,6 +16,8 @@ class Setting_Harga_Jual extends Model
         'harga_jual_2',
         'harga_jual_3',
         'embalase_poin',
+        'setting_waktu',
+        'satuan_waktu',
     ];
 
     // Enable timestamps

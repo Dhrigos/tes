@@ -3,8 +3,8 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import React, { useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Input } from '@/components/ui/input';
@@ -60,7 +60,6 @@ function ConfigSatuSehat() {
         if (typeof isActive !== 'undefined') {
             setEnabledSS(Boolean(isActive));
         }
-         
     }, [props?.web_setting?.is_satusehat_active]);
 
     const handleToggleChangeSS = async (checked: boolean) => {
@@ -155,7 +154,15 @@ function ConfigSatuSehat() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Organization ID</label>
-                                <Input name="org_id" type="text" value={formData.org_id} onChange={handleChange} placeholder="Masukkan Org ID" required disabled={!enabledSS || loading} />
+                                <Input
+                                    name="org_id"
+                                    type="text"
+                                    value={formData.org_id}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Org ID"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Client Secret</label>
@@ -171,7 +178,15 @@ function ConfigSatuSehat() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Secret Key</label>
-                                <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabledSS || loading} />
+                                <Input
+                                    name="SECRET_KEY"
+                                    type="password"
+                                    value={formData.SECRET_KEY}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
                             </div>
                             <div className="col-span-2">
                                 <label className="block text-sm font-medium">Satu Sehat Base URL</label>
@@ -225,7 +240,6 @@ function ConfigBPJS() {
                 PASSWORD: bpjs.PASSWORD || '',
             });
         }
-         
     }, [props?.set_bpjs]);
 
     // Prefill toggle BPJS dari web_setting props
@@ -234,7 +248,6 @@ function ConfigBPJS() {
         if (typeof isActive !== 'undefined') {
             setEnabled(Boolean(isActive));
         }
-         
     }, [props?.web_setting?.is_bpjs_active]);
 
     const handleToggleChange = async (checked: boolean) => {
@@ -315,30 +328,78 @@ function ConfigBPJS() {
                 <CardContent className="p-4">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium">Cons ID</label>
-                            <Input name="CONSID" type="text" value={formData.CONSID} onChange={handleChange} placeholder="Masukkan Cons ID" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">KPFK (Kode Apotek)</label>
-                            <Input name="KPFK" type="text" value={formData.KPFK} onChange={handleChange} placeholder="Masukkan Kode Apotek" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">Secret Key</label>
-                            <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">User Key</label>
-                            <Input name="USER_KEY" type="password" value={formData.USER_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">Username</label>
-                            <Input name="USERNAME" type="text" value={formData.USERNAME} onChange={handleChange} placeholder="Masukkan Username" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">Password</label>
-                            <Input name="PASSWORD" type="password" value={formData.PASSWORD} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
-                        </div>
+                            <div>
+                                <label className="block text-sm font-medium">Cons ID</label>
+                                <Input
+                                    name="CONSID"
+                                    type="text"
+                                    value={formData.CONSID}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Cons ID"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">KPFK (Kode Apotek)</label>
+                                <Input
+                                    name="KPFK"
+                                    type="text"
+                                    value={formData.KPFK}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Kode Apotek"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Secret Key</label>
+                                <Input
+                                    name="SECRET_KEY"
+                                    type="password"
+                                    value={formData.SECRET_KEY}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">User Key</label>
+                                <Input
+                                    name="USER_KEY"
+                                    type="password"
+                                    value={formData.USER_KEY}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Username</label>
+                                <Input
+                                    name="USERNAME"
+                                    type="text"
+                                    value={formData.USERNAME}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Username"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Password</label>
+                                <Input
+                                    name="PASSWORD"
+                                    type="password"
+                                    value={formData.PASSWORD}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
                         </div>
                         <div className="flex justify-end">
                             <Button type="submit" disabled={loading || !enabled}>
@@ -459,7 +520,7 @@ function ConfigGudang() {
                 <span className="font-medium">Aktifkan Fitur Gudang</span>
                 {/* Toggle harus selalu tampil, tidak tergantung enabled */}
                 <Switch checked={enabled} onCheckedChange={handleToggleChange} disabled={loading} />
-            </div>            
+            </div>
         </div>
     );
 }
@@ -733,7 +794,7 @@ function HargaJual() {
             {Boolean(isGudangUtama) && (
                 <Card>
                     <CardContent className="p-4">
-                        <h3 className="mb-4 text-lg font-semibold">Setting Harga Jual Utama</h3>
+                        <h3 className="mb-4 text-lg font-semibold">Setting Harga Jual Utama tes</h3>
                         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
                             Pengaturan persentase markup harga jual dari Gudang Utama. Nilai dalam persen (%) dari harga dasar obat. Embalase diatur
                             per klinik.
@@ -1049,7 +1110,6 @@ function Advanced() {
                 setPreview(`/setting/${setting.profile_image}`);
             }
         }
-         
     }, [props?.web_setting]);
 
     const handleLogoClick = () => {

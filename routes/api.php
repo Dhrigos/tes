@@ -25,7 +25,6 @@ use App\Http\Controllers\Module\Pelayanan\Dokter_Rujukan_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Dokter_Controller;
 use App\Http\Controllers\Module\Kasir\Kasir_Controller;
 use App\Http\Controllers\Module\Pelayanan\Pelayanan_Soap_Bidan_Controller;
-use App\Http\Controllers\SystemMonitoringController;
 use Illuminate\Http\Request;
 
 Route::get('/get_poli', [Pcare_Controller::class, 'get_poli']);
@@ -185,19 +184,6 @@ Route::prefix('m_jkn')->group(function () {
     Route::post('/set_pasien_baru', [MJKN_Controller::class, 'set_pasien_baru'])->name('pasien_baru.m_jkn');
 });
 
-// System Monitoring API Routes
-Route::prefix('system-monitoring')->group(function () {
-    Route::get('/test', [SystemMonitoringController::class, 'test']);
-    Route::get('/health', [SystemMonitoringController::class, 'health']);
-    Route::get('/telescope-data', [SystemMonitoringController::class, 'telescopeData']);
-    Route::get('/pulse-data', [SystemMonitoringController::class, 'pulseData']);
-    Route::post('/send-data', [SystemMonitoringController::class, 'sendData']);
-
-    // Auto-start routes
-    Route::post('/start-auto', [SystemMonitoringController::class, 'startAuto']);
-    Route::post('/force-execute', [SystemMonitoringController::class, 'forceExecute']);
-    Route::get('/auto-status', [SystemMonitoringController::class, 'autoStatus']);
-});
 
 Route::prefix('pelayanan-rujukan')->group(function () {
     Route::get('/get-faskes-rujukan-subspesialis', [Pelayanan_Rujukan_Controller::class, 'pcareFaskesRujukanSubspesialis']);
