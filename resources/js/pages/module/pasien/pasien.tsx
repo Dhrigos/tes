@@ -1179,13 +1179,7 @@ export default function PendaftaranPasien() {
                                                 <Popover open={openBpjs} onOpenChange={setOpenBpjs}>
                                                     <PopoverTrigger asChild>
                                                         <Button variant="outline" id="masa-berlaku" className="w-full justify-between">
-                                                            {formLengkapi.tgl_exp_bpjs
-                                                                ? new Date(formLengkapi.tgl_exp_bpjs).toLocaleDateString('id-ID', {
-                                                                      day: '2-digit',
-                                                                      month: '2-digit',
-                                                                      year: 'numeric',
-                                                                  })
-                                                                : 'Pilih tanggal'}
+                                                            {formLengkapi.tgl_exp_bpjs ? formLengkapi.tgl_exp_bpjs : 'Pilih tanggal'}
                                                             <ChevronDown className="h-4 w-4 opacity-50" />
                                                         </Button>
                                                     </PopoverTrigger>
@@ -1434,7 +1428,7 @@ export default function PendaftaranPasien() {
                                         <Input placeholder="Nama" value={namaBaru} onChange={(e) => setNamaBaru(e.target.value)} />
                                     </div>
                                     <div>
-                                        <Label>NIK</Label>
+                                        <Label>NIK/NOKA</Label>
                                         <Input placeholder="NIK" value={nikBaru} onChange={(e) => setNikBaru(e.target.value)} type="text" />
                                     </div>
                                     <div>

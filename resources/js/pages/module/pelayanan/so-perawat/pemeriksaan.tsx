@@ -1517,14 +1517,14 @@ export default function PemeriksaanPerawat() {
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle>
-                                                    Tanda Vital & Antropometri <span className="text-red-500">*</span>
+                                                    Tanda Vital & Antropometri 
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                                                     <div>
                                                         <Label htmlFor="tensi" className="text-sm font-semibold">
-                                                            Tensi (mmHg)
+                                                            Tensi (mmHg)<span className="text-red-500">*</span>
                                                         </Label>
                                                         <div className="mt-1 flex items-center gap-1">
                                                             <Input
@@ -1557,7 +1557,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="suhu" className="text-sm font-semibold">
-                                                            Suhu (°C)
+                                                            Suhu (°C)<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={suhuRef}
@@ -1575,7 +1575,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="nadi" className="text-sm font-semibold">
-                                                            Nadi (/mnt)
+                                                            Nadi (/mnt)<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={nadiRef}
@@ -1593,7 +1593,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="rr" className="text-sm font-semibold">
-                                                            RR (/mnt)
+                                                            RR (/mnt)<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={rrRef}
@@ -1611,7 +1611,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="tinggi" className="text-sm font-semibold">
-                                                            Tinggi (Cm)
+                                                            Tinggi (Cm)<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={tinggiRef}
@@ -1629,7 +1629,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="berat" className="text-sm font-semibold">
-                                                            Berat (/Kg)
+                                                            Berat (/Kg)<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={beratRef}
@@ -1652,14 +1652,14 @@ export default function PemeriksaanPerawat() {
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle>
-                                                    Data Tambahan <span className="text-red-500">*</span>
+                                                    Data Tambahan
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                                     <div>
                                                         <Label htmlFor="spo2" className="text-sm font-semibold">
-                                                            SpO2
+                                                            SpO2<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={spo2Ref}
@@ -1676,13 +1676,17 @@ export default function PemeriksaanPerawat() {
                                                     </div>
 
                                                     <div className="col-span-2">
-                                                        <Label className="text-sm font-semibold">Alergi dan jenis</Label>
+                                                        <Label className="text-sm font-semibold">Alergi dan jenis<span className="text-red-500">*</span></Label>
                                                         <div className="mt-1 grid grid-cols-2 gap-2">
                                                             {/* Jenis Alergi (multi-select) */}
                                                             <Popover>
                                                                 <PopoverTrigger asChild>
                                                                     <Button variant="outline" className="w-full justify-between text-sm">
-                                                                        {jenisAlergi.length > 0 ? jenisAlergi.join(', ') : 'Pilih jenis alergi'}
+                                                                        {jenisAlergi.length > 0
+                                                                            ? jenisAlergi
+                                                                                  .map((v) => (v === '00' ? 'Tidak ada' : v))
+                                                                                  .join(', ')
+                                                                            : 'Pilih jenis alergi'}
                                                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                                     </Button>
                                                                 </PopoverTrigger>
@@ -1750,7 +1754,9 @@ export default function PemeriksaanPerawat() {
                                                                         className="w-full justify-between text-sm"
                                                                     >
                                                                         {alergi.length > 0
-                                                                            ? alergi.join(', ')
+                                                                            ? alergi
+                                                                                  .map((v) => (v === '00' ? 'Tidak ada' : v))
+                                                                                  .join(', ')
                                                                             : jenisAlergi.length === 0
                                                                               ? 'Pilih jenis terlebih dahulu'
                                                                               : 'Pilih detail alergi'}
@@ -1816,7 +1822,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="lingkarPerut" className="text-sm font-semibold">
-                                                            Lingkar Perut
+                                                            Lingkar Perut<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Input
                                                             ref={lingkarPerutRef}
@@ -1865,14 +1871,14 @@ export default function PemeriksaanPerawat() {
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle>
-                                                    Glasgow Coma Scale (GCS) <span className="text-red-500">*</span>
+                                                    Glasgow Coma Scale (GCS)
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                                     <div>
                                                         <Label htmlFor="gcsEye" className="text-sm font-semibold">
-                                                            EYE
+                                                            EYE<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Select value={gcsEye} onValueChange={setGcsEye}>
                                                             <SelectTrigger className="mt-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap">
@@ -1890,7 +1896,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="gcsVerbal" className="text-sm font-semibold">
-                                                            VERBAL
+                                                            VERBAL<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Select value={gcsVerbal} onValueChange={setGcsVerbal}>
                                                             <SelectTrigger className="mt-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap">
@@ -1908,7 +1914,7 @@ export default function PemeriksaanPerawat() {
 
                                                     <div>
                                                         <Label htmlFor="gcsMotorik" className="text-sm font-semibold">
-                                                            MOTORIK
+                                                            MOTORIK<span className="text-red-500">*</span>
                                                         </Label>
                                                         <Select value={gcsMotorik} onValueChange={setGcsMotorik}>
                                                             <SelectTrigger className="mt-1 overflow-hidden text-sm text-ellipsis whitespace-nowrap">

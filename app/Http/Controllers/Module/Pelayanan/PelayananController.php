@@ -357,15 +357,14 @@ class PelayananController extends Controller
 
                 $soapDetails = [];
 
-                // Build Subjective and Objective depending on source type
+                // Hanya bangun SOAP details untuk SOAP Dokter atau SO Perawat
                 $tableData = $data['tableData'] ?? [];
                 if (is_string($tableData)) {
                     $decoded = json_decode($tableData, true);
                     $tableData = is_array($decoded) ? $decoded : [];
                 }
 
-                // Subjective
-                if ($type === 'soap_dokter') {
+                if ($baseType === 'soap_dokter') {
                     $subjectiveParts = [];
                     if (!empty($data['anamnesa'])) {
                         $subjectiveParts[] = trim((string) $data['anamnesa']);
@@ -385,7 +384,7 @@ class PelayananController extends Controller
                         'tipe_soap' => 'subjective',
                         'content' => !empty($subjectiveParts) ? trim(implode("\n\n", $subjectiveParts)) : '-',
                     ];
-                } else { // so_perawat
+                } elseif ($baseType === 'so_perawat') {
                     $subjectiveText = '-';
                     if (!empty($tableData['keluhanList']) && is_array($tableData['keluhanList'])) {
                         $keluhanText = "Daftar Keluhan:\n";
@@ -404,81 +403,92 @@ class PelayananController extends Controller
                     ];
                 }
 
-                // Objective - vitals + HTT items (if any)
-                $objectiveParts = [];
-                foreach (['tensi', 'suhu', 'nadi', 'rr', 'spo2', 'berat', 'tinggi', 'nilai_bmi', 'alergi'] as $key) {
-                    if (!empty($data[$key])) {
-                        switch ($key) {
-                            case 'suhu':
-                                $objectiveParts[] = 'Suhu: ' . $data[$key] . '°C';
-                                break;
-                            case 'nadi':
-                                $objectiveParts[] = 'Nadi: ' . $data[$key] . '/menit';
-                                break;
-                            case 'rr':
-                                $objectiveParts[] = 'RR: ' . $data[$key] . '/menit';
-                                break;
-                            case 'spo2':
-                                $objectiveParts[] = 'SpO2: ' . $data[$key] . '%';
-                                break;
-                            case 'berat':
-                                $objectiveParts[] = 'Berat: ' . $data[$key] . ' kg';
-                                break;
-                            case 'tinggi':
-                                $objectiveParts[] = 'Tinggi: ' . $data[$key] . ' cm';
-                                break;
-                            case 'nilai_bmi':
-                                $objectiveParts[] = 'BMI: ' . $data[$key];
-                                break;
-                            case 'alergi':
-                                $objectiveParts[] = 'Alergi: ' . $data[$key];
-                                break;
-                            default:
-                                $objectiveParts[] = 'Tensi: ' . $data[$key];
+                // Objective - hanya untuk SOAP
+                if ($baseType === 'soap_dokter' || $baseType === 'so_perawat') {
+                    $objectiveParts = [];
+                    foreach (['tensi', 'suhu', 'nadi', 'rr', 'spo2', 'berat', 'tinggi', 'nilai_bmi', 'alergi'] as $key) {
+                        if (!empty($data[$key])) {
+                            switch ($key) {
+                                case 'suhu':
+                                    $objectiveParts[] = 'Suhu: ' . $data[$key] . '°C';
+                                    break;
+                                case 'nadi':
+                                    $objectiveParts[] = 'Nadi: ' . $data[$key] . '/menit';
+                                    break;
+                                case 'rr':
+                                    $objectiveParts[] = 'RR: ' . $data[$key] . '/menit';
+                                    break;
+                                case 'spo2':
+                                    $objectiveParts[] = 'SpO2: ' . $data[$key] . '%';
+                                    break;
+                                case 'berat':
+                                    $objectiveParts[] = 'Berat: ' . $data[$key] . ' kg';
+                                    break;
+                                case 'tinggi':
+                                    $objectiveParts[] = 'Tinggi: ' . $data[$key] . ' cm';
+                                    break;
+                                case 'nilai_bmi':
+                                    $objectiveParts[] = 'BMI: ' . $data[$key];
+                                    break;
+                                case 'alergi':
+                                    $objectiveParts[] = 'Alergi: ' . $data[$key];
+                                    break;
+                                default:
+                                    $objectiveParts[] = 'Tensi: ' . $data[$key];
+                            }
                         }
                     }
-                }
 
-                $objectiveExtra = '';
-                if (!empty($tableData['httItems']) && is_array($tableData['httItems'])) {
-                    $httText = ($type === 'soap_dokter' ? 'HTT / Temuan Objektif:' : 'Tindakan Perawat (HTT):') . "\n";
-                    foreach ($tableData['httItems'] as $htt) {
-                        $line = '- ' . ($htt['pemeriksaan'] ?? '');
-                        if (!empty($htt['subPemeriksaan'])) {
-                            $line .= ' - ' . $htt['subPemeriksaan'];
+                    $objectiveExtra = '';
+                    if (!empty($tableData['httItems']) && is_array($tableData['httItems'])) {
+                        $httText = ($baseType === 'soap_dokter' ? 'HTT / Temuan Objektif:' : 'Tindakan Perawat (HTT):') . "\n";
+                        foreach ($tableData['httItems'] as $htt) {
+                            $line = '- ' . ($htt['pemeriksaan'] ?? '');
+                            if (!empty($htt['subPemeriksaan'])) {
+                                $line .= ' - ' . $htt['subPemeriksaan'];
+                            }
+                            if (!empty($htt['detail'])) {
+                                $line .= ': ' . $htt['detail'];
+                            }
+                            $httText .= $line . "\n";
                         }
-                        if (!empty($htt['detail'])) {
-                            $line .= ': ' . $htt['detail'];
-                        }
-                        $httText .= $line . "\n";
+                        $objectiveExtra = trim($httText);
                     }
-                    $objectiveExtra = trim($httText);
+
+                    $objectiveContent = trim((!empty($objectiveParts) ? implode(', ', $objectiveParts) : '') . (strlen($objectiveExtra) ? "\n" . $objectiveExtra : ''));
+                    $soapDetails[] = [
+                        'tipe_soap' => 'objective',
+                        'content' => $objectiveContent !== '' ? $objectiveContent : '-',
+                    ];
+
+                    // Assessment & Plan (only meaningful for SOAP Dokter)
+                    $soapDetails[] = [
+                        'tipe_soap' => 'assessment',
+                        'content' => $baseType === 'soap_dokter' && !empty($data['assesmen']) ? $data['assesmen'] : '-',
+                    ];
+                    $soapDetails[] = [
+                        'tipe_soap' => 'plan',
+                        'content' => $baseType === 'soap_dokter' && !empty($data['plan']) ? $data['plan'] : '-',
+                    ];
                 }
 
-                $objectiveContent = trim((!empty($objectiveParts) ? implode(', ', $objectiveParts) : '') . (strlen($objectiveExtra) ? "\n" . $objectiveExtra : ''));
-                $soapDetails[] = [
-                    'tipe_soap' => 'objective',
-                    'content' => $objectiveContent !== '' ? $objectiveContent : '-',
-                ];
-
-                // Assessment & Plan (only meaningful for SOAP Dokter)
-                $soapDetails[] = [
-                    'tipe_soap' => 'assessment',
-                    'content' => $type === 'soap_dokter' && !empty($data['assesmen']) ? $data['assesmen'] : '-',
-                ];
-                $soapDetails[] = [
-                    'tipe_soap' => 'plan',
-                    'content' => $type === 'soap_dokter' && !empty($data['plan']) ? $data['plan'] : '-',
-                ];
+                // Tentukan profesi untuk card
+                // - soap_dokter => dokter
+                // - so_perawat => perawat
+                // - permintaan/rujukan => dokter (sesuai permintaan UI)
+                $profesi = 'perawat';
+                if ($baseType === 'soap_dokter' || $baseType === 'permintaan' || $baseType === 'rujukan') {
+                    $profesi = 'dokter';
+                }
 
                 $entries[] = [
                     'id' => ($baseType === 'soap_dokter' ? 'soap_' : 'so_') . ($hist->id),
                     'nomor_register' => $noRawat,
                     'tanggal_waktu' => optional($hist->created_at)->toISOString(),
-                    'profesi' => $baseType === 'soap_dokter' ? 'dokter' : 'perawat',
+                    'profesi' => $profesi,
                     'aksi' => $actionType, // null, 'tambah', atau 'edit'
-                    'nama_dokter' => $baseType === 'soap_dokter' ? $dokterName : null,
-                    'nama_perawat' => $baseType === 'so_perawat' ? $perawatName : null,
+                    'nama_dokter' => $profesi === 'dokter' ? $dokterName : null,
+                    'nama_perawat' => $profesi === 'perawat' ? $perawatName : null,
                     'nama_klinik' => $klinikName,
                     'catatan_tambahan' => null,
                     'soap_details' => $soapDetails,

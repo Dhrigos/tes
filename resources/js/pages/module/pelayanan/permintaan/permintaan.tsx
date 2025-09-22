@@ -143,19 +143,41 @@ export default function Permintaan() {
             const jenis_permintaan = jenisMap[activeTab] || 'surat_sakit';
             const detail_permintaan = buildDetailForTab(activeTab);
 
-            // Validasi ringan per jenis
-            if (jenis_permintaan === 'radiologi' && (radItems.length === 0 || !radForm.tanggal_periksa)) {
-                toast.warning('Lengkapi tabel pemeriksaan radiologi dan tanggal periksa.');
+            // Validasi komprehensif per jenis (gabungan logika simpan + print)
+            if (jenis_permintaan === 'radiologi' && (radItems.length === 0 || !radForm.tanggal_periksa || !radForm.diagnosa)) {
+                toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
                 return;
             }
-            if (jenis_permintaan === 'laboratorium' && (labItems.length === 0 || !labForm.tanggal_periksa)) {
-                toast.warning('Lengkapi tabel pemeriksaan laboratorium dan tanggal periksa.');
+            if (jenis_permintaan === 'laboratorium' && (labItems.length === 0 || !labForm.tanggal_periksa || !labForm.diagnosa)) {
+                toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
+                return;
+            }
+            if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.kode_surat || !skdp.untuk || !skdp.pada)) {
+                toast.warning('Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.');
+                return;
+            }
+            if (jenis_permintaan === 'surat_sehat' && !suratSehat.tgl_periksa) {
+                toast.warning('Isi tanggal periksa terlebih dahulu.');
+                return;
+            }
+            if (
+                jenis_permintaan === 'surat_kematian' &&
+                (!suratKematian.tgl_periksa || !suratKematian.tanggal_meninggal || !suratKematian.jam_meninggal)
+            ) {
+                toast.warning('Lengkapi tgl periksa, tgl meninggal, dan jam meninggal.');
+                return;
+            }
+            if (
+                jenis_permintaan === 'surat_sakit' &&
+                (!suratSakit.diagnosis_utama || !suratSakit.lama_istirahat || !suratSakit.terhitung_mulai)
+            ) {
+                toast.warning('Lengkapi diagnosis utama, lama istirahat dan terhitung mulai.');
                 return;
             }
 
             const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
-            // Hanya simpan ke database tanpa buka halaman cetak
+            // Simpan ke database via API (Pelayanan_Permintaan + Pasien_History + update status dokter)
             const res = await fetch('/api/pelayanan/permintaan/store', {
                 method: 'POST',
                 headers: {
@@ -172,23 +194,32 @@ export default function Permintaan() {
                 }),
             });
 
-            // Coba parse flash dari response HTML/redirect fallback
-            try {
-                const data = await res.json();
-                if (res.ok) {
-                    toast.success(data?.flash?.success || 'Permintaan tersimpan');
-                    onSuccess && onSuccess();
-                } else {
-                    toast.error(data?.message || 'Gagal menyimpan permintaan');
-                }
-            } catch {
-                if (res.ok) {
-                    toast.success('Permintaan tersimpan');
-                    onSuccess && onSuccess();
-                } else {
-                    toast.error('Gagal menyimpan permintaan');
+            if (!res.ok) {
+                // Coba ambil pesan error JSON jika ada
+                try {
+                    const data = await res.json();
+                    throw new Error(data?.message || `HTTP ${res.status}`);
+                } catch (err) {
+                    throw new Error(`HTTP ${res.status}`);
                 }
             }
+
+            // Buka halaman cetak (akan menyimpan Permintaan_Cetak dan mark printed)
+            const encodedNorawat = btoa(pelayanan.nomor_register);
+            const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
+            const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
+                jenis_permintaan,
+            )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
+
+            // Buka di tab baru supaya tidak menghalangi redirect
+            window.open(cetakUrl, '_blank');
+
+            toast.success('Permintaan disimpan. Membuka dokumen cetak...');
+
+            onSuccess && onSuccess();
+
+            // Redirect ke index dokter
+            window.location.href = '/pelayanan/soap-dokter';
         } catch (e) {
             toast.error('Terjadi kesalahan saat menyimpan permintaan');
         }
@@ -356,127 +387,9 @@ export default function Permintaan() {
         toast.info(`Cetak ${label} belum terhubung.`);
     };
 
-    const printDocument = (url: string) => {
-        try {
-            // Buat iframe tersembunyi untuk print
-            const iframe = document.createElement('iframe');
-            iframe.style.position = 'absolute';
-            iframe.style.left = '-9999px';
-            iframe.style.top = '-9999px';
-            iframe.style.width = '0';
-            iframe.style.height = '0';
-            iframe.style.border = 'none';
-            
-            document.body.appendChild(iframe);
-            
-            iframe.onload = () => {
-                try {
-                    // Tunggu sebentar untuk memastikan konten terload
-                    setTimeout(() => {
-                        iframe.contentWindow?.focus();
-                        iframe.contentWindow?.print();
-                        
-                        // Hapus iframe setelah print
-                        setTimeout(() => {
-                            document.body.removeChild(iframe);
-                        }, 1000);
-                    }, 1000);
-                } catch (e) {
-                    console.error('Print error:', e);
-                    document.body.removeChild(iframe);
-                }
-            };
-            
-            iframe.onerror = () => {
-                console.error('Failed to load print document');
-                document.body.removeChild(iframe);
-                toast.error('Gagal memuat dokumen untuk dicetak');
-            };
-            
-            iframe.src = url;
-        } catch (error) {
-            console.error('Print setup error:', error);
-            toast.error('Gagal menyiapkan dokumen untuk dicetak');
-        }
-    };
+    
 
-    const handleGlobalPrint = async () => {
-        const jenis_permintaan = jenisMap[activeTab] || 'surat_sakit';
-        const detail_permintaan = buildDetailForTab(activeTab);
-
-        // Validasi per jenis
-        if (jenis_permintaan === 'radiologi' && (radItems.length === 0 || !radForm.tanggal_periksa || !radForm.diagnosa)) {
-            toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
-            return;
-        }
-        if (jenis_permintaan === 'laboratorium' && (labItems.length === 0 || !labForm.tanggal_periksa || !labForm.diagnosa)) {
-            toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
-            return;
-        }
-        if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.kode_surat || !skdp.untuk || !skdp.pada)) {
-            toast.warning('Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.');
-            return;
-        }
-        if (jenis_permintaan === 'surat_sehat' && !suratSehat.tgl_periksa) {
-            toast.warning('Isi tanggal periksa terlebih dahulu.');
-            return;
-        }
-        if (
-            jenis_permintaan === 'surat_kematian' &&
-            (!suratKematian.tgl_periksa || !suratKematian.tanggal_meninggal || !suratKematian.jam_meninggal)
-        ) {
-            toast.warning('Lengkapi tgl periksa, tgl meninggal, dan jam meninggal.');
-            return;
-        }
-        if (jenis_permintaan === 'surat_sakit' && (!suratSakit.diagnosis_utama || !suratSakit.lama_istirahat || !suratSakit.terhitung_mulai)) {
-            toast.warning('Lengkapi diagnosis utama, lama istirahat dan terhitung mulai.');
-            return;
-        }
-
-        try {
-            // Simpan ke database terlebih dahulu
-            const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch('/api/pelayanan/permintaan/store', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                },
-                body: JSON.stringify({
-                    nomor_register: pelayanan.nomor_register,
-                    jenis_permintaan,
-                    detail_permintaan,
-                    judul,
-                    keterangan,
-                }),
-            });
-
-            if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-
-            const result = await res.json();
-
-            if (result.success) {
-                // Simpan berhasil, sekarang print langsung tanpa buka tab baru
-                const encodedNorawat = btoa(pelayanan.nomor_register);
-                const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
-                const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
-                    jenis_permintaan,
-                )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
-                
-                // Print langsung tanpa buka tab baru
-                printDocument(cetakUrl);
-                toast.success('Permintaan disimpan dan sedang dicetak');
-            } else {
-                throw new Error(result.message || 'Gagal menyimpan permintaan');
-            }
-        } catch (error) {
-            console.error('Error saving and printing permintaan:', error);
-            toast.error('Gagal menyimpan permintaan: ' + (error as Error).message);
-        }
-    };
+    
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -1309,9 +1222,7 @@ export default function Permintaan() {
                         <Button type="button" variant="ghost" onClick={() => setIsConfirmOpen(false)}>
                             Batal
                         </Button>
-                        <Button type="button" onClick={handleGlobalPrint}>
-                            Print
-                        </Button>
+                        
                         <Button type="button" onClick={() => handleSimpanPermintaan(() => setIsConfirmOpen(false))}>
                             Simpan
                         </Button>

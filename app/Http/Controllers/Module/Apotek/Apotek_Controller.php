@@ -18,9 +18,30 @@ use App\Models\Module\Master\Data\Gudang\Satuan_Barang;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
+use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama;
+use Illuminate\Support\Carbon;
 
 class Apotek_Controller extends Controller
 {
+    private function getTanggalMulaiFromSetting(): string
+    {
+        $today = Carbon::today();
+        $setting = Setting_Harga_Jual_Utama::first();
+        $jumlah = (int)($setting->setting_waktu ?? 0);
+        $satuan = strtolower(trim((string)($setting->satuan_waktu ?? '')));
+
+        if ($jumlah > 0) {
+            if ($satuan === 'minggu') {
+                return $today->copy()->subWeeks($jumlah)->toDateString();
+            } elseif ($satuan === 'bulan') {
+                return $today->copy()->subMonths($jumlah)->toDateString();
+            } elseif ($satuan === 'tahun') {
+                return $today->copy()->subYears($jumlah)->toDateString();
+            }
+        }
+        return $today->copy()->subMonths(3)->toDateString();
+    }
+
     public function index()
     {
         $title = "Apotek";
@@ -109,8 +130,14 @@ class Apotek_Controller extends Controller
         $nama = $request->input('nama');
         $penjamin = strtoupper($request->input('penjamin', 'UMUM'));
 
-        $data = Daftar_Harga_Jual_Klinik::where('nama_obat_alkes', $nama)->first();
-        $query = Daftar_Harga_Jual_Klinik::where('nama_obat_alkes', $nama);
+        $today = Carbon::today()->toDateString();
+        $mulai = $this->getTanggalMulaiFromSetting();
+
+        $data = Daftar_Harga_Jual_Klinik::where('nama_obat_alkes', $nama)
+            ->whereBetween('tanggal_obat_masuk', [$mulai, $today])
+            ->first();
+        $query = Daftar_Harga_Jual_Klinik::where('nama_obat_alkes', $nama)
+            ->whereBetween('tanggal_obat_masuk', [$mulai, $today]);
 
         if ($penjamin === 'BPJS') {
             $harga = $query->max('harga_jual_1');
@@ -129,13 +156,21 @@ class Apotek_Controller extends Controller
     public function hargaBebas(Request $request)
     {
         $kode = $request->input('kode');
+        $today = Carbon::today()->toDateString();
+        $mulai = $this->getTanggalMulaiFromSetting();
         $penjamin = strtoupper($request->input('penjamin', 'UMUM'));
         if ($penjamin === 'BPJS') {
-            $harga = Daftar_Harga_Jual_Klinik::where('kode_obat_alkes', $kode)->max('harga_jual_1');
+            $harga = Daftar_Harga_Jual_Klinik::where('kode_obat_alkes', $kode)
+                ->whereBetween('tanggal_obat_masuk', [$mulai, $today])
+                ->max('harga_jual_1');
         } elseif ($penjamin === 'ASURANSI') {
-            $harga = Daftar_Harga_Jual_Klinik::where('kode_obat_alkes', $kode)->max('harga_jual_2');
+            $harga = Daftar_Harga_Jual_Klinik::where('kode_obat_alkes', $kode)
+                ->whereBetween('tanggal_obat_masuk', [$mulai, $today])
+                ->max('harga_jual_2');
         } else {
-            $harga = Daftar_Harga_Jual_Klinik::where('kode_obat_alkes', $kode)->max('harga_jual_3');
+            $harga = Daftar_Harga_Jual_Klinik::where('kode_obat_alkes', $kode)
+                ->whereBetween('tanggal_obat_masuk', [$mulai, $today])
+                ->max('harga_jual_3');
         }
         return response()->json(['harga' => $harga]);
     }

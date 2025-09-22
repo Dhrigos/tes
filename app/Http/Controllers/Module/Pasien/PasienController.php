@@ -26,6 +26,7 @@ use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
 use App\Http\Controllers\Module\Integrasi\BPJS\Pcare_Controller;
+use App\Http\Controllers\Module\Integrasi\BPJS\Satu_Sehat_Controller;
 use App\Models\Module\Pemdaftaran\Antrian_Pasien;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
@@ -187,6 +188,7 @@ class PasienController extends Controller
 
             // Coba ambil data dari BPJS, jika gagal gunakan data input
             $bpjsData = [];
+            $ihsFromSatuSehat = null;
             try {
                 $pcareController = new Pcare_Controller();
                 $response = $pcareController->get_peserta($request->nik);
@@ -198,13 +200,24 @@ class PasienController extends Controller
             } catch (\Exception $e) {
                 FacadesLog::warning('BPJS data fetch failed: ' . $e->getMessage());
                 // Lanjutkan dengan data input saja
-            }
-
-            $nik = $request->nik ?? ($bpjsData['noKTP'] ?? null);
+            }        
+            $nik =   $bpjsData['noKTP'] ?? null;
 
             if (!$nik) {
                 return redirect()->back()->with('error', 'NIK pasien wajib diisi!');
             }
+
+            try {
+                $satuSehatController = new Satu_Sehat_Controller();
+                $responseIhs = $satuSehatController->get_peserta($nik);
+                $dataIhs = json_decode($responseIhs->getContent(), true);
+                if (($dataIhs['status'] ?? '') === 'success') {
+                    $ihsFromSatuSehat = $dataIhs['data'] ?? null;
+                }
+            } catch (\Exception $e) {
+                FacadesLog::warning('Satu Sehat fetch failed: ' . $e->getMessage());
+            }
+
             // Simpan data pasien baru
             $pasienData = [
                 'nik'                 => $nik,
@@ -222,6 +235,7 @@ class PasienController extends Controller
                 'provide'             => $bpjsData['kdProviderPst']['nmProvider'] ?? null,
                 'kodeprovide'         => $bpjsData['kdProviderPst']['kdProvider'] ?? null,
                 'hubungan_keluarga'   => $bpjsData['hubunganKeluarga'] ?? null,
+                'kode_ihs'            => $ihsFromSatuSehat,
                 'kewarganegaraan'     => "wni",
                 'verifikasi'          => 1,
                 'foto'                => $fotoPath,
@@ -319,9 +333,6 @@ class PasienController extends Controller
         }
 
 
-        // Cek kelengkapan data untuk verifikasi (gunakan fallback ke data existing)
-        $isDataComplete = $this->checkDataCompleteness($request, $pasien);
-
         // Ambil kode untuk alamat dari ID atau CODE yang dikirim, fallback ke nilai existing
         $provinsiKode = $request->filled('provinsi') ? $this->resolveRegionCode($request->provinsi, Province::class) : $pasien->provinsi_kode;
         $kabupatenKode = $request->filled('kabupaten') ? $this->resolveRegionCode($request->kabupaten, City::class) : $pasien->kabupaten_kode;
@@ -331,8 +342,23 @@ class PasienController extends Controller
 
         $aktifPenjamin2 = $request->boolean('aktif_penjamin_2');
         $aktifPenjamin3 = $request->boolean('aktif_penjamin_3');
+        // Jika nik diinput dan noihs kosong, coba ambil kode IHS dari Satu Sehat
+        $resolvedNoIhs = $request->has('noihs') ? $request->noihs : $pasien->kode_ihs;
+        if ($request->has('nik') && empty($resolvedNoIhs)) {
+            try {
+                $satuSehatController = new Satu_Sehat_Controller();
+                $responseIhs = $satuSehatController->get_peserta($request->nik);
+                $dataIhs = json_decode($responseIhs->getContent(), true);
+                if (($dataIhs['status'] ?? '') === 'success' && !empty($dataIhs['data'])) {
+                    $resolvedNoIhs = $dataIhs['data'];
+                }
+            } catch (\Throwable $e) {
+                // Diabaikan, lanjutkan tanpa IHS
+            }
+        }
 
-        $pasien->update([
+        // Susun payload update terlebih dahulu (merge request + existing)
+        $payload = [
             'nik' => $request->has('nik') ? $request->nik : $pasien->nik,
             'tempat_lahir' => $request->has('tempat_lahir') ? $request->tempat_lahir : $pasien->tempat_lahir,
             'tanggal_lahir' => $request->has('tanggal_lahir') ? $request->tanggal_lahir : $pasien->tanggal_lahir,
@@ -345,7 +371,7 @@ class PasienController extends Controller
             'kode_pos' => $request->has('kode_pos') ? $request->kode_pos : $pasien->kode_pos,
             'alamat' => $request->has('alamat') ? $request->alamat : $pasien->alamat,
             'no_bpjs' => $request->has('noka') ? $request->noka : $pasien->no_bpjs,
-            'kode_ihs' => $request->has('noihs') ? $request->noihs : $pasien->kode_ihs,
+            'kode_ihs' => $resolvedNoIhs,
             'jenis_peserta_bpjs' => $request->has('jenis_kartu') ? $request->jenis_kartu : $pasien->jenis_peserta_bpjs,
             'kelas_bpjs' => $request->has('kelas') ? $request->kelas : $pasien->kelas_bpjs,
             'provide' => $request->has('provide') ? $request->provide : $pasien->provide,
@@ -367,8 +393,26 @@ class PasienController extends Controller
             'penjamin_2_no' => $aktifPenjamin2 ? $request->penjamin_2_info : null,
             'penjamin_3_nama' => $aktifPenjamin3 ? $request->penjamin_3 : null,
             'penjamin_3_no' => $aktifPenjamin3 ? $request->penjamin_3_info : null,
-            'verifikasi' => $isDataComplete ? 2 : 1, // Otomatis set status berdasarkan kelengkapan
-        ]);
+        ];
+
+        // Cek kelengkapan berdasarkan payload akhir (bukan data lama)
+        $requiredPayloadKeys = [
+            'nik','tempat_lahir','tanggal_lahir','provinsi_kode','kabupaten_kode','kecamatan_kode','desa_kode',
+            'rt','rw','kode_pos','alamat','seks','goldar','pernikahan','kewarganegaraan','agama','pendidikan',
+            'pekerjaan','telepon','suku','bangsa','bahasa'
+        ];
+        $isDataComplete = true;
+        foreach ($requiredPayloadKeys as $key) {
+            if (empty($payload[$key])) {
+                $isDataComplete = false;
+                break;
+            }
+        }
+
+        // Set status verifikasi pada payload dan update sekali saja
+        $payload['verifikasi'] = $isDataComplete ? 2 : 1;
+
+        $pasien->update($payload);
 
         if ($request->hasFile('profile_image')) {
             $file = $request->file('profile_image');

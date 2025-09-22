@@ -265,22 +265,31 @@ export default function CpptTimeline({ nomor_register, entries, loading = false 
                                         </div>
                                     </CardHeader>
                                     <CardContent className="pt-0">
-                                        {/* SOAP Details (tampilkan S & O; A & P ditampilkan dari payload history jika ada) */}
+                                        {/* SOAP Details (sembunyikan jika entry adalah Permintaan) */}
                                         {(() => {
                                             const payload: any = getPayloadFromEntry(entry);
+                                            const isPermintaan = !!(payload && payload.jenis_permintaan);
+                                            // Deteksi rujukan dari entry.history.type
+                                            let isRujukan = false;
+                                            try {
+                                                let hist: any = (entry as any)?.history;
+                                                if (typeof hist === 'string') {
+                                                    hist = JSON.parse(hist);
+                                                }
+                                                isRujukan = typeof hist?.type === 'string' && hist.type.startsWith('rujukan_');
+                                            } catch {}
+                                            if (isPermintaan || isRujukan) return null;
                                             const order = ['subjective', 'objective', 'assessment', 'plan'] as const;
                                             return (
                                                 <div className="mb-4 space-y-3">
                                                     <h4 className="text-sm font-medium text-muted-foreground">SOAP Details:</h4>
                                                     {order.map((type, idx) => {
-                                                        // Jika ada payload history, sembunyikan A & P dari blok ini
                                                         if (payload && (type === 'assessment' || type === 'plan')) {
                                                             return null;
                                                         }
                                                         const found = entry.soap_details.find((d) => d.tipe_soap === type);
                                                         const key = (found?.id ?? `${entry.id}-${type}-${idx}`) as any;
 
-                                                        // Render konten khusus bila payload tersedia
                                                         if (payload && type === 'subjective') {
                                                             const keluhanList = payload?.tableData?.keluhanList || [];
                                                             return (
@@ -321,9 +330,7 @@ export default function CpptTimeline({ nomor_register, entries, loading = false 
                                                                             <div className="font-medium">HTT / Temuan Objektif:</div>
                                                                             <ul className="list-disc pl-5">
                                                                                 {httItems.map((h: any, i: number) => (
-                                                                                    <li
-                                                                                        key={`htt-${i}`}
-                                                                                    >{`${h.pemeriksaan || ''} - ${h.subPemeriksaan || ''}: ${h.detail || ''}`}</li>
+                                                                                    <li key={`htt-${i}`}>{`${h.pemeriksaan || ''} - ${h.subPemeriksaan || ''}: ${h.detail || ''}`}</li>
                                                                                 ))}
                                                                             </ul>
                                                                         </div>
@@ -332,7 +339,6 @@ export default function CpptTimeline({ nomor_register, entries, loading = false 
                                                             );
                                                         }
 
-                                                        // Fallback: tampilkan konten dari soap_details
                                                         const content = found?.content ?? '-';
                                                         return (
                                                             <div key={key} className="rounded-lg bg-muted/30 p-3">
@@ -454,6 +460,180 @@ export default function CpptTimeline({ nomor_register, entries, loading = false 
                                                             ) : null}
                                                         </div>
                                                     ) : null}
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Permintaan (radiologi/laboratorium/surat*) dari history */}
+                                        {(() => {
+                                            const payload: any = getPayloadFromEntry(entry);
+                                            if (!payload || !payload.jenis_permintaan) return null;
+                                            const jenis = String(payload.jenis_permintaan);
+                                            const detail = payload.detail_permintaan || {};
+                                            const nr = (entry as any).nomor_register || payload.nomor_register;
+
+                                            const handleCetak = () => {
+                                                try {
+                                                    const encodedNorawat = btoa(String(nr || ''));
+                                                    const detailQuery = encodeURIComponent(JSON.stringify(detail));
+                                                    const url = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(jenis)}&judul=${encodeURIComponent(
+                                                        payload.judul || '',
+                                                    )}&keterangan=${encodeURIComponent(payload.keterangan || '')}&detail=${detailQuery}`;
+                                                    window.open(url, '_blank');
+                                                } catch {}
+                                            };
+
+                                            return (
+                                                <div className="rounded-lg bg-muted/30 p-3">
+                                                    <div className="mb-2 flex items-center justify-between">
+                                                        <h4 className="text-sm font-medium text-muted-foreground">Permintaan</h4>
+                                                        <Badge variant="outline" className="bg-gray-50 text-gray-800">
+                                                            {jenis.replace(/_/g, ' ').toUpperCase()}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-sm">
+                                                        {(() => {
+                                                            // Ringkas isi sesuai jenis jika tersedia
+                                                            // Header ringkas: Jenis Permintaan & Tanggal Periksa (diformat)
+                                                            const jenisLabel = String(jenis)
+                                                                .split('_')
+                                                                .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ''))
+                                                                .join(' ');
+                                                            const dateRaw = detail.tgl_periksa || detail.tanggal_periksa || '';
+                                                            let tanggalLabel = '-';
+                                                            if (dateRaw) {
+                                                                try {
+                                                                    const d = new Date(String(dateRaw));
+                                                                    tanggalLabel = format(d, 'EEEE, dd MMMM yyyy', { locale: id });
+                                                                } catch {}
+                                                            }
+
+                                                            const header = (
+                                                                <div className="mb-2 space-y-1">
+                                                                    <div>
+                                                                        <span className="font-medium">Jenis Permintaan</span> : {jenisLabel}
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="font-medium">Tanggal Periksa</span> : {tanggalLabel}
+                                                                    </div>
+                                                                </div>
+                                                            );
+
+                                                            if (jenis === 'radiologi' && Array.isArray(detail.items)) {
+                                                                return (
+                                                                    <div>
+                                                                        {header}
+                                                                        <ul className="list-disc pl-5">
+                                                                            {detail.items.map((it: any, idx: number) => (
+                                                                                <li key={`rad-${idx}`}>{`${it.pemeriksaan || ''} ${it.jenis_posisi ? '(' + it.jenis_posisi + ')' : ''} ${it.posisi ? it.posisi : ''} ${it.metode ? '-' + it.metode : ''}`}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            if (jenis === 'laboratorium' && Array.isArray(detail.items)) {
+                                                                return (
+                                                                    <div>
+                                                                        {header}
+                                                                        <ul className="list-disc pl-5">
+                                                                            {detail.items.map((name: any, idx: number) => (
+                                                                                <li key={`lab-${idx}`}>{String(name)}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            if (jenis === 'surat_sakit') {
+                                                                return (
+                                                                    <div>
+                                                                        {header}
+                                                                        <div>Diagnosa: {detail.diagnosis_utama || '-'}</div>
+                                                                        <div>Lama istirahat: {detail.lama_istirahat || '-'}</div>
+                                                                        <div>Mulai: {detail.terhitung_mulai || '-'}</div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            if (jenis === 'surat_sehat') {
+                                                                return <div>{header}</div>;
+                                                            }
+                                                            if (jenis === 'surat_kematian') {
+                                                                return (
+                                                                    <div>
+                                                                        {header}
+                                                                        <div>Waktu meninggal: {detail.tanggal_meninggal || '-'} {detail.jam_meninggal || ''}</div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            if (jenis === 'skdp') {
+                                                                return (
+                                                                    <div>
+                                                                        {header}
+                                                                        <div>Kode Surat: {detail.kode_surat || '-'}</div>
+                                                                        <div>Pada: {detail.pada || '-'}</div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
+                                                    <div className="mt-3">
+                                                        <Button type="button" size="sm" onClick={handleCetak}>
+                                                            Lihat / Cetak
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Rujukan dari history */}
+                                        {(() => {
+                                            // Ambil payload rujukan langsung dari history (rujukan_tambah/edit disimpan flat)
+                                            let history: any = (entry as any)?.history;
+                                            if (!history) return null;
+                                            if (typeof history === 'string') {
+                                                try { history = JSON.parse(history); } catch { history = undefined; }
+                                            }
+                                            if (!history || typeof history !== 'object') return null;
+                                            const isRujukan = typeof history.type === 'string' && history.type.startsWith('rujukan_');
+                                            if (!isRujukan) return null;
+
+                                            const nr = (entry as any).nomor_register || history.nomor_register;
+                                            const jenisOpt = String(history.opsi_rujukan || '').toLowerCase();
+                                            const jenisLabel = jenisOpt === 'spesialis' ? 'Biasa' : 'Khusus';
+                                            const tujuan = history.tujuan_rujukan_spesialis || history.tujuan_rujukan || '-';
+                                            const subsp = history.sub_spesialis || history.subspesialis_khusus || '';
+                                            const showSub = subsp && isNaN(Number(subsp)); // sembunyikan jika angka
+                                            const tanggalRaw = history.tanggal_rujukan_khusus || history.tanggal_rujukan || '';
+                                            let tanggalLabel = '-';
+                                            if (tanggalRaw) {
+                                                try { tanggalLabel = format(new Date(String(tanggalRaw)), 'EEEE, dd MMMM yyyy', { locale: id }); } catch {}
+                                            }
+
+                                            const handleCetak = () => {
+                                                try {
+                                                    const encodedNorawat = btoa(String(nr || ''));
+                                                    const url = `/pelayanan/rujukan/cetak/${encodedNorawat}`;
+                                                    window.open(url, '_blank');
+                                                } catch {}
+                                            };
+
+                                            return (
+                                                <div className="rounded-lg bg-muted/30 p-3">
+                                                    <div className="mb-2 flex items-center justify-between">
+                                                        <h4 className="text-sm font-medium text-muted-foreground">Rujukan</h4>
+                                                        <Badge variant="outline" className="bg-gray-50 text-gray-800">{jenisLabel.toUpperCase()}</Badge>
+                                                    </div>
+                                                    <div className="text-sm space-y-1">
+                                                        <div><span className="font-medium">Jenis</span> : {jenisLabel}</div>
+                                                        <div><span className="font-medium">Tujuan</span> : {tujuan || '-'}</div>
+                                                        {showSub ? (
+                                                            <div><span className="font-medium">Subspesialis</span> : {String(subsp)}</div>
+                                                        ) : null}
+                                                        <div><span className="font-medium">Tanggal</span> : {tanggalLabel}</div>
+                                                    </div>
+                                                    <div className="mt-3">
+                                                        <Button type="button" size="sm" onClick={handleCetak}>Lihat / Cetak</Button>
+                                                    </div>
                                                 </div>
                                             );
                                         })()}

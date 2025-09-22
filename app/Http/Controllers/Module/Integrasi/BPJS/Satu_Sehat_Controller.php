@@ -317,4 +317,78 @@ class Satu_Sehat_Controller extends Controller
             ], 500);
         }
     }
+
+    public function get_peserta_nama($nama ,$tanggal_lahir,$kelamin)
+    {
+        $baseUrl = env('SATUSEHAT_BASE_URL');
+        $feature = 'fhir-r4/v1/Patient?name=';
+
+        try {
+            $startTime = microtime(true);
+
+            // Validasi input
+            if (empty($nama) || empty($tanggal_lahir)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Nama dan Tanggal Lahir tidak boleh kosong',
+                    'response_time' => number_format(microtime(true) - $startTime, 2)
+                ], 400);
+            }
+
+            // Ambil token
+            $token = $this->get_token();
+            if (!$token || empty($token['access_token'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unable to obtain access token',
+                    'response_time' => number_format(microtime(true) - $startTime, 2)
+                ], 500);
+            }
+
+            // Request ke API            
+            $response = Http::withHeaders([
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $token['access_token'],
+            ])->get(rtrim($baseUrl, '/') . '/' . $feature . $nama . '&birthdate=' . $tanggal_lahir . '&gender=' . $kelamin);
+
+            $body = $response->json();
+            $responseTime = microtime(true) - $startTime;
+
+            // Jika error atau tidak ada entry
+            if (!$response->successful() || empty($body['entry'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $body['issue'][0]['diagnostics'] ?? $body['error_description'] ?? 'Permintaan NIK gagal',
+                    'response_time' => number_format($responseTime, 2)
+                ], 400);
+            }
+
+            // Ambil patientId dari entry
+            $patientId = [
+                'id' => $body['entry'][0]['resource']['id'] ?? null,
+                'nama' => $body['entry'][0]['resource']['identifier'][1]['value'] ?? null,
+            ];        
+            if (!$patientId && !empty($body['entry']) && is_array($body['entry'])) {
+                foreach ($body['entry'] as $entry) {
+                    if (!empty($entry['resource']['id'])) {
+                        $patientId = $entry['resource']['id'];
+                        break;
+                    }
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $patientId,
+                'response_time' => number_format($responseTime, 2)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'response_time' => number_format(microtime(true) - $startTime, 2)
+            ], 500);
+        }
+    }
+
 }

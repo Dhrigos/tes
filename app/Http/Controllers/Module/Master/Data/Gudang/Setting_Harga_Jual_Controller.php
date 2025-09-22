@@ -59,6 +59,8 @@ class Setting_Harga_Jual_Controller extends Controller
                     'harga_jual_2' => $settingUtama->harga_jual_2,
                     'harga_jual_3' => $settingUtama->harga_jual_3,
                     'embalase_poin' => $currentEmbalase, // Tetap gunakan embalase yang sudah ada
+                    'setting_waktu' => $settingUtama->setting_waktu,
+                    'satuan_waktu'  => $settingUtama->satuan_waktu,
                 ]);
                 $result = $currentKlinik;
             } else {
@@ -68,6 +70,8 @@ class Setting_Harga_Jual_Controller extends Controller
                     'harga_jual_2' => $settingUtama->harga_jual_2,
                     'harga_jual_3' => $settingUtama->harga_jual_3,
                     'embalase_poin' => $currentEmbalase, // Tetap gunakan embalase yang sudah ada
+                    'setting_waktu' => $settingUtama->setting_waktu,
+                    'satuan_waktu'  => $settingUtama->satuan_waktu,
                 ]);
             }
 
@@ -93,28 +97,36 @@ class Setting_Harga_Jual_Controller extends Controller
                 'harga_jual_2'  => 'required|string',
                 'harga_jual_3'  => 'required|string',
                 'embalase_poin' => 'required|string',
+                'setting_waktu' => 'nullable|string',
+                'satuan_waktu'  => 'nullable|string',
             ], [
                 'harga_jual_1'  => 'Harga Jual 1',
                 'harga_jual_2'  => 'Harga Jual 2',
                 'harga_jual_3'  => 'Harga Jual 3',
                 'embalase_poin' => 'Embalase Poin',
+                'setting_waktu' => 'Setting Waktu',
+                'satuan_waktu'  => 'Satuan Waktu',
             ]);
-    
+
             // Bersihkan prefix atau simbol dari input agar hanya angka saja
             $harga_jual_1  = preg_replace('/[^\d]/', '', $request->input('harga_jual_1'));
             $harga_jual_2  = preg_replace('/[^\d]/', '', $request->input('harga_jual_2'));
             $harga_jual_3  = preg_replace('/[^\d]/', '', $request->input('harga_jual_3'));
             $embalase_poin = preg_replace('/[^\d]/', '', $request->input('embalase_poin'));
-    
+            $setting_waktu = $request->input('setting_waktu');
+            $satuan_waktu  = $request->input('satuan_waktu');
+
             // Hanya update record yang ada - pastikan hanya ada 1 record setting per klinik
             $setting = Setting_Harga_Jual::first();
-            
+
             if ($setting) {
                 $setting->update([
                     'harga_jual_1' => $harga_jual_1,
                     'harga_jual_2' => $harga_jual_2,
                     'harga_jual_3' => $harga_jual_3,
                     'embalase_poin' => $embalase_poin,
+                    'setting_waktu' => $setting_waktu,
+                    'satuan_waktu'  => $satuan_waktu,
                 ]);
             } else {
                 // Jika belum ada record, buat baru (hanya untuk kasus pertama kali)
@@ -123,9 +135,11 @@ class Setting_Harga_Jual_Controller extends Controller
                     'harga_jual_2' => $harga_jual_2,
                     'harga_jual_3' => $harga_jual_3,
                     'embalase_poin' => $embalase_poin,
+                    'setting_waktu' => $setting_waktu,
+                    'satuan_waktu'  => $satuan_waktu,
                 ]);
             }
-    
+
             return response()->json([
                 'success' => true,
                 'message' => 'Setting harga jual berhasil ditambahkan!',
@@ -153,25 +167,33 @@ class Setting_Harga_Jual_Controller extends Controller
                 'harga_jual_1'  => 'required|string',
                 'harga_jual_2'  => 'required|string',
                 'harga_jual_3'  => 'required|string',
+                'setting_waktu' => 'nullable|string',
+                'satuan_waktu'  => 'nullable|string',
             ], [
                 'harga_jual_1'  => 'Harga Jual 1',
                 'harga_jual_2'  => 'Harga Jual 2',
-                'harga_jual_3'  => 'Harga Jual 3'
+                'harga_jual_3'  => 'Harga Jual 3',
+                'setting_waktu' => 'Setting Waktu',
+                'satuan_waktu'  => 'Satuan Waktu',
             ]);
-    
+
             // Bersihkan prefix atau simbol dari input agar hanya angka saja
             $harga_jual_1  = preg_replace('/[^\d]/', '', $request->input('harga_jual_1'));
             $harga_jual_2  = preg_replace('/[^\d]/', '', $request->input('harga_jual_2'));
             $harga_jual_3  = preg_replace('/[^\d]/', '', $request->input('harga_jual_3'));
-    
+            $setting_waktu = $request->input('setting_waktu');
+            $satuan_waktu  = $request->input('satuan_waktu');
+
             // Hanya update record yang ada - pastikan hanya ada 1 record setting
             $settingUtama = Setting_Harga_Jual_Utama::first();
-            
+
             if ($settingUtama) {
                 $settingUtama->update([
                     'harga_jual_1' => $harga_jual_1,
                     'harga_jual_2' => $harga_jual_2,
                     'harga_jual_3' => $harga_jual_3,
+                    'setting_waktu' => $setting_waktu,
+                    'satuan_waktu'  => $satuan_waktu,
                 ]);
             } else {
                 // Jika belum ada record, buat baru (hanya untuk kasus pertama kali)
@@ -179,11 +201,13 @@ class Setting_Harga_Jual_Controller extends Controller
                     'harga_jual_1' => $harga_jual_1,
                     'harga_jual_2' => $harga_jual_2,
                     'harga_jual_3' => $harga_jual_3,
+                    'setting_waktu' => $setting_waktu,
+                    'satuan_waktu'  => $satuan_waktu,
                 ]);
             }
-    
+
             $resultUtama = Setting_Harga_Jual_Utama::first();
-    
+
             return response()->json([
                 'success' => true,
                 'message' => 'Setting Harga Jual Utama berhasil disimpan',

@@ -187,7 +187,26 @@ class Pelayanan_So_Perawat_Controller extends Controller
 
             if ($pelayanan->pendaftaran->penjamin && str_contains(strtoupper($pelayanan->pendaftaran->penjamin->nama), 'BPJS')) {
 
-                $jadwal = $pelayanan->dokter->jadwal()->first();
+                // Ambil jadwal dokter sesuai hari ini (fallback: jadwal pertama)
+                $dayMap = [
+                    1 => 'Senin',
+                    2 => 'Selasa',
+                    3 => 'Rabu',
+                    4 => 'Kamis',
+                    5 => 'Jumat',
+                    6 => 'Sabtu',
+                    7 => 'Minggu',
+                ];
+                $todayName = $dayMap[Carbon::now()->dayOfWeekIso] ?? null;
+                $jadwal = $pelayanan->dokter
+                    ->jadwal()
+                    ->when($todayName, function ($q) use ($todayName) {
+                        $q->where('hari', $todayName)->where('aktif', 1)->orderBy('jam_mulai');
+                    })
+                    ->first();
+                if (!$jadwal) {
+                    $jadwal = $pelayanan->dokter->jadwal()->orderBy('jam_mulai')->first();
+                }
 
                 $databpjs = [
                     "nomorkartu" => $pelayanan->pasien->no_bpjs,

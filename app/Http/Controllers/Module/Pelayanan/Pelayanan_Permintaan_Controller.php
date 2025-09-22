@@ -11,6 +11,7 @@ use App\Models\Module\Pelayanan\Permintaan_Cetak;
 use App\Models\Module\Master\Data\Medis\Radiologi_Pemeriksaan;
 use App\Models\Module\Pasien\Pasien_History;
 use App\Services\PelayananStatusService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -148,6 +149,19 @@ class Pelayanan_Permintaan_Controller extends Controller
 
             // Simpan ke CPPT history
             try {
+                // Enrich dokter_name & klinik_name
+                $dokterName = null;
+                $klinikName = optional(Web_Setting::first())->nama;
+                try {
+                    $pelayananMeta = Pelayanan::with(['dokter.namauser'])
+                        ->where('nomor_register', $validated['no_rawat'])
+                        ->first();
+                    if ($pelayananMeta) {
+                        $dokterName = optional(optional($pelayananMeta->dokter)->namauser)->name
+                            ?? (optional($pelayananMeta->dokter)->nama ?? null);
+                    }
+                } catch (\Throwable $e) {}
+
                 Pasien_History::create([
                     'no_rm' => $validated['nomor_rm'] ?? '',
                     'nama' => '',
@@ -161,7 +175,11 @@ class Pelayanan_Permintaan_Controller extends Controller
                             'detail_permintaan' => $validated['detail_permintaan'] ?? [],
                             'judul' => $request->input('judul'),
                             'keterangan' => $request->input('keterangan'),
+                            'dokter_name' => $dokterName,
+                            'klinik_name' => $klinikName,
                         ],
+                        'dokter_name' => $dokterName,
+                        'klinik_name' => $klinikName,
                     ],
                 ]);
             } catch (\Exception $e) {
@@ -215,6 +233,19 @@ class Pelayanan_Permintaan_Controller extends Controller
 
             // Simpan ke CPPT history
             try {
+                // Enrich dokter_name & klinik_name
+                $dokterName = null;
+                $klinikName = optional(Web_Setting::first())->nama;
+                try {
+                    $pelayananMeta = Pelayanan::with(['dokter.namauser'])
+                        ->where('nomor_register', $validated['no_rawat'])
+                        ->first();
+                    if ($pelayananMeta) {
+                        $dokterName = optional(optional($pelayananMeta->dokter)->namauser)->name
+                            ?? (optional($pelayananMeta->dokter)->nama ?? null);
+                    }
+                } catch (\Throwable $e) {}
+
                 Pasien_History::create([
                     'no_rm' => $validated['nomor_rm'] ?? '',
                     'nama' => '',
@@ -228,7 +259,11 @@ class Pelayanan_Permintaan_Controller extends Controller
                             'detail_permintaan' => $validated['detail_permintaan'] ?? [],
                             'judul' => $request->input('judul'),
                             'keterangan' => $request->input('keterangan'),
+                            'dokter_name' => $dokterName,
+                            'klinik_name' => $klinikName,
                         ],
+                        'dokter_name' => $dokterName,
+                        'klinik_name' => $klinikName,
                     ],
                 ]);
             } catch (\Exception $e) {
@@ -282,7 +317,7 @@ class Pelayanan_Permintaan_Controller extends Controller
 
             // Simpan ke CPPT history (edit)
             try {
-                \App\Models\Module\Pasien\Pasien_History::create([
+                Pasien_History::create([
                     'no_rm' => '',
                     'nama' => '',
                     'history' => [
@@ -363,6 +398,25 @@ class Pelayanan_Permintaan_Controller extends Controller
             $poli = $pendaftaran?->poli;
             $dokter = $pendaftaran?->dokter;
 
+            // Normalisasi alamat: jika field desa berupa object/array JSON, ambil hanya nama/text
+            $alamatText = '';
+            try {
+                $alamatBase = (string) ($pasien->alamat ?? '');
+                $desaRaw = $pasien->desa ?? '';
+                $desaName = '';
+                if (is_array($desaRaw)) {
+                    $desaName = (string) ($desaRaw['name'] ?? $desaRaw['nama'] ?? '');
+                } elseif (is_object($desaRaw)) {
+                    $desaName = (string) ($desaRaw->name ?? $desaRaw->nama ?? '');
+                } else {
+                    // assume string or scalar
+                    $desaName = (string) $desaRaw;
+                }
+                $alamatText = trim(trim($alamatBase) . ' ' . trim($desaName));
+            } catch (\Throwable $e) {
+                $alamatText = (string) ($pasien->alamat ?? '');
+            }
+
             $common = [
                 'namaKlinik' => config('app.name', 'Klinik'),
                 'alamatKlinik' => config('app.alamat', ''),
@@ -370,7 +424,7 @@ class Pelayanan_Permintaan_Controller extends Controller
                 'umur' => $pasien && $pasien->tanggal_lahir ? \Carbon\Carbon::parse($pasien->tanggal_lahir)->diffInYears(\Carbon\Carbon::now()) . ' Tahun' : '',
                 'jenis_kelamin' => ($pasien->seks ?? '') === '1' ? 'Laki-laki' : (($pasien->seks ?? '') === '2' ? 'Perempuan' : ($pasien->seks ?? '')),
                 'tanggal_lahir' => $pasien->tanggal_lahir ?? '',
-                'alamat' => trim(($pasien->alamat ?? '') . ' ' . ($pasien->desa ?? '')),
+                'alamat' => $alamatText,
                 'penjamin' => optional($pendaftaran?->penjamin)->nama ?? '',
                 'dokter_pengirim' => $dokter->nama ?? '',
                 'poli' => $poli->nama ?? '',
@@ -451,7 +505,9 @@ class Pelayanan_Permintaan_Controller extends Controller
             $autoPrint = $request->query('auto_print', false);
             $common['auto_print'] = $autoPrint;
             
-            return view($view, array_merge($common, $payload));
+            // Set ukuran A5 potret untuk semua surat permintaan
+            $pdf = Pdf::loadView($view, array_merge($common, $payload))->setPaper('a5', 'portrait');
+            return $pdf->stream('permintaan-' . ($pelayanan->nomor_rm ?? 'pasien') . '.pdf');
         } catch (\Exception $e) {
             return response('Gagal memuat halaman cetak: ' . $e->getMessage(), 500);
         }
@@ -612,7 +668,7 @@ class Pelayanan_Permintaan_Controller extends Controller
             // Tentukan apakah pasien berada di alur KIA (Bidan) berdasarkan poli
             $isKia = false;
             try {
-                $pelayanan = \App\Models\Module\Pelayanan\Pelayanan::with(['pendaftaran.poli'])
+                $pelayanan = Pelayanan::with(['pendaftaran.poli'])
                     ->where('nomor_register', $nomorRegister)
                     ->first();
                 $kodePoli = strtoupper((string) optional(optional($pelayanan?->pendaftaran)->poli)->kode);

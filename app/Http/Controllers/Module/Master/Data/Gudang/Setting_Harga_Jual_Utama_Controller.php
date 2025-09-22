@@ -26,6 +26,8 @@ class Setting_Harga_Jual_Utama_Controller extends Controller
             'harga_jual_1' => 'required|string',
             'harga_jual_2' => 'required|string',
             'harga_jual_3' => 'required|string',
+            'setting_waktu' => 'nullable|string',
+            'satuan_waktu' => 'nullable|string',
         ]);
 
         // Update atau create - hanya boleh ada 1 record setting utama
@@ -35,6 +37,8 @@ class Setting_Harga_Jual_Utama_Controller extends Controller
                 'harga_jual_1' => $request->harga_jual_1,
                 'harga_jual_2' => $request->harga_jual_2,
                 'harga_jual_3' => $request->harga_jual_3,
+                'setting_waktu' => $request->setting_waktu,
+                'satuan_waktu' => $request->satuan_waktu,
             ]
         );
 
@@ -47,9 +51,17 @@ class Setting_Harga_Jual_Utama_Controller extends Controller
             'harga_jual_1' => 'required|string',
             'harga_jual_2' => 'required|string',
             'harga_jual_3' => 'required|string',
+            'setting_waktu' => 'nullable|string',
+            'satuan_waktu' => 'nullable|string',
         ]);
 
-        $settingHargaJualUtama->update($request->all());
+        $settingHargaJualUtama->update([
+            'harga_jual_1' => $request->harga_jual_1,
+            'harga_jual_2' => $request->harga_jual_2,
+            'harga_jual_3' => $request->harga_jual_3,
+            'setting_waktu' => $request->setting_waktu,
+            'satuan_waktu' => $request->satuan_waktu,
+        ]);
 
         return redirect()->back()->with('success', 'Setting Harga Jual Utama berhasil diupdate');
     }

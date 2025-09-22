@@ -2058,7 +2058,9 @@ export default function PemeriksaanSoapDokter() {
                                                                     <PopoverTrigger asChild>
                                                                         <Button variant="outline" className="w-full justify-between">
                                                                             {formData.jenis_alergi.length > 0
-                                                                                ? formData.jenis_alergi.join(', ')
+                                                                                ? formData.jenis_alergi
+                                                                                      .map((v: string) => (v === '00' ? 'Tidak ada' : v))
+                                                                                      .join(', ')
                                                                                 : 'Pilih jenis alergi'}
                                                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                                         </Button>
@@ -2134,7 +2136,9 @@ export default function PemeriksaanSoapDokter() {
                                                                             className="w-full justify-between"
                                                                         >
                                                                             {formData.alergi.length > 0
-                                                                                ? formData.alergi.join(', ')
+                                                                                ? formData.alergi
+                                                                                      .map((v: string) => (v === '00' ? 'Tidak ada' : v))
+                                                                                      .join(', ')
                                                                                 : formData.jenis_alergi.length === 0
                                                                                     ? 'Pilih jenis terlebih dahulu'
                                                                                     : 'Pilih detail alergi'}

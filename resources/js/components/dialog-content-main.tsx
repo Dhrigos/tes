@@ -3,11 +3,12 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import React, { useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 
 // ----------------- Config Satu Sehat -----------------
@@ -60,7 +61,6 @@ function ConfigSatuSehat() {
         if (typeof isActive !== 'undefined') {
             setEnabledSS(Boolean(isActive));
         }
-         
     }, [props?.web_setting?.is_satusehat_active]);
 
     const handleToggleChangeSS = async (checked: boolean) => {
@@ -155,7 +155,15 @@ function ConfigSatuSehat() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Organization ID</label>
-                                <Input name="org_id" type="text" value={formData.org_id} onChange={handleChange} placeholder="Masukkan Org ID" required disabled={!enabledSS || loading} />
+                                <Input
+                                    name="org_id"
+                                    type="text"
+                                    value={formData.org_id}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Org ID"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Client Secret</label>
@@ -171,7 +179,15 @@ function ConfigSatuSehat() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Secret Key</label>
-                                <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabledSS || loading} />
+                                <Input
+                                    name="SECRET_KEY"
+                                    type="password"
+                                    value={formData.SECRET_KEY}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabledSS || loading}
+                                />
                             </div>
                             <div className="col-span-2">
                                 <label className="block text-sm font-medium">Satu Sehat Base URL</label>
@@ -225,7 +241,6 @@ function ConfigBPJS() {
                 PASSWORD: bpjs.PASSWORD || '',
             });
         }
-         
     }, [props?.set_bpjs]);
 
     // Prefill toggle BPJS dari web_setting props
@@ -234,7 +249,6 @@ function ConfigBPJS() {
         if (typeof isActive !== 'undefined') {
             setEnabled(Boolean(isActive));
         }
-         
     }, [props?.web_setting?.is_bpjs_active]);
 
     const handleToggleChange = async (checked: boolean) => {
@@ -315,30 +329,78 @@ function ConfigBPJS() {
                 <CardContent className="p-4">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium">Cons ID</label>
-                            <Input name="CONSID" type="text" value={formData.CONSID} onChange={handleChange} placeholder="Masukkan Cons ID" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">KPFK (Kode Apotek)</label>
-                            <Input name="KPFK" type="text" value={formData.KPFK} onChange={handleChange} placeholder="Masukkan Kode Apotek" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">Secret Key</label>
-                            <Input name="SECRET_KEY" type="password" value={formData.SECRET_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">User Key</label>
-                            <Input name="USER_KEY" type="password" value={formData.USER_KEY} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">Username</label>
-                            <Input name="USERNAME" type="text" value={formData.USERNAME} onChange={handleChange} placeholder="Masukkan Username" required disabled={!enabled || loading} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium">Password</label>
-                            <Input name="PASSWORD" type="password" value={formData.PASSWORD} onChange={handleChange} placeholder="••••••••" required disabled={!enabled || loading} />
-                        </div>
+                            <div>
+                                <label className="block text-sm font-medium">Cons ID</label>
+                                <Input
+                                    name="CONSID"
+                                    type="text"
+                                    value={formData.CONSID}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Cons ID"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">KPFK (Kode Apotek)</label>
+                                <Input
+                                    name="KPFK"
+                                    type="text"
+                                    value={formData.KPFK}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Kode Apotek"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Secret Key</label>
+                                <Input
+                                    name="SECRET_KEY"
+                                    type="password"
+                                    value={formData.SECRET_KEY}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">User Key</label>
+                                <Input
+                                    name="USER_KEY"
+                                    type="password"
+                                    value={formData.USER_KEY}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Username</label>
+                                <Input
+                                    name="USERNAME"
+                                    type="text"
+                                    value={formData.USERNAME}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Username"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Password</label>
+                                <Input
+                                    name="PASSWORD"
+                                    type="password"
+                                    value={formData.PASSWORD}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
                         </div>
                         <div className="flex justify-end">
                             <Button type="submit" disabled={loading || !enabled}>
@@ -459,31 +521,35 @@ function ConfigGudang() {
                 <span className="font-medium">Aktifkan Fitur Gudang</span>
                 {/* Toggle harus selalu tampil, tidak tergantung enabled */}
                 <Switch checked={enabled} onCheckedChange={handleToggleChange} disabled={loading} />
-            </div>            
+            </div>
         </div>
     );
 }
 
 // ----------------- Harga Jual -----------------
 function HargaJual() {
-    // Helper function untuk clear nilai "0"
+    // Helper: normalize value untuk input; jangan sembunyikan nilai 0
     const clearZeroValue = (value: any) => {
-        if (!value || value === '0' || value === 0 || value === '00' || value === '') {
+        if (value === null || typeof value === 'undefined') {
             return '';
         }
-        return value;
+        return String(value);
     };
 
     // State untuk Setting Harga Jual Utama (Gudang Utama)
     const [hargaJualUtama1, setHargaJualUtama1] = useState('');
     const [hargaJualUtama2, setHargaJualUtama2] = useState('');
     const [hargaJualUtama3, setHargaJualUtama3] = useState('');
+    const [settingWaktuUtama, setSettingWaktuUtama] = useState('');
+    const [satuanWaktuUtama, setSatuanWaktuUtama] = useState('');
 
     // State untuk Setting Harga Jual (Per Klinik)
     const [hargaJual1, setHargaJual1] = useState('');
     const [hargaJual2, setHargaJual2] = useState('');
     const [hargaJual3, setHargaJual3] = useState('');
     const [embalasePoin, setEmbalasePoin] = useState('');
+    const [settingWaktu, setSettingWaktu] = useState('');
+    const [satuanWaktu, setSatuanWaktu] = useState('');
 
     // State untuk status gudang utama
     const [isGudangUtama, setIsGudangUtama] = useState(false);
@@ -506,11 +572,15 @@ function HargaJual() {
             setHargaJual2('');
             setHargaJual3('');
             setEmbalasePoin('');
+            setSettingWaktuUtama('');
+            setSatuanWaktuUtama('');
         }
     }, [isGudangUtama]);
 
-    // Prevent rendering sampai state benar-benar clear
-    const shouldRenderHargaJual = isGudangUtama || hargaJual1 || hargaJual2 || hargaJual3;
+    // Render jika gudang utama ATAU ada nilai (termasuk "0") pada salah satu harga
+    const shouldRenderHargaJual = Boolean(
+        isGudangUtama || [hargaJual1, hargaJual2, hargaJual3].some((v) => v !== '')
+    );
 
     const fetchWebSettings = async () => {
         try {
@@ -539,6 +609,8 @@ function HargaJual() {
                             setHargaJual2('');
                             setHargaJual3('');
                             setEmbalasePoin('');
+                            setSettingWaktuUtama('');
+                            setSatuanWaktuUtama('');
                         }
 
                         // Refresh data setelah status berubah
@@ -584,6 +656,8 @@ function HargaJual() {
                 setHargaJualUtama1(clearZeroValue(settingHargaJualUtama.harga_jual_1));
                 setHargaJualUtama2(clearZeroValue(settingHargaJualUtama.harga_jual_2));
                 setHargaJualUtama3(clearZeroValue(settingHargaJualUtama.harga_jual_3));
+                setSettingWaktuUtama(clearZeroValue(settingHargaJualUtama.setting_waktu));
+                setSatuanWaktuUtama(settingHargaJualUtama.satuan_waktu || '');
             }
 
             if (settingHargaJual && (settingHargaJual.harga_jual_1 || settingHargaJual.harga_jual_2 || settingHargaJual.harga_jual_3)) {
@@ -591,12 +665,16 @@ function HargaJual() {
                 setHargaJual2(clearZeroValue(settingHargaJual.harga_jual_2));
                 setHargaJual3(clearZeroValue(settingHargaJual.harga_jual_3));
                 setEmbalasePoin(clearZeroValue(settingHargaJual.embalase_poin));
+                setSettingWaktu(clearZeroValue(settingHargaJual.setting_waktu));
+                setSatuanWaktu(settingHargaJual.satuan_waktu || '');
             } else {
                 // Jika tidak ada data harga jual yang valid, clear state
                 setHargaJual1('');
                 setHargaJual2('');
                 setHargaJual3('');
                 setEmbalasePoin('');
+                setSettingWaktu('');
+                setSatuanWaktu('');
             }
 
             return true;
@@ -626,6 +704,8 @@ function HargaJual() {
                     setHargaJualUtama1(clearZeroValue(settingHargaJualUtama.harga_jual_1));
                     setHargaJualUtama2(clearZeroValue(settingHargaJualUtama.harga_jual_2));
                     setHargaJualUtama3(clearZeroValue(settingHargaJualUtama.harga_jual_3));
+                    setSettingWaktuUtama(clearZeroValue(settingHargaJualUtama.setting_waktu));
+                    setSatuanWaktuUtama(settingHargaJualUtama.satuan_waktu || '');
                 }
 
                 if (settingHargaJual && (settingHargaJual.harga_jual_1 || settingHargaJual.harga_jual_2 || settingHargaJual.harga_jual_3)) {
@@ -634,6 +714,8 @@ function HargaJual() {
                     setHargaJual3(clearZeroValue(settingHargaJual.harga_jual_3));
                     // Embalase tidak diubah saat sinkronisasi
                     setEmbalasePoin(clearZeroValue(settingHargaJual.embalase_poin) || embalasePoin);
+                    setSettingWaktu(clearZeroValue(settingHargaJual.setting_waktu));
+                    setSatuanWaktu(settingHargaJual.satuan_waktu || '');
                 } else {
                     // Jika tidak ada data harga jual yang valid, clear state
                     setHargaJual1('');
@@ -655,6 +737,14 @@ function HargaJual() {
         setLoading(true);
 
         try {
+            const payload = {
+                harga_jual_1: hargaJualUtama1,
+                harga_jual_2: hargaJualUtama2,
+                harga_jual_3: hargaJualUtama3,
+                setting_waktu: settingWaktuUtama,
+                satuan_waktu: satuanWaktuUtama,
+            };
+
             const response = await fetch('/api/setting-harga-jual-utama', {
                 method: 'POST',
                 headers: {
@@ -662,20 +752,20 @@ function HargaJual() {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    harga_jual_1: hargaJualUtama1,
-                    harga_jual_2: hargaJualUtama2,
-                    harga_jual_3: hargaJualUtama3,
-                }),
+                body: JSON.stringify(payload),
             });
 
+            const raw = await response.clone().text();
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            toast.success('Setting Harga Jual Utama berhasil disimpan');
-        } catch (error) {
-            toast.error('Gagal menyimpan Setting Harga Jual Utama');
+            let data: any = null;
+            try { data = JSON.parse(raw); } catch (_) {}
+            toast.success(data?.message || 'Setting Harga Jual Utama berhasil disimpan');
+        } catch (error: any) {
+            console.error('[DEBUG] Error saving utama:', error);
+            toast.error(`Gagal menyimpan Setting Harga Jual Utama: ${error?.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -685,6 +775,15 @@ function HargaJual() {
         e.preventDefault();
 
         try {
+            const payload = {
+                harga_jual_1: hargaJual1,
+                harga_jual_2: hargaJual2,
+                harga_jual_3: hargaJual3,
+                embalase_poin: embalasePoin,
+                setting_waktu: settingWaktu,
+                satuan_waktu: satuanWaktu,
+            };
+
             const response = await fetch('/api/setting-harga-jual', {
                 method: 'POST',
                 headers: {
@@ -692,19 +791,17 @@ function HargaJual() {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    harga_jual_1: hargaJual1,
-                    harga_jual_2: hargaJual2,
-                    harga_jual_3: hargaJual3,
-                    embalase_poin: embalasePoin,
-                }),
+                body: JSON.stringify(payload),
             });
 
+            const raw = await response.clone().text();
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            toast.success('Embalase Poin berhasil disimpan');
+            let data: any = null;
+            try { data = JSON.parse(raw); } catch (_) {}
+            toast.success(data?.message || 'Embalase Poin berhasil disimpan');
         } catch (error) {
             toast.error('Gagal menyimpan Embalase Poin');
         }
@@ -793,6 +890,23 @@ function HargaJual() {
                                 </div>
                             </div>
 
+                            <div>
+                                <h3>Setting Waktu Harga</h3>
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <Input placeholder="Pilih waktu" type="number" value={settingWaktuUtama} onChange={(e) => setSettingWaktuUtama(e.target.value)} />
+                                    <Select value={satuanWaktuUtama} onValueChange={setSatuanWaktuUtama}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Pilih satuan waktu" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Minggu">Minggu</SelectItem>
+                                            <SelectItem value="Bulan">Bulan</SelectItem>
+                                            <SelectItem value="Tahun">Tahun</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
                             <div className="flex justify-end">
                                 <Button type="submit" disabled={loading}>
                                     {loading ? 'Menyimpan...' : 'Simpan Harga Utama'}
@@ -826,7 +940,7 @@ function HargaJual() {
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                         strokeWidth={2}
-                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z"
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502 1.667 1.732 2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z"
                                     />
                                 </svg>
                                 <div>
@@ -928,6 +1042,23 @@ function HargaJual() {
                             </div>
                         </div>
 
+                        <div>
+                            <h3>Setting Waktu Harga</h3>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <Input placeholder="Pilih waktu" type="number" value={settingWaktu} onChange={(e) => setSettingWaktu(e.target.value)} />
+                                <Select value={satuanWaktu} onValueChange={setSatuanWaktu}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih satuan waktu" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Minggu">Minggu</SelectItem>
+                                        <SelectItem value="Bulan">Bulan</SelectItem>
+                                        <SelectItem value="Tahun">Tahun</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
                         <div className="flex justify-end gap-2">
                             <Button type="button" variant="outline" onClick={handleManualSync} className="flex items-center gap-2">
                                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -940,7 +1071,7 @@ function HargaJual() {
                                 </svg>
                                 Sinkron
                             </Button>
-                            <Button type="submit">Simpan Embalase Poin</Button>
+                            <Button type="submit">Simpan Pengaturan</Button>
                         </div>
                     </form>
                 </CardContent>
@@ -1049,7 +1180,6 @@ function Advanced() {
                 setPreview(`/setting/${setting.profile_image}`);
             }
         }
-         
     }, [props?.web_setting]);
 
     const handleLogoClick = () => {

@@ -414,22 +414,19 @@ class Permintaan_Barang_Controller extends Controller
                     $harga_jual_2 = $harga_dasar + ($harga_dasar * ($setting->harga_jual_2 / 100));
                     $harga_jual_3 = $harga_dasar + ($harga_dasar * ($setting->harga_jual_3 / 100));
 
-                    // Create or update harga jual record in klinik-specific table
-                    Daftar_Harga_Jual_Klinik::updateOrCreate(
-                        [
-                            'kode_obat_alkes' => $item['kode_obat_alkes'],
-                        ],
-                        [
-                            'nama_obat_alkes' => $item['nama_obat_alkes'],
-                            'harga_dasar' => $harga_dasar,
-                            'harga_jual_1' => $harga_jual_1,
-                            'harga_jual_2' => $harga_jual_2,
-                            'harga_jual_3' => $harga_jual_3,
-                            'diskon' => 0,
-                            'ppn' => 0,
-                            'tanggal_obat_masuk' => Carbon::now()->toDateString(),
-                        ]
-                    );
+                    // Simpan harga jual record baru di tabel klinik-specific
+                    Daftar_Harga_Jual_Klinik::create([
+                        'kode_obat_alkes' => $item['kode_obat_alkes'],
+                        'nama_obat_alkes' => $item['nama_obat_alkes'],
+                        'harga_dasar' => $harga_dasar,
+                        'harga_jual_1' => $harga_jual_1,
+                        'harga_jual_2' => $harga_jual_2,
+                        'harga_jual_3' => $harga_jual_3,
+                        'diskon' => 0,
+                        'ppn' => 0,
+                        'tanggal_obat_masuk' => Carbon::now()->toDateString(),
+                        'jenis' => 'klinik',
+                    ]);
                 }
 
                 // Delete only processed confirmations (by IDs if provided, otherwise all under kode_request)
@@ -874,21 +871,18 @@ class Permintaan_Barang_Controller extends Controller
                     $harga_jual_2 = $harga_dasar + ($harga_dasar * (($setting->harga_jual_2 ?? 0) / 100));
                     $harga_jual_3 = $harga_dasar + ($harga_dasar * (($setting->harga_jual_3 ?? 0) / 100));
 
-                    Daftar_Harga_Jual_Klinik::updateOrCreate(
-                        [
-                            'kode_obat_alkes' => $kodeObatAlkes,
-                        ],
-                        [
-                            'nama_obat_alkes' => $namaObatAlkes,
-                            'harga_dasar' => $harga_dasar,
-                            'harga_jual_1' => $harga_jual_1,
-                            'harga_jual_2' => $harga_jual_2,
-                            'harga_jual_3' => $harga_jual_3,
-                            'diskon' => 0,
-                            'ppn' => 0,
-                            'tanggal_obat_masuk' => Carbon::now()->toDateString(),
-                        ]
-                    );
+                    Daftar_Harga_Jual_Klinik::create([
+                        'kode_obat_alkes' => $kodeObatAlkes,
+                        'nama_obat_alkes' => $namaObatAlkes,
+                        'harga_dasar' => $harga_dasar,
+                        'harga_jual_1' => $harga_jual_1,
+                        'harga_jual_2' => $harga_jual_2,
+                        'harga_jual_3' => $harga_jual_3,
+                        'diskon' => 0,
+                        'ppn' => 0,
+                        'tanggal_obat_masuk' => Carbon::now()->toDateString(),
+                        'jenis' => 'klinik',
+                    ]);
                 }
 
                 // Hapus konfirmasi untuk item ini bila ada id

@@ -671,9 +671,21 @@ export default function DokterIndex() {
                 toast.error(json?.message || 'Gagal sinkron jadwal');
                 return;
             }
-            // Ambil range jadwal pertama jika ada, map ke satu hari (tanpa hari spesifik, user bisa pilih)
+            // Validasi: pastikan kode dari WS cocok dengan dokter yang sedang disinkronkan
+            const currentDoctorCode = (jadwalDokter?.kode || '').toString().trim();
+            if (!currentDoctorCode) {
+                toast.error('Kode dokter tidak tersedia');
+                return;
+            }
+            const sourceItems = (json.data as Array<{ kode: number | string; nama: string; jadwal: string; kuota: number }>);
+            const matched = sourceItems.filter((d) => String(d.kode ?? '').toString().trim() === currentDoctorCode);
+            if (matched.length === 0) {
+                toast.success('Tidak ada jadwal dari BPJS untuk dokter ini');
+                return;
+            }
+            // Ambil range jadwal pertama dari data yang cocok, map ke satu hari (tanpa hari spesifik)
             const hariDefault = getHariIndonesia(syncTanggal);
-            const mapped = (json.data as Array<{ kode: number | string; nama: string; jadwal: string; kuota: number }>).map((d) => {
+            const mapped = matched.map((d) => {
                 const [mulai, selesai] = (d.jadwal || '').split('-');
                 return {
                     hari: hariDefault,
@@ -1634,7 +1646,7 @@ export default function DokterIndex() {
                         </DialogHeader>
                         <div className="flex-1 space-y-4 overflow-y-auto p-6">
                             {jadwalItems.map((it, idx) => (
-                                <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-6">
+                                <div key={idx} className="grid grid-cols-1 items-end gap-3 md:grid-cols-5">
                                     <div>
                                         <Label>Hari</Label>
                                         <div className="py-2">{it.hari}</div>
@@ -1666,12 +1678,7 @@ export default function DokterIndex() {
                                                 <SelectItem value="0">Nonaktif</SelectItem>
                                             </SelectContent>
                                         </Select>
-                                    </div>
-                                    <div className="md:col-span-1">
-                                        <Button type="button" variant="destructive" size="sm" onClick={() => removeJadwal(idx)}>
-                                            Hapus
-                                        </Button>
-                                    </div>
+                                    </div>                                
                                 </div>
                             ))}
                             {/* Tombol tambah baris dihapus sesuai permintaan */}
@@ -1681,7 +1688,7 @@ export default function DokterIndex() {
                                 Batal
                             </Button>
                             <Button type="button" onClick={syncJadwalFromWS} disabled={syncLoading}>
-                                {syncLoading ? 'Sinkron...' : 'Sinkron WS'}
+                                {syncLoading ? 'Sinkron...' : 'Sinkron Jadwal BPJS'}
                             </Button>
                             <Button type="button" onClick={submitJadwal}>
                                 Simpan Jadwal

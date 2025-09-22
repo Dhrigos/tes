@@ -13,6 +13,8 @@ class Setting_Harga_Jual_Utama extends Model
         'harga_jual_1',
         'harga_jual_2',
         'harga_jual_3',
+        'setting_waktu',
+        'satuan_waktu',
     ];
 
     // Enable timestamps

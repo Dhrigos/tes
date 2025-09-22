@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Illuminate\Support\Carbon;
+use App\Models\Module\Master\Data\Gudang\Setting_Harga_Jual_Utama;
 
 class Daftar_Permintaan_Barang_Controller extends Controller
 {
@@ -132,11 +133,29 @@ class Daftar_Permintaan_Barang_Controller extends Controller
     {
         try {
             $tanggalHariIni = Carbon::today();
-            $tanggal3BulanLalu = $tanggalHariIni->copy()->subMonths(3);
+            // Ambil setting waktu dari Gudang Utama; fallback 3 bulan jika tidak tersedia
+            $settingUtama = Setting_Harga_Jual_Utama::first();
+            $jumlahWaktu = (int)($settingUtama->setting_waktu ?? 0);
+            $satuanWaktu = strtolower(trim((string)($settingUtama->satuan_waktu ?? '')));
+
+            $tanggalMulai = null;
+            if ($jumlahWaktu > 0) {
+                if ($satuanWaktu === 'minggu') {
+                    $tanggalMulai = $tanggalHariIni->copy()->subWeeks($jumlahWaktu);
+                } elseif ($satuanWaktu === 'bulan') {
+                    $tanggalMulai = $tanggalHariIni->copy()->subMonths($jumlahWaktu);
+                } elseif ($satuanWaktu === 'tahun') {
+                    $tanggalMulai = $tanggalHariIni->copy()->subYears($jumlahWaktu);
+                }
+            }
+
+            if ($tanggalMulai === null) {
+                $tanggalMulai = $tanggalHariIni->copy()->subMonths(3);
+            }
 
             $harga = Daftar_Harga_Jual::where('kode_obat_alkes', $kode_obat)
                 ->where('jenis', 'utama')
-                ->whereBetween('tanggal_obat_masuk', [$tanggal3BulanLalu, $tanggalHariIni])
+                ->whereBetween('tanggal_obat_masuk', [$tanggalMulai, $tanggalHariIni])
                 ->max('harga_dasar');
 
             return response()->json([

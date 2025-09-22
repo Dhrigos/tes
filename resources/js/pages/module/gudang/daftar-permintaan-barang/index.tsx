@@ -847,7 +847,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                     'Memproses...'
                                                 ) : (
                                                     <>
-                                                        <span className="mr-2">💾</span> Simpan Permintaan
+                                                        Simpan Permintaan
                                                     </>
                                                 )}
                                             </Button>
