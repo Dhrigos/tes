@@ -16,7 +16,6 @@ use App\Models\Module\Master\Data\Umum\Bangsa;
 use App\Models\Module\Master\Data\Umum\Bahasa;
 use App\Models\Module\Master\Data\Umum\Asuransi;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Container\Attributes\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as FacadesLog;
 use Illuminate\Support\Facades\Http;
@@ -201,7 +200,8 @@ class PasienController extends Controller
                 FacadesLog::warning('BPJS data fetch failed: ' . $e->getMessage());
                 // Lanjutkan dengan data input saja
             }        
-            $nik = $bpjsData['noKTP'] ??  $request->nik;
+            // Gunakan NIK dari BPJS jika tersedia dan tidak kosong, jika kosong fallback ke input request
+            $nik = !empty($bpjsData['noKTP']) ? $bpjsData['noKTP'] : $request->nik;
 
             if (!$nik) {
                 return redirect()->back()->with('error', 'NIK pasien wajib diisi!');
