@@ -38,6 +38,56 @@
                 });
             });
         </script>
+        <script>
+            // Wrap window.fetch to always include credentials and XSRF header from cookie
+            (function(){
+                var originalFetch = window.fetch;
+                function getCookie(name){
+                    var value = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g,'\\$1') + '=([^;]*)');
+                    return value ? decodeURIComponent(value[1]) : '';
+                }
+                window.fetch = function(resource, init){
+                    init = init || {};
+                    // Ensure cookies are sent for same-origin requests
+                    if (!('credentials' in init)) {
+                        init.credentials = 'same-origin';
+                    }
+                    // Add XSRF header if cookie exists and header not already set
+                    var xsrf = getCookie('XSRF-TOKEN');
+                    if (xsrf) {
+                        init.headers = init.headers || {};
+                        var headers = init.headers;
+                        var hasHeader = false;
+                        if (headers instanceof Headers) {
+                            hasHeader = headers.has('X-XSRF-TOKEN');
+                            if (!hasHeader) headers.set('X-XSRF-TOKEN', xsrf);
+                        } else if (Array.isArray(headers)) {
+                            hasHeader = headers.some(function(h){ return (h[0]||'').toLowerCase()==='x-xsrf-token'; });
+                            if (!hasHeader) headers.push(['X-XSRF-TOKEN', xsrf]);
+                        } else {
+                            // plain object
+                            if (!('X-XSRF-TOKEN' in headers) && !('x-xsrf-token' in headers)) {
+                                headers['X-XSRF-TOKEN'] = xsrf;
+                            }
+                        }
+                    }
+                    // Identify AJAX requests explicitly
+                    if (!init.headers) init.headers = {};
+                    if (init.headers instanceof Headers) {
+                        if (!init.headers.has('X-Requested-With')) init.headers.set('X-Requested-With', 'XMLHttpRequest');
+                    } else if (Array.isArray(init.headers)) {
+                        if (!init.headers.some(function(h){ return (h[0]||'').toLowerCase()==='x-requested-with'; })) {
+                            init.headers.push(['X-Requested-With', 'XMLHttpRequest']);
+                        }
+                    } else {
+                        if (!('X-Requested-With' in init.headers) && !('x-requested-with' in init.headers)) {
+                            init.headers['X-Requested-With'] = 'XMLHttpRequest';
+                        }
+                    }
+                    return originalFetch(resource, init);
+                };
+            })();
+        </script>
 
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
