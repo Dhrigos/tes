@@ -9,19 +9,27 @@ import axios from 'axios';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
-// Configure CSRF token for Inertia
-const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-if (token) {
-    // Configure axios defaults (no window any casting)
-    axios.defaults.headers.common = axios.defaults.headers.common || ({} as Record<string, string>);
-    (axios.defaults.headers.common as Record<string, string>)['X-CSRF-TOKEN'] = token;
-    (axios.defaults.headers.common as Record<string, string>)['X-Requested-With'] = 'XMLHttpRequest';
-    // Ensure cookies are sent for same-origin/API calls
-    axios.defaults.withCredentials = true;
-    // Align axios XSRF config with Laravel cookie/header naming, in case we rely on it
-    (axios.defaults as any).xsrfCookieName = 'XSRF-TOKEN';
-    (axios.defaults as any).xsrfHeaderName = 'X-XSRF-TOKEN';
-}
+
+// Axios config (tanpa meta csrf-token)
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
+axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 419) {
+      try {
+        await axios.get('/sanctum/csrf-cookie');
+        return axios(error.config);
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

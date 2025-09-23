@@ -1,6 +1,6 @@
 "use client";
 
-import { Head } from "@inertiajs/react";
+import { Form, Head } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,16 +34,11 @@ export default function Login({
         <Card className="overflow-hidden p-0">
           <CardContent className="grid md:grid-cols-2 p-0">
             {/* Form */}
-            <form
+            <Form
               method="post"
               action={route("login")}
               className="p-6 md:p-8 flex flex-col gap-6"
             >
-              <input
-                type="hidden"
-                name="_token"
-                value={(document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || ''}
-              />
               <div className="flex flex-col items-center text-center">
                 <h1 className="text-2xl font-bold">Welcome back</h1>
                 <p className="text-muted-foreground text-balance">
@@ -111,7 +106,7 @@ export default function Login({
                 {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                 Log in
               </Button>
-            </form>
+            </Form>
 
             {/* Lottie animation */}
             <div className="bg-muted relative hidden md:flex items-center justify-center">
