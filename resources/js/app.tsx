@@ -16,7 +16,11 @@ if (token) {
     axios.defaults.headers.common = axios.defaults.headers.common || ({} as Record<string, string>);
     (axios.defaults.headers.common as Record<string, string>)['X-CSRF-TOKEN'] = token;
     (axios.defaults.headers.common as Record<string, string>)['X-Requested-With'] = 'XMLHttpRequest';
+    // Ensure cookies are sent for same-origin/API calls
     axios.defaults.withCredentials = true;
+    // Align axios XSRF config with Laravel cookie/header naming, in case we rely on it
+    (axios.defaults as any).xsrfCookieName = 'XSRF-TOKEN';
+    (axios.defaults as any).xsrfHeaderName = 'X-XSRF-TOKEN';
 }
 
 createInertiaApp({
