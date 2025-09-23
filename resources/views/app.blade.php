@@ -19,6 +19,25 @@
                 }
             })();
         </script>
+        <script>
+            // Ensure all HTML forms that POST include CSRF token automatically
+            document.addEventListener('DOMContentLoaded', function () {
+                var meta = document.querySelector('meta[name="csrf-token"]');
+                var token = meta ? meta.getAttribute('content') : '';
+                if (!token) return;
+                var forms = document.querySelectorAll('form');
+                forms.forEach(function (form) {
+                    var method = (form.getAttribute('method') || '').toLowerCase();
+                    if (!method || ['post', 'put', 'patch', 'delete'].indexOf(method) === -1) return;
+                    if (form.querySelector('input[name="_token"]')) return;
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = '_token';
+                    input.value = token;
+                    form.appendChild(input);
+                });
+            });
+        </script>
 
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
