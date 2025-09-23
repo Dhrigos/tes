@@ -185,6 +185,8 @@ const PendaftaranDashboard = () => {
 
     // Loading state
     const [loading, setLoading] = useState(false);
+    // Cache ketersediaan data permintaan cetak per nomor register
+    const [permintaanAvailability, setPermintaanAvailability] = useState<Record<string, boolean>>({});
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -215,6 +217,23 @@ const PendaftaranDashboard = () => {
             setSelectedDokter('');
         }
     }, [selectedPoli, hariKunjungan, waktuKunjungan]);
+
+    // Cek ketersediaan permintaan untuk data yang sedang terlihat (hanya status 2)
+    useEffect(() => {
+        const visibleItems = getCurrentPageData().filter(
+            (i) => String(i?.status?.status_pendaftaran) === '2',
+        );
+        if (visibleItems.length === 0) return;
+
+        // Hindari request berulang jika sudah ada di cache
+        const itemsToCheck = visibleItems.filter(
+            (i) => permintaanAvailability[i.nomor_register] === undefined,
+        );
+        if (itemsToCheck.length === 0) return;
+
+        checkPermintaanAvailability(itemsToCheck);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendaftaranData, currentPage, itemsPerPage]);
 
     // Filter pasien list based on search with debounce
     useEffect(() => {
@@ -363,11 +382,45 @@ const PendaftaranDashboard = () => {
                 setRekapDokter(data.data.rekap_dokter || []);
                 setStatistics(data.data.statistics || statistics);
                 setTotalItems(data.data.pendaftaran?.length || 0);
+                // Reset cache ketersediaan ketika dataset berubah signifikan
+                setPermintaanAvailability({});
             } else {
                 console.error('API returned error:', data.message);
             }
         } catch (error) {
             console.error('Error fetching pendaftaran data:', error);
+        }
+    };
+
+    // Mengecek ketersediaan data permintaan cetak untuk beberapa item sekaligus
+    const checkPermintaanAvailability = async (items: PendaftaranData[]) => {
+        const updates: Record<string, boolean> = {};
+        await Promise.allSettled(
+            items.map(async (item) => {
+                try {
+                    const encodedNorawat = btoa(item.nomor_register);
+                    const res = await fetch(`/api/pelayanan/permintaan/cetak-data/${encodedNorawat}`, {
+                        method: 'GET',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+                    if (!res.ok) {
+                        updates[item.nomor_register] = false;
+                        return;
+                    }
+                    const json = await res.json();
+                    updates[item.nomor_register] = Boolean(json?.success && Array.isArray(json?.data) && json.data.length > 0);
+                } catch {
+                    updates[item.nomor_register] = false;
+                }
+            }),
+        );
+        if (Object.keys(updates).length > 0) {
+            setPermintaanAvailability((prev) => ({ ...prev, ...updates }));
         }
     };
 
@@ -1137,7 +1190,7 @@ const PendaftaranDashboard = () => {
                                                                     <Printer className="mr-1 h-3 w-3" />
                                                                     Cetak Antrian
                                                                 </Button>
-                                                            ) : String(item.status?.status_pendaftaran) === '2' ? (
+                                                            ) : String(item.status?.status_pendaftaran) === '2' && permintaanAvailability[item.nomor_register] ? (
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
