@@ -693,19 +693,31 @@ const PendaftaranDashboard = () => {
     const handleCetak = (item: PendaftaranData) => {
         try {
             const ticketHtml = buildTicketHtml(item);
-            const printWindow = window.open('', '', 'width=420,height=600');
-            if (!printWindow) {
-                toast.error('Pop-up diblokir. Izinkan pop-up untuk mencetak.');
-                return;
-            }
-            printWindow.document.write('<html><head><title>Cetak Nomor Antrian</title>');
-            printWindow.document.write('</head><body style="text-align:center; font-family:sans-serif;">');
-            printWindow.document.write(ticketHtml);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
+            // Cetak via iframe (tanpa buka tab baru) dan cleanup onafterprint
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+            iframe.onload = () => {
+                try {
+                    const cw = iframe.contentWindow;
+                    if (!cw) return;
+                    const cleanup = () => { try { document.body.removeChild(iframe); } catch {} };
+                    (cw as any).onafterprint = cleanup;
+                    window.setTimeout(cleanup, 60000);
+                    window.setTimeout(() => { try { cw.focus(); cw.print(); } catch {} }, 150);
+                } catch { try { document.body.removeChild(iframe); } catch {} }
+            };
+            const doc = iframe.contentWindow?.document || iframe.contentDocument;
+            doc?.open();
+            doc?.write('<html><head><title>Cetak Nomor Antrian</title></head><body style="text-align:center; font-family:sans-serif;">');
+            doc?.write(ticketHtml);
+            doc?.write('</body></html>');
+            doc?.close();
         } catch (err) {
             console.error('Print error:', err);
             toast.error('Gagal mencetak tiket');
@@ -765,41 +777,33 @@ const PendaftaranDashboard = () => {
 
     const printDocument = (url: string) => {
         try {
-            // Buat iframe tersembunyi untuk print
+            // Buat iframe tersembunyi untuk print dengan onafterprint
             const iframe = document.createElement('iframe');
-            iframe.style.position = 'absolute';
-            iframe.style.left = '-9999px';
-            iframe.style.top = '-9999px';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
             iframe.style.width = '0';
             iframe.style.height = '0';
-            iframe.style.border = 'none';
-            
+            iframe.style.border = '0';
             document.body.appendChild(iframe);
-            
             iframe.onload = () => {
                 try {
-                    // Tunggu sebentar untuk memastikan konten terload
-                    setTimeout(() => {
-                        iframe.contentWindow?.focus();
-                        iframe.contentWindow?.print();
-                        
-                        // Hapus iframe setelah print
-                        setTimeout(() => {
-                            document.body.removeChild(iframe);
-                        }, 1000);
-                    }, 1000);
+                    const cw = iframe.contentWindow;
+                    if (!cw) return;
+                    const cleanup = () => { try { document.body.removeChild(iframe); } catch {} };
+                    (cw as any).onafterprint = cleanup;
+                    window.setTimeout(cleanup, 60000);
+                    window.setTimeout(() => { try { cw.focus(); cw.print(); } catch {} }, 150);
                 } catch (e) {
                     console.error('Print error:', e);
-                    document.body.removeChild(iframe);
+                    try { document.body.removeChild(iframe); } catch {}
                 }
             };
-            
             iframe.onerror = () => {
                 console.error('Failed to load print document');
-                document.body.removeChild(iframe);
+                try { document.body.removeChild(iframe); } catch {}
                 toast.error('Gagal memuat dokumen untuk dicetak');
             };
-            
             iframe.src = url;
         } catch (error) {
             console.error('Print setup error:', error);

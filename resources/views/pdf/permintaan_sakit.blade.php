@@ -57,6 +57,12 @@
             page-break-after: always;
         }
 
+        /* Ensure spacing around bold inline text within paragraphs */
+        p.teks b,
+        p.teks strong {
+            margin: 0 2px;
+        }
+
         .info-table {
             width: 90%;
             margin: 0;
@@ -138,8 +144,7 @@
         </tr>
     </table>
 
-    <p class="teks">Berdasarkan pemeriksaan yang telah dilakukan, yang bersangkutan dinyatakan <strong>SAKIT</strong>
-        dengan keterangan sebagai berikut :</p>
+    <p class="teks">Berdasarkan pemeriksaan yang telah dilakukan, yang bersangkutan dinyatakan<b>&nbsp;SAKIT&nbsp;</b>dengan keterangan sebagai berikut :</p>
 
     @php
     $listDiagnosisPenyerta = array_values(

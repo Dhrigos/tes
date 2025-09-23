@@ -423,9 +423,12 @@ class Pelayanan_Rujukan_Controller extends Controller
      */
     public function cetakSuratRujukan($no_rawat)
     {
+        // Decode nomor register from route param if base64, fallback to raw
+        $nomor_register = base64_decode($no_rawat, true) ?: $no_rawat;
+        
         // Ambil data pelayanan beserta relasi yang umum dipakai
         $pelayanan = Pelayanan::with(['poli', 'dokter.namauser', 'pasien', 'pendaftaran.penjamin'])
-            ->where('nomor_register', $no_rawat)
+            ->where('nomor_register', $nomor_register)
             ->first();
 
         if (!$pelayanan) {
@@ -433,7 +436,7 @@ class Pelayanan_Rujukan_Controller extends Controller
         }
 
         // Ambil rujukan yang sudah disimpan
-        $rujukan = Rujukan::where('nomor_register', $no_rawat)->first();
+        $rujukan = Rujukan::where('nomor_register', $nomor_register)->first();
 
         // Data diagnosa: fallback '-' bila belum tersedia model/tabel diagnosa
         $diagnosa = '-';

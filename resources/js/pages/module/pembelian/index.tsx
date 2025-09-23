@@ -20,9 +20,13 @@ import type { BreadcrumbItem } from '../../../types';
 
 interface PembelianData {
     jenis_pembelian: 'obat' | 'inventaris' | 'obat_klinik' | 'inventaris_klinik' | '';
+    jenis_pembelian_tipe: 'Reguler' | 'Reguler Pre-Order' | 'Konsinyasi' | '';
     nomor_faktur: string;
     supplier: string;
     no_po_sp: string;
+    no_surat_jalan: string;
+    diskon_header: string; // nilai diskon header
+    diskon_header_persen: boolean; // true = %, false = rupiah
     no_faktur_supplier: string;
     tanggal_terima_barang: string;
     tanggal_faktur: string;
@@ -75,7 +79,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function PembelianIndex() {
-    const { suppliers: suppliersProp } = (usePage().props as any) || {};
+    const { suppliers: suppliersProp, web_setting } = (usePage().props as any) || {};
+    const isGudangUtamaActive: boolean = Boolean(web_setting?.is_gudangutama_active);
     const [currentStep, setCurrentStep] = useState(1);
     const [isGeneratingFaktur, setIsGeneratingFaktur] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -107,9 +112,13 @@ export default function PembelianIndex() {
     const [searchInventaris, setSearchInventaris] = useState('');
     const [pembelianData, setPembelianData] = useState<PembelianData>({
         jenis_pembelian: '',
+        jenis_pembelian_tipe: '',
         nomor_faktur: '',
         supplier: '',
         no_po_sp: '',
+        no_surat_jalan: '',
+        diskon_header: '0',
+        diskon_header_persen: true,
         no_faktur_supplier: '',
         tanggal_terima_barang: '',
         tanggal_faktur: '',
@@ -145,6 +154,15 @@ export default function PembelianIndex() {
 
     const isObatType = pembelianData.jenis_pembelian === 'obat' || pembelianData.jenis_pembelian === 'obat_klinik';
     const isInventarisType = pembelianData.jenis_pembelian === 'inventaris' || pembelianData.jenis_pembelian === 'inventaris_klinik';
+
+    // Pastikan tipe Klinik tidak dipilih saat Fitur Gudang aktif
+    React.useEffect(() => {
+        if (isGudangUtamaActive) {
+            if (pembelianData.jenis_pembelian === 'obat_klinik' || pembelianData.jenis_pembelian === 'inventaris_klinik') {
+                setPembelianData((prev) => ({ ...prev, jenis_pembelian: '' }));
+            }
+        }
+    }, [isGudangUtamaActive]);
 
     // Supplier options from Inertia props (tanpa API)
     const [supplierOptions, setSupplierOptions] = useState<
@@ -622,7 +640,7 @@ export default function PembelianIndex() {
     // Calculate totals - Mengikuti logika hitungTotalKeseluruhan()
     const calculateTotals = () => {
         const subTotal = pembelianDetails.reduce((sum, item) => sum + (parseFloat(item.sub_total) || 0), 0);
-        const totalDiskon = pembelianDetails.reduce((sum, item) => {
+        let totalDiskon = pembelianDetails.reduce((sum, item) => {
             const diskon = parseFloat(item.diskon) || 0;
             if (item.diskon_persen) {
                 // Jika diskon dalam persen, hitung dari qty * harga
@@ -634,6 +652,16 @@ export default function PembelianIndex() {
                 return sum + diskon;
             }
         }, 0);
+
+        // Tambahkan diskon header (persen atau rupiah)
+        const headerValue = parseFloat(pembelianData.diskon_header) || 0;
+        if (headerValue > 0) {
+            if (pembelianData.diskon_header_persen) {
+                totalDiskon += subTotal * (headerValue / 100);
+            } else {
+                totalDiskon += headerValue;
+            }
+        }
 
         const ppn = subTotal * (parseFloat(pembelianData.pajak_ppn) / 100 || 0);
         const materai = parseInt(pembelianData.materai) || 0;
@@ -653,7 +681,7 @@ export default function PembelianIndex() {
 
     React.useEffect(() => {
         calculateTotals();
-    }, [pembelianDetails, pembelianData.pajak_ppn, pembelianData.materai, pembelianData.koreksi]);
+    }, [pembelianDetails, pembelianData.pajak_ppn, pembelianData.materai, pembelianData.koreksi, pembelianData.diskon_header, pembelianData.diskon_header_persen]);
 
     // Navigation
     const nextStep = () => {
@@ -748,9 +776,13 @@ export default function PembelianIndex() {
                 // Reset form setelah berhasil
                 setPembelianData({
                     jenis_pembelian: '',
+                    jenis_pembelian_tipe: '',
                     nomor_faktur: '',
                     supplier: '',
                     no_po_sp: '',
+                    no_surat_jalan: '',
+                    diskon_header: '0',
+                    diskon_header_persen: true,
                     no_faktur_supplier: '',
                     tanggal_terima_barang: '',
                     tanggal_faktur: '',
@@ -806,21 +838,19 @@ export default function PembelianIndex() {
                                 return (
                                     <div key={step.number} className="flex items-center">
                                         <div
-                                            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${
-                                                isCompleted
-                                                    ? 'border-green-500 bg-green-500 text-white'
-                                                    : isActive
-                                                      ? 'border-blue-500 bg-blue-500 text-white'
-                                                      : 'border-gray-300 bg-gray-100 text-gray-400'
-                                            }`}
+                                            className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${isCompleted
+                                                ? 'border-green-500 bg-green-500 text-white'
+                                                : isActive
+                                                    ? 'border-blue-500 bg-blue-500 text-white'
+                                                    : 'border-gray-300 bg-gray-100 text-gray-400'
+                                                }`}
                                         >
                                             <Icon className="h-5 w-5" />
                                         </div>
                                         <div className="ml-3">
                                             <p
-                                                className={`text-sm font-medium ${
-                                                    isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
-                                                }`}
+                                                className={`text-sm font-medium ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                                                    }`}
                                             >
                                                 Step {step.number}
                                             </p>
@@ -853,22 +883,26 @@ export default function PembelianIndex() {
                                 <div className="py-8 text-center">
                                     <h3 className="mb-4 text-xl font-semibold">Pilih Jenis Pembelian</h3>
                                     <div className="mx-auto grid max-w-md grid-cols-1 gap-6 md:grid-cols-2">
-                                        <Button
-                                            variant={pembelianData.jenis_pembelian === 'obat' ? 'default' : 'outline'}
-                                            className="flex h-24 flex-col gap-2"
-                                            onClick={() => handleJenisPembelianChange('obat')}
-                                        >
-                                            <Package className="h-8 w-8" />
-                                            <span>Obat</span>
-                                        </Button>
-                                        <Button
-                                            variant={pembelianData.jenis_pembelian === 'inventaris' ? 'default' : 'outline'}
-                                            className="flex h-24 flex-col gap-2"
-                                            onClick={() => handleJenisPembelianChange('inventaris')}
-                                        >
-                                            <ShoppingCart className="h-8 w-8" />
-                                            <span>Inventaris</span>
-                                        </Button>
+                                        {!isGudangUtamaActive && (
+                                            <>
+                                                <Button
+                                                    variant={pembelianData.jenis_pembelian === 'obat' ? 'default' : 'outline'}
+                                                    className="flex h-24 flex-col gap-2"
+                                                    onClick={() => handleJenisPembelianChange('obat')}
+                                                >
+                                                    <Package className="h-8 w-8" />
+                                                    <span>Obat</span>
+                                                </Button>
+                                                <Button
+                                                    variant={pembelianData.jenis_pembelian === 'inventaris' ? 'default' : 'outline'}
+                                                    className="flex h-24 flex-col gap-2"
+                                                    onClick={() => handleJenisPembelianChange('inventaris')}
+                                                >
+                                                    <ShoppingCart className="h-8 w-8" />
+                                                    <span>Inventaris</span>
+                                                </Button>
+                                            </>
+                                        )}
                                         <Button
                                             variant={pembelianData.jenis_pembelian === 'obat_klinik' ? 'default' : 'outline'}
                                             className="flex h-24 flex-col gap-2"
@@ -885,6 +919,7 @@ export default function PembelianIndex() {
                                             <ShoppingCart className="h-8 w-8" />
                                             <span>Inventaris Klinik</span>
                                         </Button>
+
                                     </div>
                                     {pembelianData.jenis_pembelian && (
                                         <Badge variant="secondary" className="mt-4">
@@ -892,10 +927,10 @@ export default function PembelianIndex() {
                                             {pembelianData.jenis_pembelian === 'obat'
                                                 ? 'Obat'
                                                 : pembelianData.jenis_pembelian === 'inventaris'
-                                                  ? 'Inventaris'
-                                                  : pembelianData.jenis_pembelian === 'obat_klinik'
-                                                    ? 'Obat Klinik'
-                                                    : 'Inventaris Klinik'}
+                                                    ? 'Inventaris'
+                                                    : pembelianData.jenis_pembelian === 'obat_klinik'
+                                                        ? 'Obat Klinik'
+                                                        : 'Inventaris Klinik'}
                                         </Badge>
                                     )}
                                 </div>
@@ -905,9 +940,41 @@ export default function PembelianIndex() {
                         {/* Step 2: Data Awal */}
                         {currentStep === 2 && (
                             <div className="space-y-6">
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="nomor_faktur">Nomor Faktur *</Label>
+                                <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label htmlFor="jenis_pembelian_tipe">Jenis Pembelian</Label>
+                                        <Select
+                                            value={pembelianData.jenis_pembelian_tipe}
+                                            onValueChange={(value) => {
+                                                handleDataAwalChange('jenis_pembelian_tipe', value);
+                                                if (value === 'Konsinyasi') {
+                                                    handleDataAwalChange('no_po_sp', 'KONSINYASI');
+                                                } else if (pembelianData.no_po_sp === 'KONSINYASI') {
+                                                    handleDataAwalChange('no_po_sp', '');
+                                                }
+                                                if (value === 'Reguler Pre-Order') {
+                                                    const now = new Date();
+                                                    const year = now.getFullYear();
+                                                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                                                    const day = String(now.getDate()).padStart(2, '0');
+                                                    const todayStr = `${year}-${month}-${day}`;
+                                                    handleDataAwalChange('tanggal_terima_barang', todayStr);
+                                                    handleDataAwalChange('tanggal_jatuh_tempo', todayStr);
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger id="jenis_pembelian_tipe">
+                                                <SelectValue placeholder="Pilih Jenis Pembelian" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Reguler">Reguler</SelectItem>
+                                                <SelectItem value="Reguler Pre-Order">Reguler Pre-Order</SelectItem>
+                                                <SelectItem value="Konsinyasi">Konsinyasi</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label htmlFor="nomor_faktur">Nomor Faktur</Label>
                                         <div className="flex gap-2">
                                             <Input
                                                 id="nomor_faktur"
@@ -986,33 +1053,32 @@ export default function PembelianIndex() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="no_po_sp">No PO/SP</Label>
-                                            <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                    id="no_po_sp_konsinyasi"
-                                                    checked={pembelianData.no_po_sp === 'KONSINYASI'}
-                                                    onCheckedChange={(checked) => handleDataAwalChange('no_po_sp', checked ? 'KONSINYASI' : '')}
-                                                    aria-label="Tandai sebagai konsinyasi"
-                                                />
-                                                <span className="text-sm text-muted-foreground">Konsinyasi</span>
-                                            </div>
-                                        </div>
-                                        <Input
-                                            id="no_po_sp"
-                                            value={pembelianData.no_po_sp}
-                                            onChange={(e) => handleDataAwalChange('no_po_sp', e.target.value)}
-                                            placeholder="Nomor PO/SP"
-                                            disabled={pembelianData.no_po_sp === 'KONSINYASI'}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
                                         <Label htmlFor="no_faktur_supplier">No Faktur Supplier</Label>
                                         <Input
                                             id="no_faktur_supplier"
                                             value={pembelianData.no_faktur_supplier}
                                             onChange={(e) => handleDataAwalChange('no_faktur_supplier', e.target.value)}
                                             placeholder="Nomor faktur supplier"
+                                        />
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label htmlFor="no_po_sp">No PO/SP</Label>
+                                        <Input
+                                            id="no_po_sp"
+                                            value={pembelianData.no_po_sp}
+                                            onChange={(e) => handleDataAwalChange('no_po_sp', e.target.value)}
+                                            placeholder="Nomor PO/SP"
+                                            disabled={pembelianData.jenis_pembelian_tipe === 'Konsinyasi'}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="no_surat_jalan">No Surat Jalan</Label>
+                                        <Input
+                                            id="no_surat_jalan"
+                                            value={pembelianData.no_surat_jalan}
+                                            onChange={(e) => handleDataAwalChange('no_surat_jalan', e.target.value)}
+                                            placeholder="Nomor surat jalan"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -1023,6 +1089,7 @@ export default function PembelianIndex() {
                                             value={pembelianData.tanggal_terima_barang}
                                             onChange={(e) => handleDataAwalChange('tanggal_terima_barang', e.target.value)}
                                             className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                            disabled={pembelianData.jenis_pembelian_tipe === 'Reguler'}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -1043,6 +1110,7 @@ export default function PembelianIndex() {
                                             value={pembelianData.tanggal_jatuh_tempo}
                                             onChange={(e) => handleDataAwalChange('tanggal_jatuh_tempo', e.target.value)}
                                             className="dark:[&::-webkit-calendar-picker-indicator]:invert"
+                                            disabled={pembelianData.jenis_pembelian_tipe === 'Konsinyasi'}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -1068,6 +1136,46 @@ export default function PembelianIndex() {
                                                 <SelectItem value="4">Dengan PPN Dan Diskon</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="diskon_header">Diskon (Header)</Label>
+                                        <div className="flex items-center gap-1">
+                                            <div className="inline-flex rounded-md border bg-muted">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={pembelianData.diskon_header_persen ? "default" : "ghost"}
+                                                    aria-pressed={pembelianData.diskon_header_persen}
+                                                    className="px-4 h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 whitespace-nowrap justify-center rounded-l-md"
+                                                    onClick={() =>
+                                                        setPembelianData((prev) => ({ ...prev, diskon_header_persen: true }))
+                                                    }
+                                                >
+                                                    %
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={!pembelianData.diskon_header_persen ? "default" : "ghost"}
+                                                    aria-pressed={!pembelianData.diskon_header_persen}
+                                                    className="px-4 h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 whitespace-nowrap justify-center rounded-r-md"
+                                                    onClick={() =>
+                                                        setPembelianData((prev) => ({ ...prev, diskon_header_persen: false }))
+                                                    }
+                                                >
+                                                    Rp
+                                                </Button>
+                                            </div>
+
+                                            <Input
+                                                id="diskon_header"
+                                                type="number"
+                                                value={pembelianData.diskon_header}
+                                                onChange={(e) => handleDataAwalChange('diskon_header', e.target.value)}
+                                                placeholder={pembelianData.diskon_header_persen ? 'Masukkan persen (contoh: 10)' : 'Masukkan rupiah (contoh: 10000)'}
+                                                className=""
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1218,8 +1326,8 @@ export default function PembelianIndex() {
                                                                         (nilaiSedang
                                                                             ? nilaiSedang * Math.max(1, konvSk)
                                                                             : nilaiBesar
-                                                                              ? nilaiBesar * totalKonv
-                                                                              : 0);
+                                                                                ? nilaiBesar * totalKonv
+                                                                                : 0);
 
                                                                     updateModalData('nilai_satuan_besar', String(nilaiBesar || 0));
                                                                     updateModalData('nilai_satuan_sedang', String(nilaiSedangFinal || 0));

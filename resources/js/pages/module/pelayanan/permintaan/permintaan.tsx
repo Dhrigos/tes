@@ -61,7 +61,7 @@ interface PageProps {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Pelayanan', href: '/pelayanan' },
+    { title: 'Pelayanan', href: '' },
     { title: 'Permintaan', href: '' },
 ];
 
@@ -130,8 +130,130 @@ export default function Permintaan() {
                 return suratKematian;
             case 'sakit':
             default:
-                return suratSakit;
+                return {
+                    ...suratSakit,
+                    diagnosis_utama: suratSakit.diagnosis_utama || pelayanan.icd_data?.diagnosis_utama || '',
+                    diagnosis_penyerta_1: suratSakit.diagnosis_penyerta_1 || pelayanan.icd_data?.diagnosis_penyerta_1 || '',
+                };
         }
+    };
+
+    const renderSummary = () => {
+        const detail: any = buildDetailForTab(activeTab) as any;
+        const Row = ({ label, value }: { label: string; value: any }) => (
+            <div className="grid grid-cols-12 gap-2 text-sm">
+                <div className="col-span-4 text-muted-foreground">{label}</div>
+                <div className="col-span-8 break-words">{value ?? '-'}</div>
+            </div>
+        );
+
+        if (activeTab === 'sakit') {
+            return (
+                <div className="space-y-2">
+                    <Row label="Diagnosis Utama" value={detail.diagnosis_utama} />
+                    <Row label="Diagnosa Penyerta 1" value={detail.diagnosis_penyerta_1} />
+                    <Row label="Diagnosa Penyerta 2" value={detail.diagnosis_penyerta_2} />
+                    <Row label="Diagnosa Penyerta 3" value={detail.diagnosis_penyerta_3} />
+                    <Row label="Komplikasi 1" value={detail.komplikasi_1} />
+                    <Row label="Komplikasi 2" value={detail.komplikasi_2} />
+                    <Row label="Komplikasi 3" value={detail.komplikasi_3} />
+                    <Row label="Lama Istirahat (hari)" value={detail.lama_istirahat} />
+                    <Row label="Terhitung Mulai" value={detail.terhitung_mulai} />
+                </div>
+            );
+        }
+
+        if (activeTab === 'sehat') {
+            return (
+                <div className="space-y-2">
+                    <Row label="Tanggal Periksa" value={detail.tgl_periksa} />
+                    <Row label="Tekanan Darah" value={`${detail.sistole || '-'} / ${detail.diastole || '-'} mmHg`} />
+                    <Row label="Suhu" value={detail.suhu ? `${detail.suhu} °C` : '-'} />
+                    <Row label="Berat" value={detail.berat ? `${detail.berat} Kg` : '-'} />
+                    <Row label="RR" value={detail.respiratory_rate ? `${detail.respiratory_rate} /mnt` : '-'} />
+                    <Row label="Nadi" value={detail.nadi ? `${detail.nadi} /mnt` : '-'} />
+                    <Row label="Tinggi" value={detail.tinggi ? `${detail.tinggi} cm` : '-'} />
+                    <Row label="Buta Warna" value={detail.buta_warna_status || '-'} />
+                </div>
+            );
+        }
+
+        if (activeTab === 'radiologi') {
+            const items = detail.items || [];
+            return (
+                <div className="space-y-2">
+                    <Row label="Jumlah Item" value={items.length} />
+                    {items.length > 0 && (
+                        <div className="text-sm">
+                            {items.map((it: any, idx: number) => (
+                                <div key={idx} className="ml-1">• {it.pemeriksaan} {it.jenis_posisi ? `(${it.jenis_posisi}${it.posisi ? ` - ${it.posisi}` : ''})` : ''}</div>
+                            ))}
+                        </div>
+                    )}
+                    <Row label="Diagnosa" value={detail.diagnosa} />
+                    <Row label="Tanggal Periksa" value={detail.tanggal_periksa} />
+                    <Row label="Catatan" value={detail.catatan} />
+                </div>
+            );
+        }
+
+        if (activeTab === 'laboratorium') {
+            const items = detail.items || [];
+            return (
+                <div className="space-y-2">
+                    <Row label="Bidang" value={detail.bidang} />
+                    <Row label="Jumlah Pemeriksaan" value={items.length} />
+                    {items.length > 0 && (
+                        <div className="text-sm">
+                            {items.map((it: any, idx: number) => (
+                                <div key={idx} className="ml-1">• {it}</div>
+                            ))}
+                        </div>
+                    )}
+                    <Row label="Diagnosa" value={detail.diagnosa} />
+                    <Row label="Tanggal Periksa" value={detail.tanggal_periksa} />
+                    <Row label="Catatan" value={detail.catatan} />
+                </div>
+            );
+        }
+
+        if (activeTab === 'skdp') {
+            return (
+                <div className="space-y-2">
+                    <Row label="Tanggal Pemeriksaan" value={detail.tanggal_pemeriksaan} />
+                    <Row label="Kode Surat" value={detail.kode_surat} />
+                    <Row label="Untuk" value={detail.untuk} />
+                    <Row label="Pada" value={detail.pada} />
+                    <Row label="Poli / Unit" value={detail.poli_unit} />
+                    <Row label="Alasan (1)" value={detail.alasan1} />
+                    <Row label="Alasan (2)" value={detail.alasan2} />
+                    <Row label="Rencana (1)" value={detail.rencana1} />
+                    <Row label="Rencana (2)" value={detail.rencana2} />
+                    <Row label="SEP BPJS" value={detail.sep_bpjs} />
+                    <Row label="Diagnosa" value={detail.diagnosa} />
+                    <Row label="Jumlah Hari" value={detail.jumlah_hari} />
+                    <Row label="Tgl Awal" value={detail.tgl_awal} />
+                    <Row label="Tgl Akhir" value={detail.tgl_akhir} />
+                </div>
+            );
+        }
+
+        if (activeTab === 'kematian') {
+            return (
+                <div className="space-y-2">
+                    <Row label="Tanggal Periksa" value={detail.tgl_periksa} />
+                    <Row label="Tanggal Meninggal" value={detail.tanggal_meninggal} />
+                    <Row label="Jam Meninggal" value={detail.jam_meninggal} />
+                    <Row label="Referensi (UGD/Poli/Ranap)" value={detail.ref_tgl_jam} />
+                    <Row label="Penyebab" value={detail.penyebab_kematian} />
+                    {detail.penyebab_kematian === 'Lainnya' && (
+                        <Row label="Penyebab Lainnya" value={detail.penyebab_lainnya} />
+                    )}
+                </div>
+            );
+        }
+
+        return null;
     };
 
     const [judul, setJudul] = useState('');
@@ -164,12 +286,12 @@ export default function Permintaan() {
                 jenis_permintaan === 'surat_kematian' &&
                 (!suratKematian.tgl_periksa || !suratKematian.tanggal_meninggal || !suratKematian.jam_meninggal)
             ) {
-                toast.warning('Lengkapi tgl periksa, tgl meninggal, dan jam meninggal.');
+                toast.warning('Lengkapi tanggal periksa, tanggal meninggal, dan jam meninggal.');
                 return;
             }
             if (
                 jenis_permintaan === 'surat_sakit' &&
-                (!suratSakit.diagnosis_utama || !suratSakit.lama_istirahat || !suratSakit.terhitung_mulai)
+                (!((detail_permintaan as any).diagnosis_utama) || !((detail_permintaan as any).lama_istirahat) || !((detail_permintaan as any).terhitung_mulai))
             ) {
                 toast.warning('Lengkapi diagnosis utama, lama istirahat dan terhitung mulai.');
                 return;
@@ -196,32 +318,137 @@ export default function Permintaan() {
 
             if (!res.ok) {
                 // Coba ambil pesan error JSON jika ada
-                try {
-                    const data = await res.json();
+            try {
+                const data = await res.json();
                     throw new Error(data?.message || `HTTP ${res.status}`);
                 } catch (err) {
                     throw new Error(`HTTP ${res.status}`);
                 }
             }
 
-            // Buka halaman cetak (akan menyimpan Permintaan_Cetak dan mark printed)
-            const encodedNorawat = btoa(pelayanan.nomor_register);
-            const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
-            const cetakUrl = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(
-                jenis_permintaan,
-            )}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
-
-            // Buka di tab baru supaya tidak menghalangi redirect
-            window.open(cetakUrl, '_blank');
-
-            toast.success('Permintaan disimpan. Membuka dokumen cetak...');
-
+            // Save only (tidak cetak)
+            toast.success('Permintaan disimpan');
             onSuccess && onSuccess();
-
-            // Redirect ke index dokter
-            window.location.href = '/pelayanan/soap-dokter';
         } catch (e) {
             toast.error('Terjadi kesalahan saat menyimpan permintaan');
+        }
+    };
+
+    // Print helper menggunakan iframe tersembunyi (tidak membuka tab baru)
+    const printDocument = (url: string) => {
+        try {
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+            iframe.onload = () => {
+                try {
+                    const cw = iframe.contentWindow;
+                    if (!cw) return;
+
+                    // Cleanup hanya setelah print selesai, bukan berdasarkan timer pendek
+                    const cleanup = () => {
+                        try { document.body.removeChild(iframe); } catch {}
+                    };
+
+                    // Gunakan onafterprint kalau tersedia agar tidak menutup sebelum user selesai
+                    // Beberapa browser mendukung event ini pada window dokumen yang di-print
+                    (cw as any).onafterprint = cleanup;
+
+                    // Fallback: jika onafterprint tidak pernah terpanggil, bersihkan setelah 60 detik
+                    const fallbackTimer = window.setTimeout(cleanup, 60000);
+
+                    // Panggil print
+                    setTimeout(() => {
+                        try {
+                            cw.focus();
+                            cw.print();
+                        } catch {
+                            // Jika gagal memicu print, tetap bersihkan setelah fallback timeout
+                        }
+                    }, 150);
+                } catch {
+                    try { document.body.removeChild(iframe); } catch {}
+                }
+            };
+            iframe.src = url;
+        } catch {
+            // ignore
+        }
+    };
+
+    // Simpan + Cetak (tanpa membuka tab baru)
+    const handleSimpanDanPrint = async () => {
+        try {
+            const jenis_permintaan = jenisMap[activeTab] || 'surat_sakit';
+            const detail_permintaan = buildDetailForTab(activeTab);
+
+            // Validasi sama seperti simpan
+            if (jenis_permintaan === 'radiologi' && (radItems.length === 0 || !radForm.tanggal_periksa || !radForm.diagnosa)) {
+                toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
+                return;
+            }
+            if (jenis_permintaan === 'laboratorium' && (labItems.length === 0 || !labForm.tanggal_periksa || !labForm.diagnosa)) {
+                toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
+                return;
+            }
+            if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.kode_surat || !skdp.untuk || !skdp.pada)) {
+                toast.warning('Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.');
+                return;
+            }
+            if (jenis_permintaan === 'surat_sehat' && !suratSehat.tgl_periksa) {
+                toast.warning('Isi tanggal periksa terlebih dahulu.');
+                return;
+            }
+            if (
+                jenis_permintaan === 'surat_kematian' &&
+                (!suratKematian.tgl_periksa || !suratKematian.tanggal_meninggal || !suratKematian.jam_meninggal)
+            ) {
+                toast.warning('Lengkapi tanggal periksa, tanggal meninggal, dan jam meninggal.');
+                return;
+            }
+            if (
+                jenis_permintaan === 'surat_sakit' &&
+                (!((detail_permintaan as any).diagnosis_utama) || !((detail_permintaan as any).lama_istirahat) || !((detail_permintaan as any).terhitung_mulai))
+            ) {
+                toast.warning('Lengkapi diagnosis utama, lama istirahat dan terhitung mulai.');
+                return;
+            }
+
+            const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch('/api/pelayanan/permintaan/store', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({
+                    nomor_register: pelayanan.nomor_register,
+                    jenis_permintaan,
+                    detail_permintaan,
+                    judul,
+                    keterangan,
+                }),
+            });
+            if (!res.ok) {
+                toast.error('Gagal menyimpan permintaan');
+                return;
+            }
+
+            // Cetak via iframe menggunakan URL panjang (tanpa short link)
+            const encodedNorawat = btoa(pelayanan.nomor_register);
+            const detailQuery = encodeURIComponent(JSON.stringify(detail_permintaan));
+            const urlToPrint = `/pelayanan/permintaan/cetak/${encodedNorawat}?jenis=${encodeURIComponent(jenis_permintaan)}&judul=${encodeURIComponent(judul)}&keterangan=${encodeURIComponent(keterangan)}&detail=${detailQuery}`;
+            printDocument(urlToPrint);
+            toast.success('Permintaan disimpan dan dicetak');
+            setIsConfirmOpen(false);
+        } catch {
+            toast.error('Gagal menyimpan atau mencetak');
         }
     };
 
@@ -1212,16 +1439,17 @@ export default function Permintaan() {
                             </div>
                         </div>
                         <div>
-                            <Label>Ringkasan Data</Label>
-                            <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                                {JSON.stringify(buildDetailForTab(activeTab), null, 2)}
-                            </pre>
+                            <Label>Ringkasan Permintaan</Label>
+                            <div className="mt-2 rounded-md bg-muted p-3">
+                                {renderSummary()}
+                            </div>
                         </div>
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => setIsConfirmOpen(false)}>
                             Batal
                         </Button>
+                        <Button type="button" onClick={handleSimpanDanPrint}>Print</Button>
                         
                         <Button type="button" onClick={() => handleSimpanPermintaan(() => setIsConfirmOpen(false))}>
                             Simpan

@@ -10,6 +10,7 @@ use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter;
 use App\Models\Module\Pelayanan\Permintaan_Cetak;
 use App\Models\Module\Master\Data\Medis\Radiologi_Pemeriksaan;
 use App\Models\Module\Pasien\Pasien_History;
+use App\Models\Settings\Web_Setting;
 use App\Services\PelayananStatusService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -356,6 +357,7 @@ class Pelayanan_Permintaan_Controller extends Controller
             $nomor_register = base64_decode($norawat, true) ?: $norawat;
             $jenis = $request->query('jenis', 'surat_sakit');
             $detail = $request->query('detail');
+            $cetakId = $request->query('cid');
             $detailArray = [];
             if (is_string($detail)) {
                 try {
@@ -365,8 +367,44 @@ class Pelayanan_Permintaan_Controller extends Controller
                 }
             }
 
-            // Simpan data cetak ke database
-            $this->saveCetakData($nomor_register, $jenis, $detailArray, $request);
+            // Fallback: gunakan data tersimpan agar URL pendek
+            if (empty($detailArray)) {
+                try {
+                    if (!empty($cetakId)) {
+                        $cetakRow = Permintaan_Cetak::where('id', $cetakId)->first();
+                        if ($cetakRow && $cetakRow->no_rawat === $nomor_register) {
+                            $detailArray = is_array($cetakRow->detail)
+                                ? $cetakRow->detail
+                                : (json_decode($cetakRow->detail, true) ?: []);
+                            // Jika jenis tidak diberikan, ambil dari row
+                            if (empty($jenis) && !empty($cetakRow->jenis_permintaan)) {
+                                $jenis = $cetakRow->jenis_permintaan;
+                            }
+                        }
+                    }
+                    if (empty($detailArray)) {
+                        $latestCetak = Permintaan_Cetak::where('no_rawat', $nomor_register)
+                            ->when(!empty($jenis), function ($q) use ($jenis) { return $q->where('jenis_permintaan', $jenis); })
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($latestCetak) {
+                            $detailArray = is_array($latestCetak->detail)
+                                ? $latestCetak->detail
+                                : (json_decode($latestCetak->detail, true) ?: []);
+                            if (empty($jenis) && !empty($latestCetak->jenis_permintaan)) {
+                                $jenis = $latestCetak->jenis_permintaan;
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // ignore fallback errors
+                }
+            }
+
+            // Simpan data cetak ke database hanya jika ada detail (hindari overwrite kosong)
+            if (!empty($detailArray)) {
+                $this->saveCetakData($nomor_register, $jenis, $detailArray, $request);
+            }
             
             // Update status menjadi printed saat halaman cetak dibuka
             $this->markAsPrintedOnCetak($nomor_register, $jenis);
@@ -398,10 +436,14 @@ class Pelayanan_Permintaan_Controller extends Controller
             $poli = $pendaftaran?->poli;
             $dokter = $pendaftaran?->dokter;
 
-            // Normalisasi alamat: jika field desa berupa object/array JSON, ambil hanya nama/text
+            // Normalisasi alamat lengkap: alamat_base Rt. RT Rw. RW, Desa, Kecamatan
             $alamatText = '';
             try {
                 $alamatBase = (string) ($pasien->alamat ?? '');
+                $rt = (int) ($pasien->rt ?? 0);
+                $rw = (int) ($pasien->rw ?? 0);
+                
+                // Extract desa name
                 $desaRaw = $pasien->desa ?? '';
                 $desaName = '';
                 if (is_array($desaRaw)) {
@@ -409,19 +451,45 @@ class Pelayanan_Permintaan_Controller extends Controller
                 } elseif (is_object($desaRaw)) {
                     $desaName = (string) ($desaRaw->name ?? $desaRaw->nama ?? '');
                 } else {
-                    // assume string or scalar
                     $desaName = (string) $desaRaw;
                 }
-                $alamatText = trim(trim($alamatBase) . ' ' . trim($desaName));
+                
+                // Extract kecamatan name
+                $kecamatanRaw = $pasien->kecamatan ?? '';
+                $kecamatanName = '';
+                if (is_array($kecamatanRaw)) {
+                    $kecamatanName = (string) ($kecamatanRaw['name'] ?? $kecamatanRaw['nama'] ?? '');
+                } elseif (is_object($kecamatanRaw)) {
+                    $kecamatanName = (string) ($kecamatanRaw->name ?? $kecamatanRaw->nama ?? '');
+                } else {
+                    $kecamatanName = (string) $kecamatanRaw;
+                }
+                
+                // Apply title case to names
+                $alamatBase = ucwords(strtolower($alamatBase));
+                $desaName = ucwords(strtolower($desaName));
+                $kecamatanName = ucwords(strtolower($kecamatanName));
+                
+                // Build complete address
+                $parts = [];
+                if (!empty($alamatBase)) $parts[] = $alamatBase;
+                if ($rt > 0) $parts[] = "RT. {$rt}";
+                if ($rw > 0) $parts[] = "RW. {$rw}";
+                if (!empty($desaName)) $parts[] = $desaName;
+                if (!empty($kecamatanName)) $parts[] = $kecamatanName;
+                
+                $alamatText = implode(', ', $parts);
             } catch (\Throwable $e) {
                 $alamatText = (string) ($pasien->alamat ?? '');
             }
 
+            // Ambil nama & alamat klinik dari Web_Setting (fallback ke config)
+            $web = Web_Setting::first();
             $common = [
-                'namaKlinik' => config('app.name', 'Klinik'),
-                'alamatKlinik' => config('app.alamat', ''),
+                'namaKlinik' => ($web->nama ?? null) ?: config('app.name', 'Klinik'),
+                'alamatKlinik' => ($web->alamat ?? null) ?: config('app.alamat', ''),
                 'nama_pasien' => $pasien->nama ?? '',
-                'umur' => $pasien && $pasien->tanggal_lahir ? \Carbon\Carbon::parse($pasien->tanggal_lahir)->diffInYears(\Carbon\Carbon::now()) . ' Tahun' : '',
+                'umur' => $pasien && $pasien->tanggal_lahir ? $this->formatUmur($pasien->tanggal_lahir) : '',
                 'jenis_kelamin' => ($pasien->seks ?? '') === '1' ? 'Laki-laki' : (($pasien->seks ?? '') === '2' ? 'Perempuan' : ($pasien->seks ?? '')),
                 'tanggal_lahir' => $pasien->tanggal_lahir ?? '',
                 'alamat' => $alamatText,
@@ -489,8 +557,9 @@ class Pelayanan_Permintaan_Controller extends Controller
                 ];
             } else { // surat_sakit
                 $payload = [
-                    'diagnosis_utama' => $detailArray['diagnosis_utama'] ?? '',
-                    'diagnosis_penyerta_1' => $detailArray['diagnosis_penyerta_1'] ?? '',
+                    // Fallback ke ICD-10 terakhir bila tidak dikirim/dikirim null
+                    'diagnosis_utama' => ($detailArray['diagnosis_utama'] ?? null) ?: ($icdData->diagnosis_utama ?? ''),
+                    'diagnosis_penyerta_1' => ($detailArray['diagnosis_penyerta_1'] ?? null) ?: ($icdData->diagnosis_penyerta_1 ?? ''),
                     'diagnosis_penyerta_2' => $detailArray['diagnosis_penyerta_2'] ?? '',
                     'diagnosis_penyerta_3' => $detailArray['diagnosis_penyerta_3'] ?? '',
                     'komplikasi_1' => $detailArray['komplikasi_1'] ?? '',
@@ -654,6 +723,35 @@ class Pelayanan_Permintaan_Controller extends Controller
                 'success' => false,
                 'message' => 'Gagal menghapus data cetak: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Format umur dalam format "xx Tahun xx Bulan xx Hari"
+     */
+    private function formatUmur(string $tanggalLahir): string
+    {
+        try {
+            $birthDate = Carbon::parse($tanggalLahir);
+            $now = Carbon::now();
+            
+            $years = $birthDate->diffInYears($now);
+            $birthDateWithYears = $birthDate->copy()->addYears($years);
+            $months = $birthDateWithYears->diffInMonths($now);
+            $birthDateWithMonths = $birthDateWithYears->copy()->addMonths($months);
+            $days = $birthDateWithMonths->diffInDays($now);
+            
+            $result = (int)$years . ' Tahun';
+            if ($months > 0) {
+                $result .= ' ' . (int)$months . ' Bulan';
+            }
+            if ($days > 0) {
+                $result .= ' ' . (int)$days . ' Hari';
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            return '';
         }
     }
 

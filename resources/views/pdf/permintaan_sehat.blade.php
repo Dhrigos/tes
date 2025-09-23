@@ -52,6 +52,12 @@
             page-break-after: always;
         }
 
+        /* Ensure spacing around bold inline text within paragraphs */
+        p.teks b,
+        p.teks strong {
+            margin: 0 2px;
+        }
+
         .info-table {
             width: 90%;
             margin-left: 10px;
@@ -133,7 +139,7 @@
     <p class="teks">
         Berdasarkan pemeriksaan yang telah dilakukan pada
         {{ $tgl_periksa ? \Carbon\Carbon::parse($tgl_periksa)->format('d-m-Y H:i') : '-' }},
-        yang bersangkutan dinyatakan <strong>SEHAT</strong> dengan hasil pemeriksaan sebagai berikut :
+        yang bersangkutan dinyatakan<b>&nbsp;SEHAT&nbsp;</b>dengan hasil pemeriksaan sebagai berikut :
     </p>
     <table class="info-table">
         <tr>
