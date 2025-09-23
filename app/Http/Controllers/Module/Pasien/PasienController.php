@@ -201,7 +201,7 @@ class PasienController extends Controller
                 FacadesLog::warning('BPJS data fetch failed: ' . $e->getMessage());
                 // Lanjutkan dengan data input saja
             }        
-            $nik =   $bpjsData['noKTP'] ?? null;
+            $nik =   $bpjsData['noKTP'] ?? $request->nik;
 
             if (!$nik) {
                 return redirect()->back()->with('error', 'NIK pasien wajib diisi!');
