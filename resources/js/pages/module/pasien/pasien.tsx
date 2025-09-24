@@ -16,7 +16,7 @@ import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ChevronDown, ChevronLeft, ChevronRight, Edit, Plus, RefreshCcw, Search, User, UserCheck, UserX, Users, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -117,12 +117,32 @@ export default function PendaftaranPasien() {
         errors,
     } = usePage().props as unknown as PageProps & { errors?: any };
 
+    // Validasi data pasien
+    useEffect(() => {
+        if (!pasiensData || !pasiensData.data) {
+            console.warn('Data pasien tidak tersedia atau kosong:', pasiensData);
+        }
+    }, [pasiensData]);
+
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    // Debounce search untuk performa yang lebih baik dengan data besar
+    useEffect(() => {
+        setIsSearching(true);
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+            setIsSearching(false);
+        }, 150); // Reduced delay untuk responsivitas yang lebih baik
+
+        return () => clearTimeout(timer);
+    }, [search]);
     const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
     const [currentStep, setCurrentStep] = useState(1);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [isSearching, setIsSearching] = useState(false);
 
     const [formLengkapi, setFormLengkapi] = useState({
         nomor_rm: '',
@@ -205,31 +225,95 @@ export default function PendaftaranPasien() {
         { label: 'Pasien Belum Verifikasi', value: pasiennoverif, icon: UserX, color: 'bg-red-500' },
     ];
 
-    // Client-side filtering untuk menghindari perubahan URL
-    const filteredPasiens = pasiensData.data.filter(
-        (p: Pasien) =>
-            p.nama.toLowerCase().includes(search.toLowerCase()) ||
-            p.no_rm.toLowerCase().includes(search.toLowerCase()) ||
-            p.no_bpjs.toLowerCase().includes(search.toLowerCase()) ||
-            (p.nik && p.nik.toLowerCase().includes(search.toLowerCase())),
-    );
+    // Optimasi: Memoized filtering dengan cache dan early return
+    const filteredPasiens = useMemo(() => {
+        const data = pasiensData?.data || [];
+        
+        // Early return jika tidak ada data
+        if (!data.length) return [];
+        
+        // Early return jika tidak ada search term
+        if (!debouncedSearch.trim()) {
+            return data;
+        }
 
-    // Client-side pagination
-    const totalPages = Math.max(1, Math.ceil(filteredPasiens.length / itemsPerPage));
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentPasiens = filteredPasiens.slice(startIndex, endIndex);
+        const searchTerm = debouncedSearch.toLowerCase();
+        
+        // Optimasi: Gunakan indexOf untuk performa yang lebih baik
+        return data.filter((p: Pasien) => {
+            try {
+                // Validasi bahwa objek pasien ada
+                if (!p) return false;
+                
+                // Pastikan semua field aman dari null/undefined dengan validasi ketat
+                const nama = (p.nama && typeof p.nama === 'string') ? p.nama : '';
+                const noRm = (p.no_rm && typeof p.no_rm === 'string') ? p.no_rm : '';
+                const noBpjs = (p.no_bpjs && typeof p.no_bpjs === 'string') ? p.no_bpjs : '';
+                const nik = (p.nik && typeof p.nik === 'string') ? p.nik : '';
+                
+                // Pastikan string tidak kosong sebelum memanggil toLowerCase
+                const searchableFields = [nama, noRm, noBpjs, nik].filter(field => field && field.trim() !== '');
+                
+                // Optimasi: Gunakan indexOf yang lebih cepat dari includes
+                return searchableFields.some(field => 
+                    field.toLowerCase().indexOf(searchTerm) !== -1
+                );
+            } catch (error) {
+                console.error('Error filtering pasien:', error, p);
+                return false;
+            }
+        });
+    }, [pasiensData?.data, debouncedSearch]);
 
-    const handlePageChange = (page: number) => {
+    // Optimasi: Memoized pagination
+    const paginationData = useMemo(() => {
+        const totalPages = Math.max(1, Math.ceil(filteredPasiens.length / itemsPerPage));
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const currentPasiens = filteredPasiens.slice(startIndex, endIndex);
+        
+        return {
+            totalPages,
+            startIndex,
+            endIndex,
+            currentPasiens
+        };
+    }, [filteredPasiens, currentPage, itemsPerPage]);
+
+    const { totalPages, currentPasiens } = paginationData;
+
+    // // Debug logging untuk membantu troubleshooting
+    // useEffect(() => {
+    //     console.log('Debug pasien data:', {
+    //         pasiensData: pasiensData,
+    //         search: search,
+    //         debouncedSearch: debouncedSearch,
+    //         filteredPasiens: filteredPasiens,
+    //         currentPasiens: currentPasiens,
+    //         currentPage: currentPage,
+    //         itemsPerPage: itemsPerPage
+    //     });
+    // }, [debouncedSearch, pasiensData, currentPage, itemsPerPage]);
+
+    // Optimasi: Memoized handlers
+    const handlePageChange = useCallback((page: number) => {
         setCurrentPage(page);
         // Scroll ke atas tabel
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    }, []);
+
+    const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+    }, []);
+
+    const handleClearSearch = useCallback(() => {
+        setSearch('');
+    }, []);
 
     // Reset page saat search atau itemsPerPage berubah
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, itemsPerPage]);
+    }, [debouncedSearch, itemsPerPage]);
 
     const [lengkapiOpen, setLengkapiOpen] = useState(false);
     const [isEdit, setIsEdit] = useState(false);
@@ -490,18 +574,18 @@ export default function PendaftaranPasien() {
                         <CardTitle>Daftar Pasien</CardTitle>
                         <div className="flex items-center gap-2">
                             <div className="relative">
-                                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                <Search className={`absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400 ${isSearching ? 'animate-pulse' : ''}`} />
                                 <Input
                                     placeholder="Cari pasien..."
                                     value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
+                                    onChange={handleSearchChange}
                                     className="w-64 pr-10 pl-10"
                                 />
-                                {search && (
+                                {search && !isSearching && (
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => setSearch('')}
+                                        onClick={handleClearSearch}
                                         className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2 p-0 hover:bg-gray-200"
                                     >
                                         <X className="h-3 w-3" />
@@ -561,7 +645,10 @@ export default function PendaftaranPasien() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={7} className="py-8 text-center text-gray-500">
-                                            Tidak ada data pasien
+                                            {debouncedSearch ? 
+                                                `Tidak ada pasien yang cocok dengan pencarian "${debouncedSearch}"` : 
+                                                'Tidak ada data pasien'
+                                            }
                                         </TableCell>
                                     </TableRow>
                                 )}
