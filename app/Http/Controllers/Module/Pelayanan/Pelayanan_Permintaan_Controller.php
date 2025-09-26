@@ -12,6 +12,7 @@ use App\Models\Module\Master\Data\Medis\Radiologi_Pemeriksaan;
 use App\Models\Module\Pasien\Pasien_History;
 use App\Models\Settings\Web_Setting;
 use App\Services\PelayananStatusService;
+use App\Services\BpjsAntreanService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -218,7 +219,7 @@ class Pelayanan_Permintaan_Controller extends Controller
             $validated['tanggal_permintaan'] = now();
             $validated['status'] = 0; // draft/pending
             $validated['no_rawat'] = $validated['nomor_register'];
-            
+
             // Optional enrich
             try {
                 $pel = Pelayanan::where('nomor_register', $validated['no_rawat'])->first();
@@ -405,7 +406,7 @@ class Pelayanan_Permintaan_Controller extends Controller
             if (!empty($detailArray)) {
                 $this->saveCetakData($nomor_register, $jenis, $detailArray, $request);
             }
-            
+
             // Update status menjadi printed saat halaman cetak dibuka
             $this->markAsPrintedOnCetak($nomor_register, $jenis);
 
@@ -442,7 +443,7 @@ class Pelayanan_Permintaan_Controller extends Controller
                 $alamatBase = (string) ($pasien->alamat ?? '');
                 $rt = (int) ($pasien->rt ?? 0);
                 $rw = (int) ($pasien->rw ?? 0);
-                
+
                 // Extract desa name
                 $desaRaw = $pasien->desa ?? '';
                 $desaName = '';
@@ -453,7 +454,7 @@ class Pelayanan_Permintaan_Controller extends Controller
                 } else {
                     $desaName = (string) $desaRaw;
                 }
-                
+
                 // Extract kecamatan name
                 $kecamatanRaw = $pasien->kecamatan ?? '';
                 $kecamatanName = '';
@@ -464,12 +465,12 @@ class Pelayanan_Permintaan_Controller extends Controller
                 } else {
                     $kecamatanName = (string) $kecamatanRaw;
                 }
-                
+
                 // Apply title case to names
                 $alamatBase = ucwords(strtolower($alamatBase));
                 $desaName = ucwords(strtolower($desaName));
                 $kecamatanName = ucwords(strtolower($kecamatanName));
-                
+
                 // Build complete address
                 $parts = [];
                 if (!empty($alamatBase)) $parts[] = $alamatBase;
@@ -477,7 +478,7 @@ class Pelayanan_Permintaan_Controller extends Controller
                 if ($rw > 0) $parts[] = "RW. {$rw}";
                 if (!empty($desaName)) $parts[] = $desaName;
                 if (!empty($kecamatanName)) $parts[] = $kecamatanName;
-                
+
                 $alamatText = implode(', ', $parts);
             } catch (\Throwable $e) {
                 $alamatText = (string) ($pasien->alamat ?? '');
@@ -573,7 +574,7 @@ class Pelayanan_Permintaan_Controller extends Controller
             // Tambahkan parameter auto print
             $autoPrint = $request->query('auto_print', false);
             $common['auto_print'] = $autoPrint;
-            
+
             // Set ukuran A5 potret untuk semua surat permintaan
             $pdf = Pdf::loadView($view, array_merge($common, $payload))->setPaper('a5', 'portrait');
             return $pdf->stream('permintaan-' . ($pelayanan->nomor_rm ?? 'pasien') . '.pdf');
@@ -686,7 +687,7 @@ class Pelayanan_Permintaan_Controller extends Controller
     {
         try {
             $cetak = Permintaan_Cetak::findOrFail($id);
-            
+
             $cetak->update([
                 'status' => 'printed',
                 'tanggal_cetak' => now(),
@@ -734,13 +735,13 @@ class Pelayanan_Permintaan_Controller extends Controller
         try {
             $birthDate = Carbon::parse($tanggalLahir);
             $now = Carbon::now();
-            
+
             $years = $birthDate->diffInYears($now);
             $birthDateWithYears = $birthDate->copy()->addYears($years);
             $months = $birthDateWithYears->diffInMonths($now);
             $birthDateWithMonths = $birthDateWithYears->copy()->addMonths($months);
             $days = $birthDateWithMonths->diffInDays($now);
-            
+
             $result = (int)$years . ' Tahun';
             if ($months > 0) {
                 $result .= ' ' . (int)$months . ' Bulan';
@@ -748,7 +749,7 @@ class Pelayanan_Permintaan_Controller extends Controller
             if ($days > 0) {
                 $result .= ' ' . (int)$days . ' Hari';
             }
-            
+
             return $result;
         } catch (\Exception $e) {
             return '';
@@ -780,11 +781,43 @@ class Pelayanan_Permintaan_Controller extends Controller
             // Status 4 untuk jenis lainnya (selesai)
             $targetStatus = in_array($jenisPermintaan, ['radiologi', 'laboratorium']) ? 3 : 4;
 
-            if ($isKia) {
-                $statusService->setStatusBidan($nomorRegister, $targetStatus);
-            } else {
-                $statusService->setStatusDokter($nomorRegister, $targetStatus);
-            }
+            // Ambil status saat ini untuk mencegah update & pengiriman BPJS berulang
+            $currentStatuses = $statusService->ambilStatus($nomorRegister);
+            $currentStatus = $isKia
+                ? (int) ($currentStatuses['status_bidan'] ?? 0)
+                : (int) ($currentStatuses['status_dokter'] ?? 0);
+
+            if ($currentStatus !== $targetStatus) {
+                // Update status hanya jika berubah
+                if ($isKia) {
+                    $statusService->setStatusBidan($nomorRegister, $targetStatus);
+                } else {
+                    $statusService->setStatusDokter($nomorRegister, $targetStatus);
+                }
+
+                // Kirim update ke BPJS Antrean bila penjamin BPJS, hanya saat terjadi perubahan status
+                try {
+                    $pelayananForBpjs = Pelayanan::with(['pasien', 'poli', 'dokter', 'pendaftaran.penjamin'])
+                        ->where('nomor_register', $nomorRegister)
+                        ->first();
+                    if ($pelayananForBpjs) {
+                        // Hanya kirim ketika:
+                        // - targetStatus 3  -> kirim 2 (half-complete)
+                        // - targetStatus 4  -> kirim 3 (complete) HANYA jika sebelumnya bukan 3
+                        if ($targetStatus === 3) {
+                            app(BpjsAntreanService::class)->kirimStatusBpjsAntrean($pelayananForBpjs, 2);
+                        } elseif ($targetStatus === 4 && $currentStatus !== 3) {
+                            app(BpjsAntreanService::class)->kirimStatusBpjsAntrean($pelayananForBpjs, 3);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Gagal mengirim update BPJS Antrean dari permintaan', [
+                        'no_rawat' => $nomorRegister,
+                        'jenis_permintaan' => $jenisPermintaan,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            } // else: tidak ada perubahan status, jangan kirim ke BPJS lagi
         } catch (\Exception $e) {
             // Log error but don't fail the request
             Log::error('Failed to update dokter status: ' . $e->getMessage());
