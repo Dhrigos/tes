@@ -10,9 +10,8 @@ A modern full‑stack application built with:
 Key business modules live under `resources/js/pages/module/`:
 - antrian, apotek, gudang, kasir, laporan, master, monitor, pasien, pelayanan, pembelian, pendaftaran, pendaftaran-online, sdm
 Related docs:
- - QUEUE MANAGEMENT: `QUEUE_MANAGEMENT_README.md`
  - Security guidance: `SECURITY.md`
- - License: `LICENSE-PROPRIETARY.md`
+ - License: `LICENSE`
 
   ## Requirements
   - PHP 8.2+
@@ -40,5 +39,5 @@ Optional (for Docker/Sail):
   - Tailwind CSS: https://tailwindcss.com/
 
  ## License
- See `LICENSE-PROPRIETARY.md` for the applicable terms.
+ See `LICENSE` for the applicable terms.
  A superseding notice is also placed at the top of `LICENSE` for repository history context.
