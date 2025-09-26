@@ -1,6 +1,7 @@
 {
     "private": true,
     "type": "module",
+    "license": "SEE LICENSE IN LICENSE-PROPRIETARY.md",
     "scripts": {
         "build": "vite build",
         "build:ssr": "vite build && vite build --ssr",
