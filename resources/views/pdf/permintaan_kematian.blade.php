@@ -89,7 +89,7 @@
         <tr>
             <td style="width: 60px; text-align: center; vertical-align: middle;">
                 <img src="{{ public_path('profile/default.png') }}" alt="Logo"
-                    style="width: 50px; height: 50px; border-radius: 50%;">
+                    style="width: 75px; height: 75px; border-radius: 50%;">
             </td>
             <td style="text-align: center;">
                 <div style="font-size: 14px; font-weight: bold; margin: 0;">

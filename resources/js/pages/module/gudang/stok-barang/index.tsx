@@ -22,6 +22,7 @@ interface StokBarang {
     id: number;
     kode_obat_alkes: string;
     nama_obat_alkes: string;
+    nomor_seri?: string;
     qty: number;
     tanggal_terima_obat: string;
     expired: string;
@@ -257,6 +258,7 @@ export default function Index() {
                                 <TableRow>
                                     <TableHead className="text-center">No</TableHead>
                                     <TableHead className="text-center">ID</TableHead>
+                                    <TableHead className="text-center">Nomor Seri</TableHead>
                                     <TableHead className="text-center">Tanggal Masuk</TableHead>
                                     <TableHead className="text-center">Tanggal Expired</TableHead>
                                     <TableHead className="text-center">Stok</TableHead>
@@ -273,6 +275,7 @@ export default function Index() {
                                         <TableRow key={item.id}>
                                             <TableCell className="text-center">{index + 1}</TableCell>
                                             <TableCell className="text-center">{item.id || '-'}</TableCell>
+                                            <TableCell className="text-center">{item.nomor_seri || '-'}</TableCell>
                                             <TableCell className="text-center">{tanggalMasuk}</TableCell>
                                             <TableCell className="text-center">{tanggalExpired}</TableCell>
                                             <TableCell className="text-center">{item.qty || 0}</TableCell>

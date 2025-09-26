@@ -372,6 +372,19 @@ class Pendaftaran_Controller extends Controller
             $dokter = Dokter::findOrFail($request->dokter_id);
             $penjamin = Penjamin::findOrFail($request->penjamin_id);
 
+			// Cegah pendaftaran ganda di hari yang sama untuk penjamin BPJS
+			if ($penjamin && str_contains(strtoupper((string) $penjamin->nama), 'BPJS')) {
+				$alreadyRegisteredToday = Pendaftaran::where('pasien_id', $request->pasien_id)
+					->whereDate('tanggal_kujungan', $request->tanggal)
+					->exists();
+				if ($alreadyRegisteredToday) {
+					return response()->json([
+						'success' => false,
+						'message' => 'Pasien BPJS sudah terdaftar pada hari yang sama. Tidak dapat mendaftar lagi.'
+					], 422);
+				}
+			}
+
             // Generate nomor register: RRR-KK-JJMM-DDMMYY
             $nomorRegister = $this->generateNomorRegister($request->tanggal, $request->jam, $pasien);
 
@@ -388,6 +401,7 @@ class Pendaftaran_Controller extends Controller
                 'poli_id' => $request->poli_id,
                 'dokter_id' => $request->dokter_id,
                 'Penjamin' => $request->penjamin_id,
+                'status' => 1, // 1=offline, 2=online, 3=bpjs/mjkn
             ]);
 
             // Simpan status kehadiran di pelayanan_statuses (0: belum hadir, 1: terdaftar, 2: hadir)
@@ -427,11 +441,7 @@ class Pendaftaran_Controller extends Controller
     private function generateNomorRegister($tanggal, $jam, $pasien)
     {
         $tanggalObj = Carbon::parse($tanggal);
-        // Format menjadi 02092025 (ddmmyyyy)
         $tanggalStr = $tanggalObj->format('dmY');
-
-        // Angka acak 3 digit (mulai 100)
-        $angkaAcak = str_pad((string) random_int(100, 999), 3, '0', STR_PAD_LEFT);
 
         // Jam hadir HH (2 digit)
         $jamDigits = preg_replace('/[^0-9]/', '', (string) $jam);
@@ -446,7 +456,32 @@ class Pendaftaran_Controller extends Controller
             $kodeKelamin = '02';
         }
 
-        return $angkaAcak . '-' . $kodeKelamin . $jamhadir . '-' . $tanggalStr;
+        $prefix = $kodeKelamin . $jamhadir . '-' . $tanggalStr;
+
+        return DB::transaction(function () use ($tanggalObj, $prefix) {
+            $maxAttempts = 10; // Maksimum percobaan untuk mendapatkan nomor unik
+            $attempt = 0;
+            
+            do {
+                // Generate random 3-digit number
+                $randomNumber = str_pad((string) random_int(1, 999), 3, '0', STR_PAD_LEFT);
+                
+                // Cek apakah nomor sudah digunakan hari ini
+                $exists = Pendaftaran::whereDate('tanggal_kujungan', $tanggalObj->toDateString())
+                    ->where('nomor_register', $randomNumber . '-' . $prefix)
+                    ->lockForUpdate()
+                    ->exists();
+                
+                if (!$exists) {
+                    return $randomNumber . '-' . $prefix;
+                }
+                
+                $attempt++;
+            } while ($attempt < $maxAttempts);
+            
+            // Jika setelah beberapa kali mencoba masih belum dapat nomor unik, gunakan timestamp
+            return str_pad((string) (time() % 1000), 3, '0', STR_PAD_LEFT) . '-' . $prefix;
+        }, 3);
     }
 
     private function generateAntrian($tanggal, $poliId, $dokterId)
@@ -489,7 +524,7 @@ class Pendaftaran_Controller extends Controller
 
             // Ambil status dari pelayanan_statuses dan map by nomor_register
             $registers = $pendaftaran->pluck('nomor_register')->filter()->values();
-            $statusMap = \App\Models\Module\Pelayanan\Pelayanan_status::whereIn('nomor_register', $registers)
+            $statusMap = Pelayanan_status::whereIn('nomor_register', $registers)
                 ->get()->keyBy('nomor_register');
 
             // Keluarkan data yang sudah dibatalkan (status_daftar = 0)
@@ -539,7 +574,8 @@ class Pendaftaran_Controller extends Controller
                     'id' => $p->id,
                     'status_pendaftaran' => $statusDaftar,
                     'status_panggil' => $statusPanggil,
-                    'Status_aplikasi' => 1,
+                    // 1=Offline, 2=Online, 3=BPJS/MJKN — baca dari kolom pendaftarans.status
+                    'Status_aplikasi' => (int) ($p->status ?? 1),
                     'status_bidan' => $statusBidan,
                 ];
                 return $asArray;
@@ -749,7 +785,7 @@ class Pendaftaran_Controller extends Controller
             }
 
             // Buat atau update data pelayanan
-            \App\Models\Module\Pelayanan::updateOrCreate([
+            Pelayanan::updateOrCreate([
                 'nomor_rm' => $datapendaftaran->nomor_rm,
                 'pasien_id' => $datapendaftaran->pasien_id,
                 'nomor_register' => $datapendaftaran->nomor_register,
@@ -767,11 +803,11 @@ class Pendaftaran_Controller extends Controller
             if (strtoupper((string) optional($poli)->kode) !== 'K') {
                 // Non-KIA: lanjutkan membuat SO Perawat seperti biasa
                 // Ambil data pasien untuk so_perawat
-                $pasien = \App\Models\Module\Pasien\Pasien::find($datapendaftaran->pasien_id);
+                $pasien = Pasien::find($datapendaftaran->pasien_id);
 
                 // Hitung umur dalam format "X Tahun Y Bulan Z Hari"
-                $tanggalLahir = \Carbon\Carbon::parse($pasien->tanggal_lahir);
-                $sekarang = \Carbon\Carbon::now();
+                $tanggalLahir = Carbon::parse($pasien->tanggal_lahir);
+                $sekarang = Carbon::now();
                 $umur = $tanggalLahir->diff($sekarang);
                 $umurString = $umur->y . ' Tahun ' . $umur->m . ' Bulan ' . $umur->d . ' Hari';
 

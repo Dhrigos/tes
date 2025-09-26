@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
@@ -40,6 +42,10 @@ interface DaftarBarang {
     deskripsi?: string;
     jenis_inventaris?: string;
     satuan?: string;
+    // Optional fields for Multi Pakai
+    multi_pakai?: boolean;
+    multi_pakai_jumlah?: number | null;
+    multi_pakai_satuan?: string | null;
 }
 
 interface PageProps {
@@ -113,6 +119,12 @@ export default function Index() {
     const [nilaiSatuanSedang, setNilaiSatuanSedang] = useState<number | ''>('');
     const [satuanBesar, setSatuanBesar] = useState('');
     const [nilaiSatuanBesar, setNilaiSatuanBesar] = useState<number | ''>('');
+    const [multiPakai, setMultiPakai] = useState(false);
+    const [aktifSatuanBesar, setAktifSatuanBesar] = useState(true);
+    const [aktifSatuanSedang, setAktifSatuanSedang] = useState(true);
+    const [aktifSatuanKecil, setAktifSatuanKecil] = useState(true);
+    const [jumlahPerSatuan, setJumlahPerSatuan] = useState<number | ''>('');
+    const [jumlahPerSatuanUnit, setJumlahPerSatuanUnit] = useState('');
     // Step 3
     const [penyimpanan, setPenyimpanan] = useState('');
     const [barcode, setBarcode] = useState('');
@@ -157,12 +169,21 @@ export default function Index() {
             penyimpanan,
         };
 
+        // Normalize satuan values based on active checkboxes
+        const normalizedSatuanKecil = aktifSatuanKecil ? satuanKecil || null : null;
+        const normalizedNilaiSatuanKecil = aktifSatuanKecil ? (nilaiSatuanKecil === '' ? null : Number(nilaiSatuanKecil)) : null;
+        const normalizedSatuanSedang = aktifSatuanSedang ? satuanSedang || null : null;
+        const normalizedNilaiSatuanSedang = aktifSatuanSedang ? (nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang)) : null;
+        const normalizedSatuanBesar = aktifSatuanBesar ? satuanBesar || null : null;
+        const normalizedNilaiSatuanBesar = aktifSatuanBesar ? (nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar)) : null;
+
         const data = isInventaris
             ? {
                   ...baseData,
                   deskripsi,
                   jenis_inventaris: jenisBarang,
                   satuan: satuanKecil,
+                  bentuk_obat: bentukobat,
               }
             : {
                   ...baseData,
@@ -173,14 +194,17 @@ export default function Index() {
                   jenis_generik: jenisGenerik,
                   jenis_obat: tingkatPenggunaan,
                   merek,
-                  satuan_kecil: satuanKecil,
-                  nilai_satuan_kecil: nilaiSatuanKecil,
-                  satuan_sedang: satuanSedang,
-                  nilai_satuan_sedang: nilaiSatuanSedang === '' ? null : Number(nilaiSatuanSedang),
-                  satuan_besar: satuanBesar,
-                  nilai_satuan_besar: nilaiSatuanBesar === '' ? null : Number(nilaiSatuanBesar),
+                  satuan_kecil: normalizedSatuanKecil,
+                  nilai_satuan_kecil: normalizedNilaiSatuanKecil,
+                  satuan_sedang: normalizedSatuanSedang,
+                  nilai_satuan_sedang: normalizedNilaiSatuanSedang,
+                  satuan_besar: normalizedSatuanBesar,
+                  nilai_satuan_besar: normalizedNilaiSatuanBesar,
                   barcode,
                   bentuk_obat: bentukobat,
+                  multi_pakai: !!multiPakai,
+                  multi_pakai_jumlah: multiPakai ? (jumlahPerSatuan === '' ? null : Number(jumlahPerSatuan)) : null,
+                  multi_pakai_satuan: multiPakai ? (jumlahPerSatuanUnit || null) : null,
               };
 
         if (editId) {
@@ -241,6 +265,14 @@ export default function Index() {
 
         setPenyimpanan(barang.penyimpanan ?? '');
         setGudangKategori(barang.gudang_kategori ?? '');
+        // Initialize Multi Pakai states
+        setMultiPakai(!!barang.multi_pakai);
+        setJumlahPerSatuan(barang.multi_pakai_jumlah ?? '');
+        setJumlahPerSatuanUnit(barang.multi_pakai_satuan ?? '');
+        // Initialize active toggles based on whether values exist
+        setAktifSatuanKecil(!!(barang.satuan_kecil || barang.nilai_satuan_kecil));
+        setAktifSatuanSedang(!!(barang.satuan_sedang || barang.nilai_satuan_sedang));
+        setAktifSatuanBesar(!!(barang.satuan_besar || barang.nilai_satuan_besar));
         setStep(1);
         setOpen(true);
     };
@@ -288,6 +320,12 @@ export default function Index() {
         setBentukObat('');
         setKfaOptions([]);
         setShowKfaList(false);
+        setMultiPakai(false);
+        setJumlahPerSatuan('');
+        setJumlahPerSatuanUnit('');
+        setAktifSatuanBesar(true);
+        setAktifSatuanSedang(true);
+        setAktifSatuanKecil(true);
     };
 
     const handleSearchKfa = async () => {
@@ -577,13 +615,23 @@ export default function Index() {
                                                 <TableCell>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <div className="max-w-[100px] cursor-help truncate">
-                                                                {item.jenis_barang === 'inventaris' ? item.satuan || '-' : item.satuan_kecil || '-'}
-                                                            </div>
+                                                <div className="max-w-[180px] cursor-help truncate">
+                                                    {item.jenis_barang === 'inventaris'
+                                                        ? (item.satuan || '-')
+                                                        : (item.satuan_kecil || item.satuan_sedang || item.satuan_besar || '-')}
+                                                    {item.multi_pakai && item.multi_pakai_jumlah && item.multi_pakai_satuan ? (
+                                                        <span className="ml-2 text-xs text-muted-foreground">• Multi: {item.multi_pakai_jumlah} {item.multi_pakai_satuan}</span>
+                                                    ) : null}
+                                                </div>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
                                                             <p>
-                                                                {item.jenis_barang === 'inventaris' ? item.satuan || '-' : item.satuan_kecil || '-'}
+                                                                {item.jenis_barang === 'inventaris'
+                                                                    ? (item.satuan || '-')
+                                                                    : (item.satuan_kecil || item.satuan_sedang || item.satuan_besar || '-')}
+                                                                {item.multi_pakai && item.multi_pakai_jumlah && item.multi_pakai_satuan ? (
+                                                                    <span className="ml-2 text-xs text-muted-foreground">• Multi: {item.multi_pakai_jumlah} {item.multi_pakai_satuan}</span>
+                                                                ) : null}
                                                             </p>
                                                         </TooltipContent>
                                                     </Tooltip>
@@ -882,15 +930,28 @@ export default function Index() {
 
                                 {step === 2 && !isInventaris && (
                                     <div className="space-y-6">
+                                        {/* Toggle Multi Pakai */}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="text-sm font-medium">Multi Pakai</div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs text-muted-foreground">{multiPakai ? 'Aktif' : 'Nonaktif'}</span>
+                                                    <Switch checked={multiPakai} onCheckedChange={setMultiPakai} />
+                                                </div>
+                                            </div>
+                                            {/* Tidak ada pilihan mode; gunakan checkbox per bagian Satuan */}
+                                        </div>
                                         {/* Satuan Besar */}
                                         <div className="space-y-2">
-                                            <h6 className="text-sm font-semibold">Satuan Besar</h6>
+                                            <div className="flex items-center justify-between">
+                                                <h6 className="text-sm font-semibold">Satuan Besar <Checkbox className="ml-2" checked={aktifSatuanBesar} onCheckedChange={(v) => setAktifSatuanBesar(!!v)} /></h6>                                                
+                                            </div>
                                             <p className="text-xs text-muted-foreground">
                                                 Nama: contoh "Dus". Jumlah isi: berapa Satuan Sedang di dalam 1 Satuan Besar.
                                             </p>
                                             <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
                                                 <div className="text-sm text-muted-foreground">Jumlah per 1</div>
-                                                <Select value={satuanBesar} onValueChange={setSatuanBesar}>
+                                                <Select value={satuanBesar} onValueChange={setSatuanBesar} disabled={!aktifSatuanBesar}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Nama Satuan Besar (mis. Dus)" />
                                                     </SelectTrigger>
@@ -909,6 +970,7 @@ export default function Index() {
                                                         placeholder="Jumlah"
                                                         value={nilaiSatuanBesar}
                                                         onChange={(e) => setNilaiSatuanBesar(e.target.value === '' ? '' : Number(e.target.value))}
+                                                        disabled={!aktifSatuanBesar}
                                                     />
                                                     <span className="text-sm text-muted-foreground">{satuanSedang || 'Satuan Sedang'}</span>
                                                 </div>
@@ -917,13 +979,15 @@ export default function Index() {
 
                                         {/* Satuan Sedang */}
                                         <div className="space-y-2">
-                                            <h6 className="text-sm font-semibold">Satuan Sedang</h6>
+                                            <div className="flex items-center justify-between">
+                                                <h6 className="text-sm font-semibold">Satuan Sedang <Checkbox className="ml-2" checked={aktifSatuanSedang} onCheckedChange={(v) => setAktifSatuanSedang(!!v)} /></h6>
+                                            </div>
                                             <p className="text-xs text-muted-foreground">
                                                 Nama: contoh "Strip". Jumlah isi: berapa Satuan Kecil di dalam 1 Satuan Sedang.
                                             </p>
                                             <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
                                                 <div className="text-sm text-muted-foreground">Jumlah per 1</div>
-                                                <Select value={satuanSedang} onValueChange={setSatuanSedang}>
+                                                <Select value={satuanSedang} onValueChange={setSatuanSedang} disabled={!aktifSatuanSedang}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Nama Satuan Sedang (mis. Strip)" />
                                                     </SelectTrigger>
@@ -942,6 +1006,7 @@ export default function Index() {
                                                         placeholder="Jumlah"
                                                         value={nilaiSatuanSedang}
                                                         onChange={(e) => setNilaiSatuanSedang(e.target.value === '' ? '' : Number(e.target.value))}
+                                                        disabled={!aktifSatuanSedang}
                                                     />
                                                     <span className="text-sm text-muted-foreground">{satuanKecil || 'Satuan Kecil'}</span>
                                                 </div>
@@ -950,13 +1015,15 @@ export default function Index() {
 
                                         {/* Satuan Kecil */}
                                         <div className="space-y-2">
-                                            <h6 className="text-sm font-semibold">Satuan Kecil</h6>
+                                            <div className="flex items-center justify-between">
+                                                <h6 className="text-sm font-semibold">Satuan Kecil <Checkbox className="ml-2" checked={aktifSatuanKecil} onCheckedChange={(v) => setAktifSatuanKecil(!!v)} /></h6>
+                                            </div>
                                             <p className="text-xs text-muted-foreground">
                                                 Nama: contoh "Tablet". Jumlah per unit biasanya 1 sebagai dasar perhitungan.
                                             </p>
                                             <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
                                                 <div className="text-sm text-muted-foreground">Jumlah per 1</div>
-                                                <Select value={satuanKecil} onValueChange={setSatuanKecil}>
+                                                <Select value={satuanKecil} onValueChange={setSatuanKecil} disabled={!aktifSatuanKecil}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Nama Satuan Kecil (mis. Tablet)" />
                                                     </SelectTrigger>
@@ -975,9 +1042,36 @@ export default function Index() {
                                                         placeholder="1"
                                                         value={nilaiSatuanKecil}
                                                         onChange={(e) => setNilaiSatuanKecil(e.target.value === '' ? '' : Number(e.target.value))}
+                                                        disabled={!aktifSatuanKecil}
                                                     />
                                                 </div>
                                             </div>
+                                            {multiPakai && (
+                                                <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
+                                                    <div className="text-sm text-muted-foreground">Jumlah per Satuan (Multi Pakai)</div>
+                                                    <div className="md:col-span-2 grid grid-cols-2 gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="contoh: 10"
+                                                            value={jumlahPerSatuan}
+                                                            onChange={(e) => setJumlahPerSatuan(e.target.value === '' ? '' : Number(e.target.value))}
+                                                            min={1}
+                                                        />
+                                                        <Select value={jumlahPerSatuanUnit} onValueChange={setJumlahPerSatuanUnit}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Satuan" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {satuanBarangs.map((s) => (
+                                                                    <SelectItem key={s.id} value={s.nama}>
+                                                                        {s.nama}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}

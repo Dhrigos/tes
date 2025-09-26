@@ -99,7 +99,7 @@
         <tr>
             <td style="width: 60px; text-align: center; vertical-align: middle;">
                 <img src="{{ public_path('profile/default.png') }}" alt="Logo"
-                    style="width: 44px; height: 44px; border-radius: 50%;">
+                    style="width: 75px; height: 75px; border-radius: 50%;">
             </td>
             <td style="text-align: center;">
                 <div style="font-size: 14px; font-weight: bold; margin: 0;">
@@ -171,33 +171,41 @@
             <td>{{ $diagnosis_utama }}</td>
         </tr>
 
-        @if (count($listDiagnosisPenyerta) > 0)
         <tr>
             <td class="info-label">Diagnosis Penyerta</td>
             <td class="info-separator">:</td>
             <td>
-                @foreach ($listDiagnosisPenyerta as $index => $item)
-                {{ $index + 1 }}. {{ $item }}@if (!$loop->last)
-                <br>
+                @if (count($listDiagnosisPenyerta) > 1)
+                    @foreach ($listDiagnosisPenyerta as $index => $item)
+                    {{ $index + 1 }}. {{ $item }}@if (!$loop->last)
+                    <br>
+                    @endif
+                    @endforeach
+                @elseif (count($listDiagnosisPenyerta) == 1)
+                    {{ $listDiagnosisPenyerta[0] }}
+                @else
+                    -
                 @endif
-                @endforeach
             </td>
         </tr>
-        @endif
 
-        @if (count($listKomplikasi) > 0)
         <tr>
             <td class="info-label">Komplikasi</td>
             <td class="info-separator">:</td>
             <td>
-                @foreach ($listKomplikasi as $index => $item)
-                {{ $index + 1 }}. {{ $item }}@if (!$loop->last)
-                <br>
+                @if (count($listKomplikasi) > 1)
+                    @foreach ($listKomplikasi as $index => $item)
+                    {{ $index + 1 }}. {{ $item }}@if (!$loop->last)
+                    <br>
+                    @endif
+                    @endforeach
+                @elseif (count($listKomplikasi) == 1)
+                    {{ $listKomplikasi[0] }}
+                @else
+                    -
                 @endif
-                @endforeach
             </td>
         </tr>
-        @endif
 
         <tr>
             <td class="info-label">Istirahat Selama</td>

@@ -17,6 +17,7 @@ class Stok_Barang extends Model
         'qty',
         'tanggal_terima_obat',
         'expired',
+        'nomor_seri',
         'user_input_id',
         'user_input_name',
     ];

@@ -155,10 +155,54 @@ export default function PembelianIndex() {
     const isObatType = pembelianData.jenis_pembelian === 'obat' || pembelianData.jenis_pembelian === 'obat_klinik';
     const isInventarisType = pembelianData.jenis_pembelian === 'inventaris' || pembelianData.jenis_pembelian === 'inventaris_klinik';
 
-    // Pastikan tipe Klinik tidak dipilih saat Fitur Gudang aktif
+    // Helper utilities for kemasan handling (kecil/sedang/besar)
+    const getUnitAvailability = (data: PembelianDetail) => {
+        const hasKecil = ((parseInt(data.nilai_satuan_kecil || '0') || 0) > 0);
+        const hasSedang = ((parseInt(data.nilai_satuan_sedang || '0') || 0) > 0);
+        const hasBesar = ((parseInt(data.nilai_satuan_besar || '0') || 0) > 0);
+        let left: 'kecil' | 'sedang' | 'besar' = 'kecil';
+        let right: 'kecil' | 'sedang' | 'besar' | null = 'besar';
+        if (hasKecil && hasBesar) {
+            left = 'kecil';
+            right = 'besar';
+        } else if (!hasKecil && hasSedang && hasBesar) {
+            left = 'sedang';
+            right = 'besar';
+        } else if (hasKecil && hasSedang && !hasBesar) {
+            left = 'kecil';
+            right = 'sedang';
+        } else if (hasKecil && !hasSedang && !hasBesar) {
+            left = 'kecil';
+            right = null;
+        } else if (!hasKecil && hasSedang && !hasBesar) {
+            left = 'sedang';
+            right = null;
+        } else if (!hasKecil && !hasSedang && hasBesar) {
+            left = 'besar';
+            right = null;
+        }
+        return { hasKecil, hasSedang, hasBesar, left, right };
+    };
+
+    const getActiveUnit = (data: PembelianDetail) => {
+        const avail = getUnitAvailability(data);
+        const active: 'kecil' | 'sedang' | 'besar' = data.kemasan_besar ? (avail.right || avail.left) : avail.left;
+        return { ...avail, active };
+    };
+
+    const getConvFactors = (data: PembelianDetail) => {
+        const nilaiBesarCount = parseInt(data.nilai_satuan_besar || '1') || 1;
+        const konvBs = parseInt(data.nilai_satuan_sedang || '1') || 1; // besar -> sedang
+        const konvSk = parseInt(data.nilai_satuan_kecil || '1') || 1; // sedang -> kecil
+        const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk); // besar -> kecil
+        const convToSmall = { kecil: 1, sedang: Math.max(1, konvSk), besar: Math.max(1, totalKonv) } as const;
+        return { konvBs: Math.max(1, konvBs), konvSk: Math.max(1, konvSk), totalKonv: Math.max(1, totalKonv), convToSmall };
+    };
+
+    // Pastikan tipe Klinik tidak dipilih saat Fitur Gudang tidak aktif
     React.useEffect(() => {
-        if (isGudangUtamaActive) {
-            if (pembelianData.jenis_pembelian === 'obat_klinik' || pembelianData.jenis_pembelian === 'inventaris_klinik') {
+        if (!isGudangUtamaActive) {
+            if (pembelianData.jenis_pembelian === 'obat' || pembelianData.jenis_pembelian === 'inventaris') {
                 setPembelianData((prev) => ({ ...prev, jenis_pembelian: '' }));
             }
         }
@@ -214,7 +258,6 @@ export default function PembelianIndex() {
             if (res.data?.success) {
                 setObatOptions(res.data.data || []);
             }
-            console.log('DBG obatOptions', res.data);
         } catch (e) {
             // silently ignore
         }
@@ -233,10 +276,14 @@ export default function PembelianIndex() {
     const filteredDabar =
         obatOptions
             ?.filter((barang) => {
-                const q = searchObat.toLowerCase();
-                return barang.nama?.toLowerCase().includes(q);
+                const q = (searchObat || '').toLowerCase();
+                if (!q) return true; // tanpa pencarian: tampilkan daftar awal (dibatasi di slice)
+                const nama = (barang.nama || '').toLowerCase();
+                const namaDagang = (barang.nama_dagang || '').toLowerCase();
+                const kode = (barang.kode || '').toLowerCase();
+                return nama.includes(q) || namaDagang.includes(q) || kode.includes(q);
             })
-            .slice(0, 5) || [];
+            .slice(0, 50) || [];
 
     // Filter inventaris based on search term
     const filteredInventaris =
@@ -375,33 +422,19 @@ export default function PembelianIndex() {
         let nilaiSedang = parseInt(item.nilai_satuan_sedang || '0') || 0;
         let nilaiKecil = parseInt(item.nilai_satuan_kecil || '0') || 0;
 
-        const hargaAktif = kemasanBesar ? hargaBesar : hargaKecil;
+        // Tentukan unit aktif secara dinamis (kecil/sedang/besar)
+        const avail = getActiveUnit(item);
+        const factors = getConvFactors(item);
+        const hargaAktif = avail.active === 'besar' ? hargaBesar : avail.active === 'sedang' ? hargaSedang : hargaKecil;
 
-        // Gunakan qty pembelian apa adanya (tidak diturunkan dari nilai_satuan_*)
+        // Gunakan qty pembelian apa adanya; qty_aktual diturunkan ke satuan kecil berdasarkan unit aktif
         const qtyPembelian = parseFloat(item.qty || '0') || 0;
-        const qtyAktual = kemasanBesar ? qtyPembelian * totalKonversi : qtyPembelian;
+        const qtyAktual = qtyPembelian * factors.convToSmall[avail.active];
 
         const diskonPersen = item.diskon_persen ?? true;
         const diskonValue = parseFloat(item.diskon || '0') || 0;
         const diskonNominal = diskonPersen ? qtyPembelian * hargaAktif * (diskonValue / 100) : diskonValue;
         const subTotal = qtyPembelian * hargaAktif - diskonNominal;
-
-        console.log('DBG konversi (openEditModal)', {
-            kemasanBesar,
-            konversiBs,
-            konversiSk,
-            totalKonversi,
-            qtyPembelian,
-            qtyAktual,
-            hargaBesar,
-            hargaSedang,
-            hargaKecil,
-            hargaAktif,
-            diskonPersen,
-            diskonValue,
-            diskonNominal,
-            subTotal,
-        });
 
         setModalData({
             ...item,
@@ -434,21 +467,23 @@ export default function PembelianIndex() {
 
             // Apply same calculation logic as before
             if (isObatType) {
+                const avail = getActiveUnit(updatedItem);
+                const { konvBs, konvSk, totalKonv, convToSmall } = getConvFactors(updatedItem);
                 // Sync harga satuan besar/kecil saat input harga berubah
                 if (field === 'harga_satuan') {
-                    const nilaiBesarCount = parseInt(prev.nilai_satuan_besar || '1') || 1;
-                    const konvBs = parseInt(prev.nilai_satuan_sedang || '1') || 1;
-                    const konvSk = parseInt(prev.nilai_satuan_kecil || '1') || 1;
-                    const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
                     const hargaInput = parseFloat(value as string) || 0;
-                    if (prev.kemasan_besar) {
+                    if (avail.active === 'besar') {
                         updatedItem.harga_satuan_besar = hargaInput.toString();
                         updatedItem.harga_satuan_sedang = (hargaInput / Math.max(1, konvBs)).toString();
-                        updatedItem.harga_satuan_kecil = (hargaInput / totalKonv).toString();
+                        updatedItem.harga_satuan_kecil = (hargaInput / Math.max(1, totalKonv)).toString();
+                    } else if (avail.active === 'sedang') {
+                        updatedItem.harga_satuan_sedang = hargaInput.toString();
+                        updatedItem.harga_satuan_kecil = (hargaInput / Math.max(1, konvSk)).toString();
+                        updatedItem.harga_satuan_besar = (hargaInput * Math.max(1, konvBs)).toString();
                     } else {
                         updatedItem.harga_satuan_kecil = hargaInput.toString();
                         updatedItem.harga_satuan_sedang = (hargaInput * Math.max(1, konvSk)).toString();
-                        updatedItem.harga_satuan_besar = (hargaInput * totalKonv).toString();
+                        updatedItem.harga_satuan_besar = (hargaInput * Math.max(1, totalKonv)).toString();
                     }
                 }
 
@@ -464,55 +499,55 @@ export default function PembelianIndex() {
                 }
 
                 if (field === 'kemasan_besar') {
-                    if (value) {
-                        // Saat beralih ke kemasan besar, konversi harga dari kecil->besar (qty kecil -> besar)
-                        const nilaiBesarCount = parseInt(prev.nilai_satuan_besar || '1') || 1;
-                        const konvBs = parseInt(prev.nilai_satuan_sedang || '1') || 1;
-                        const konvSk = parseInt(prev.nilai_satuan_kecil || '1') || 1;
-                        const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
+                    const wasRight = !!prev.kemasan_besar;
+                    const willRight = !!value;
+                    const availPrev = getUnitAvailability(prev);
+                    if (!availPrev.right) {
+                        // Hanya satu unit tersedia, abaikan toggle
+                        return updatedItem;
+                    }
+                    const sourceUnit = wasRight ? (availPrev.right as 'kecil' | 'sedang' | 'besar') : availPrev.left;
+                    const targetUnit = willRight ? (availPrev.right as 'kecil' | 'sedang' | 'besar') : availPrev.left;
+                    const { konvBs, konvSk, totalKonv } = getConvFactors(prev);
 
-                        // Gunakan qty_aktual (satuan kecil) untuk konversi harga
-                        const qtyAktual = parseFloat(prev.qty || '0') || 0;
-                        const baseHargaKecil = parseFloat(prev.harga_satuan_kecil || '0');
-                        const qtyBesarSaatIni = totalKonv > 0 ? qtyAktual / totalKonv : 0;
-                        const computedHargaBesar =
-                            baseHargaKecil > 0 && qtyAktual > 0 && qtyBesarSaatIni > 0
-                                ? (baseHargaKecil * qtyAktual) / qtyBesarSaatIni
-                                : parseFloat(prev.harga_satuan_besar || '0');
+                    // Konversi qty dari source -> target
+                    const qtyNum = parseFloat(prev.qty || '0') || 0;
+                    let qtyInSmall = qtyNum;
+                    if (sourceUnit === 'besar') qtyInSmall = qtyNum * totalKonv;
+                    if (sourceUnit === 'sedang') qtyInSmall = qtyNum * Math.max(1, konvSk);
+                    // target qty
+                    let qtyTarget = qtyInSmall;
+                    if (targetUnit === 'besar') qtyTarget = qtyInSmall / Math.max(1, totalKonv);
+                    if (targetUnit === 'sedang') qtyTarget = qtyInSmall / Math.max(1, konvSk);
+                    updatedItem.qty = qtyTarget.toString();
 
-                        updatedItem.harga_satuan_besar = (computedHargaBesar || 0).toString();
-                        updatedItem.harga_satuan_sedang = ((computedHargaBesar || 0) / Math.max(1, konvBs)).toString();
-                        updatedItem.harga_satuan_kecil = ((computedHargaBesar || 0) / totalKonv).toString();
-                        updatedItem.harga_satuan = (computedHargaBesar || 0).toString();
-
-                        // Ubah qty pembelian dari satuan kecil -> besar
-                        const qtyKecil = qtyAktual;
-                        const qtyBesarBaru = qtyKecil / totalKonv;
-                        updatedItem.qty = qtyBesarBaru.toString();
+                    // Set harga_satuan sesuai target unit dari field yang sudah terisi
+                    const hargaB = parseFloat(prev.harga_satuan_besar || '0') || 0;
+                    const hargaSdg = parseFloat(prev.harga_satuan_sedang || '0') || 0;
+                    const hargaK = parseFloat(prev.harga_satuan_kecil || '0') || 0;
+                    let hargaTarget = 0;
+                    if (targetUnit === 'besar') {
+                        hargaTarget = hargaB || (hargaSdg ? hargaSdg * Math.max(1, konvBs) : hargaK * Math.max(1, totalKonv));
+                    } else if (targetUnit === 'sedang') {
+                        hargaTarget = hargaSdg || (hargaB ? hargaB / Math.max(1, konvBs) : hargaK * Math.max(1, konvSk));
                     } else {
-                        // Saat beralih ke kemasan kecil, konversi harga dari besar->kecil (qty besar -> kecil)
-                        const nilaiBesarCount = parseInt(prev.nilai_satuan_besar || '1') || 1;
-                        const konvBs = parseInt(prev.nilai_satuan_sedang || '1') || 1;
-                        const konvSk = parseInt(prev.nilai_satuan_kecil || '1') || 1;
-                        const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
+                        hargaTarget = hargaK || (hargaSdg ? hargaSdg / Math.max(1, konvSk) : hargaB / Math.max(1, totalKonv));
+                    }
+                    updatedItem.harga_satuan = (hargaTarget || 0).toString();
 
-                        // qty_aktual (satuan kecil) = qty besar × totalKonv
-                        const qtyBesar = parseFloat(prev.qty || '0') || 0;
-                        const qtyAktual = qtyBesar * totalKonv;
-                        const baseHargaBesar = parseFloat(prev.harga_satuan_besar || '0');
-                        const computedHargaKecil =
-                            baseHargaBesar > 0 && qtyAktual > 0
-                                ? (baseHargaBesar * qtyBesar) / qtyAktual
-                                : parseFloat(prev.harga_satuan_kecil || '0');
-
-                        updatedItem.harga_satuan_kecil = (computedHargaKecil || 0).toString();
-                        updatedItem.harga_satuan_sedang = ((computedHargaKecil || 0) * Math.max(1, konvSk)).toString();
-                        updatedItem.harga_satuan_besar = ((computedHargaKecil || 0) * totalKonv).toString();
-                        updatedItem.harga_satuan = (computedHargaKecil || 0).toString();
-
-                        // Ubah qty pembelian menjadi dalam satuan kecil
-                        const qtyKecilBaru = qtyAktual;
-                        updatedItem.qty = qtyKecilBaru.toString();
+                    // Sinkronkan tiga harga
+                    if (targetUnit === 'besar') {
+                        updatedItem.harga_satuan_besar = (hargaTarget || 0).toString();
+                        updatedItem.harga_satuan_sedang = ((hargaTarget || 0) / Math.max(1, konvBs)).toString();
+                        updatedItem.harga_satuan_kecil = ((hargaTarget || 0) / Math.max(1, totalKonv)).toString();
+                    } else if (targetUnit === 'sedang') {
+                        updatedItem.harga_satuan_sedang = (hargaTarget || 0).toString();
+                        updatedItem.harga_satuan_kecil = ((hargaTarget || 0) / Math.max(1, konvSk)).toString();
+                        updatedItem.harga_satuan_besar = ((hargaTarget || 0) * Math.max(1, konvBs)).toString();
+                    } else {
+                        updatedItem.harga_satuan_kecil = (hargaTarget || 0).toString();
+                        updatedItem.harga_satuan_sedang = ((hargaTarget || 0) * Math.max(1, konvSk)).toString();
+                        updatedItem.harga_satuan_besar = ((hargaTarget || 0) * Math.max(1, totalKonv)).toString();
                     }
                 }
 
@@ -555,14 +590,14 @@ export default function PembelianIndex() {
 
             // Recompute qty_aktual (satuan kecil) dari qty & kemasan
             {
-                const nilaiBesarCount = parseInt((updatedItem.nilai_satuan_besar || prev.nilai_satuan_besar || '1') as string) || 1;
-                const konvBs = parseInt((updatedItem.nilai_satuan_sedang || prev.nilai_satuan_sedang || '1') as string) || 1;
-                const konvSk = parseInt((updatedItem.nilai_satuan_kecil || prev.nilai_satuan_kecil || '1') as string) || 1;
-                const totalKonv = Math.max(1, nilaiBesarCount) * Math.max(1, konvBs) * Math.max(1, konvSk);
-                const qtyNum = parseFloat(updatedItem.qty || '0') || 0;
-                const qtyAktual = updatedItem.kemasan_besar ? qtyNum * totalKonv : qtyNum;
-                updatedItem.qty_aktual = qtyAktual.toString();
+                const { totalKonv, konvSk } = getConvFactors(updatedItem as any);
+                // keep nilai_konversi as totalKonv (besar->kecil) for legacy compat
                 updatedItem.nilai_konversi = totalKonv as any;
+                const availNow = getActiveUnit(updatedItem as any);
+                const qtyNum = parseFloat(updatedItem.qty || '0') || 0;
+                const factor = availNow.active === 'besar' ? totalKonv : availNow.active === 'sedang' ? Math.max(1, konvSk) : 1;
+                const qtyAktual = qtyNum * factor;
+                updatedItem.qty_aktual = qtyAktual.toString();
             }
 
             // Calculate sub_total
@@ -599,29 +634,15 @@ export default function PembelianIndex() {
         // Compute values synchronously to avoid saving stale modal state
         const current = { ...modalData };
         const qty = parseFloat(current.qty || '0') || 0;
-        const konvBs = current.nilai_konversi_bs || 1;
-        const konvSk = current.nilai_konversi_sk || (current.nilai_konversi ? current.nilai_konversi / Math.max(1, konvBs) : 1);
-        const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
-        const qtyAktualNum = current.kemasan_besar ? qty * totalKonv : qty;
+        const { konvBs, konvSk, totalKonv } = getConvFactors(current);
+        const avail = getActiveUnit(current);
+        const factor = avail.active === 'besar' ? totalKonv : avail.active === 'sedang' ? Math.max(1, konvSk) : 1;
+        const qtyAktualNum = qty * factor;
         const harga = parseFloat(current.harga_satuan || '0') || 0;
         const diskonValue = parseFloat(current.diskon || '0') || 0;
         const diskonNominal = current.diskon_persen ? qty * harga * (diskonValue / 100) : diskonValue;
         const subtotal = qty * harga - diskonNominal;
         const itemToSave: PembelianDetail = { ...current, qty_aktual: qtyAktualNum.toString(), sub_total: subtotal.toString() };
-
-        console.log('DBG konversi (saveModalData)', {
-            kemasan_besar: current.kemasan_besar,
-            nilai_konversi_bs: konvBs,
-            nilai_konversi_sk: konvSk,
-            totalKonv,
-            qty,
-            qty_aktual: qtyAktualNum,
-            harga,
-            diskon_persen: current.diskon_persen,
-            diskonValue,
-            diskonNominal,
-            subtotal,
-        });
 
         if (editingItem) {
             // Update existing item
@@ -739,6 +760,8 @@ export default function PembelianIndex() {
             // Konversi qty ke satuan kecil sebelum dikirim ke backend
             const formData = {
                 ...pembelianData,
+                // Kirim juga kategori_pembelian agar backend bisa langsung mapping
+                kategori_pembelian: pembelianData.jenis_pembelian_tipe,
                 details: pembelianDetails.map((detail) => {
                     // Untuk obat, pastikan qty dalam satuan kecil
                     let qtyToSend = detail.qty;
@@ -883,7 +906,8 @@ export default function PembelianIndex() {
                                 <div className="py-8 text-center">
                                     <h3 className="mb-4 text-xl font-semibold">Pilih Jenis Pembelian</h3>
                                     <div className="mx-auto grid max-w-md grid-cols-1 gap-6 md:grid-cols-2">
-                                        {!isGudangUtamaActive && (
+                                        {isGudangUtamaActive ? (
+                                            // Jika gudang utama aktif, tampilkan semua jenis pembelian
                                             <>
                                                 <Button
                                                     variant={pembelianData.jenis_pembelian === 'obat' ? 'default' : 'outline'}
@@ -901,8 +925,26 @@ export default function PembelianIndex() {
                                                     <ShoppingCart className="h-8 w-8" />
                                                     <span>Inventaris</span>
                                                 </Button>
+                                                <Button
+                                                    variant={pembelianData.jenis_pembelian === 'obat_klinik' ? 'default' : 'outline'}
+                                                    className="flex h-24 flex-col gap-2"
+                                                    onClick={() => handleJenisPembelianChange('obat_klinik')}
+                                                >
+                                                    <Package className="h-8 w-8" />
+                                                    <span>Obat Klinik</span>
+                                                </Button>
+                                                <Button
+                                                    variant={pembelianData.jenis_pembelian === 'inventaris_klinik' ? 'default' : 'outline'}
+                                                    className="flex h-24 flex-col gap-2"
+                                                    onClick={() => handleJenisPembelianChange('inventaris_klinik')}
+                                                >
+                                                    <ShoppingCart className="h-8 w-8" />
+                                                    <span>Inventaris Klinik</span>
+                                                </Button>
                                             </>
-                                        )}
+                                        ) : (
+                                            // Jika gudang utama tidak aktif, hanya tampilkan jenis pembelian klinik
+                                            <>
                                         <Button
                                             variant={pembelianData.jenis_pembelian === 'obat_klinik' ? 'default' : 'outline'}
                                             className="flex h-24 flex-col gap-2"
@@ -919,7 +961,8 @@ export default function PembelianIndex() {
                                             <ShoppingCart className="h-8 w-8" />
                                             <span>Inventaris Klinik</span>
                                         </Button>
-
+                                            </>
+                                        )}
                                     </div>
                                     {pembelianData.jenis_pembelian && (
                                         <Badge variant="secondary" className="mt-4">
@@ -942,7 +985,7 @@ export default function PembelianIndex() {
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
                                     <div className="space-y-2 md:col-span-2">
-                                        <Label htmlFor="jenis_pembelian_tipe">Jenis Pembelian</Label>
+                                        <Label htmlFor="jenis_pembelian_tipe">Kategori Pembelian</Label>
                                         <Select
                                             value={pembelianData.jenis_pembelian_tipe}
                                             onValueChange={(value) => {
@@ -964,7 +1007,7 @@ export default function PembelianIndex() {
                                             }}
                                         >
                                             <SelectTrigger id="jenis_pembelian_tipe">
-                                                <SelectValue placeholder="Pilih Jenis Pembelian" />
+                                                <SelectValue placeholder="Pilih Kategori Pembelian" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="Reguler">Reguler</SelectItem>
@@ -982,6 +1025,7 @@ export default function PembelianIndex() {
                                                 onChange={(e) => handleDataAwalChange('nomor_faktur', e.target.value)}
                                                 placeholder="Nomor faktur akan di-generate otomatis"
                                                 className="flex-1"
+                                                readOnly
                                             />
                                             <Button
                                                 type="button"
@@ -1294,48 +1338,39 @@ export default function PembelianIndex() {
                                                                     const item = obatOptions.find((i) => i.kode === value);
                                                                     updateModalData('kode_obat_alkes', value);
                                                                     updateModalData('nama_obat_alkes', item?.nama_dagang || item?.nama || '');
-                                                                    // Set konversi hirarkis dan default nilai sesuai kemasan (besar -> sedang -> kecil)
-                                                                    const nilaiBesar = Number(item?.nilai_satuan_besar || 0);
-                                                                    const nilaiSedang = Number(item?.nilai_satuan_sedang || 0);
-                                                                    const nilaiKecil = Number(item?.nilai_satuan_kecil || 0);
-
-                                                                    // Hitung konversi besar->sedang dan sedang->kecil
-                                                                    const konvBs =
-                                                                        nilaiBesar && nilaiSedang
-                                                                            ? Math.max(1, Math.round(nilaiSedang / Math.max(1, nilaiBesar)))
-                                                                            : 1;
-                                                                    const totalKonvApprox =
-                                                                        nilaiBesar && nilaiKecil
-                                                                            ? Math.max(1, Math.round(nilaiKecil / Math.max(1, nilaiBesar)))
-                                                                            : modalData.nilai_konversi || 1;
-                                                                    const konvSk =
-                                                                        nilaiSedang && nilaiKecil
-                                                                            ? Math.max(1, Math.round(nilaiKecil / Math.max(1, nilaiSedang)))
-                                                                            : Math.max(1, Math.round(totalKonvApprox / Math.max(1, konvBs)));
-                                                                    const totalKonv = Math.max(1, konvBs) * Math.max(1, konvSk);
-
-                                                                    // Simpan faktor konversi (set nilai_konversi_bs dahulu agar dipakai saat set nilai_konversi)
-                                                                    updateModalData('nilai_konversi_bs', konvBs);
-                                                                    updateModalData('nilai_konversi', totalKonv);
-
-                                                                    // Set nilai satuan di semua level bila tersedia / dapat diturunkan
-                                                                    const nilaiSedangFinal =
-                                                                        nilaiSedang || (nilaiBesar ? nilaiBesar * Math.max(1, konvBs) : 0);
-                                                                    const nilaiKecilFinal =
-                                                                        nilaiKecil ||
-                                                                        (nilaiSedang
-                                                                            ? nilaiSedang * Math.max(1, konvSk)
-                                                                            : nilaiBesar
-                                                                                ? nilaiBesar * totalKonv
-                                                                                : 0);
+                                                                    // Tetapkan nilai satuan mengikuti data asli (jangan menurunkan jika null)
+                                                                    const nilaiBesar = Number(item?.nilai_satuan_besar ?? 0);
+                                                                    const nilaiSedang = Number(item?.nilai_satuan_sedang ?? 0);
+                                                                    const nilaiKecil = Number(item?.nilai_satuan_kecil ?? 0);
 
                                                                     updateModalData('nilai_satuan_besar', String(nilaiBesar || 0));
-                                                                    updateModalData('nilai_satuan_sedang', String(nilaiSedangFinal || 0));
-                                                                    updateModalData('nilai_satuan_kecil', String(nilaiKecilFinal || 0));
+                                                                    updateModalData('nilai_satuan_sedang', String(nilaiSedang || 0));
+                                                                    updateModalData('nilai_satuan_kecil', String(nilaiKecil || 0));
+
+                                                                    // Set faktor konversi total (besar -> kecil). Jika kecil tidak ada, gunakan besar*sedang.
+                                                                    const konvBs = Math.max(1, nilaiSedang || 1);
+                                                                    const konvSk = Math.max(1, nilaiKecil || 1);
+                                                                    const totalKonv = Math.max(1, nilaiBesar || 1) * konvBs * konvSk;
+                                                                    updateModalData('nilai_konversi_bs', konvBs);
+                                                                    updateModalData('nilai_konversi_sk', konvSk);
+                                                                    updateModalData('nilai_konversi', totalKonv);
 
                                                                     // Set default qty pembelian (bukan dari nilai_satuan_*). Default ke 1 jika kosong.
                                                                     if (!modalData.qty || modalData.qty === '0') {
                                                                         updateModalData('qty', '1');
+                                                                    }
+
+                                                                    // Atur posisi switch berdasarkan ketersediaan unit: jika kecil tidak ada, aktifkan kanan (sedang/besar)
+                                                                    const availAfter = getUnitAvailability({
+                                                                        ...(modalData as any),
+                                                                        nilai_satuan_besar: String(nilaiBesar || 0),
+                                                                        nilai_satuan_sedang: String(nilaiSedang || 0),
+                                                                        nilai_satuan_kecil: String(nilaiKecil || 0),
+                                                                    } as any);
+                                                                    if (!availAfter.hasKecil && availAfter.right) {
+                                                                        updateModalData('kemasan_besar', true);
+                                                                    } else {
+                                                                        updateModalData('kemasan_besar', false);
                                                                     }
                                                                 }}
                                                             >
@@ -1427,22 +1462,46 @@ export default function PembelianIndex() {
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                                                         <div className="space-y-2">
                                                             <Label>Jenis Kemasan</Label>
+                                                            {(() => {
+                                                                const avail = getUnitAvailability(modalData);
+                                                                const leftLabel =
+                                                                    avail.left === 'kecil'
+                                                                        ? 'Kemasan Kecil'
+                                                                        : avail.left === 'sedang'
+                                                                            ? 'Kemasan Sedang'
+                                                                            : 'Kemasan Besar';
+                                                                const rightLabel =
+                                                                    avail.right === 'sedang'
+                                                                        ? 'Kemasan Sedang'
+                                                                        : avail.right === 'besar'
+                                                                            ? 'Kemasan Besar'
+                                                                            : '';
+                                                                const isDisabled = !avail.right; // hanya satu unit tersedia
+                                                                const isRightActive = isDisabled ? false : Boolean(modalData.kemasan_besar);
+                                                                return (
                                                             <div className="flex items-center justify-center space-x-4">
-                                                                <span className={modalData.kemasan_besar ? 'text-gray-500' : 'font-medium'}>
-                                                                    Kemasan Kecil
-                                                                </span>
+                                                                        <span className={isRightActive ? 'text-gray-500' : 'font-medium'}>{leftLabel}</span>
                                                                 <Switch
-                                                                    checked={modalData.kemasan_besar}
-                                                                    onCheckedChange={(checked) => updateModalData('kemasan_besar', checked)}
-                                                                />
-                                                                <span className={modalData.kemasan_besar ? 'font-medium' : 'text-gray-500'}>
-                                                                    Kemasan Besar
-                                                                </span>
+                                                                            checked={isRightActive}
+                                                                            disabled={isDisabled}
+                                                                            onCheckedChange={(checked) => {
+                                                                                if (!isDisabled) updateModalData('kemasan_besar', checked);
+                                                                            }}
+                                                                        />
+                                                                        {avail.right && (
+                                                                            <span className={isRightActive ? 'font-medium' : 'text-gray-500'}>{rightLabel}</span>
+                                                                        )}
                                                             </div>
+                                                                );
+                                                            })()}
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label>
-                                                                Qty Pembelian ({modalData.kemasan_besar ? 'Kemasan Besar' : 'Kemasan Kecil'})
+                                                                {(() => {
+                                                                    const avail = getActiveUnit(modalData);
+                                                                    const unitLabel = avail.active === 'kecil' ? 'Kemasan Kecil' : avail.active === 'sedang' ? 'Kemasan Sedang' : 'Kemasan Besar';
+                                                                    return `Qty Pembelian (${unitLabel})`;
+                                                                })()}
                                                             </Label>
                                                             <Input
                                                                 type="number"
@@ -1452,7 +1511,13 @@ export default function PembelianIndex() {
                                                             />
                                                         </div>
                                                         <div className="space-y-2">
-                                                            <Label>Harga Satuan</Label>
+                                                            <Label>
+                                                                {(() => {
+                                                                    const avail = getActiveUnit(modalData);
+                                                                    const unitLabel = avail.active === 'kecil' ? 'Kemasan Kecil' : avail.active === 'sedang' ? 'Kemasan Sedang' : 'Kemasan Besar';
+                                                                    return `Harga Satuan (${unitLabel})`;
+                                                                })()}
+                                                            </Label>
                                                             <Input
                                                                 type="number"
                                                                 value={modalData.harga_satuan}
@@ -1501,11 +1566,23 @@ export default function PembelianIndex() {
                                                     {/* Info readonly */}
                                                     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                                                         <div className="space-y-2">
-                                                            <Label>Qty Aktual (Satuan Kecil)</Label>
+                                                            <Label>
+                                                                {(() => {
+                                                                    const avail = getUnitAvailability(modalData);
+                                                                    const smallest = avail.hasKecil ? 'Satuan Kecil' : (avail.hasSedang ? 'Satuan Sedang' : 'Satuan Besar');
+                                                                    return `Qty Aktual (${smallest})`;
+                                                                })()}
+                                                            </Label>
                                                             <Input type="number" value={modalData.qty_aktual || '0'} readOnly />
                                                         </div>
                                                         <div className="space-y-2">
-                                                            <Label>Harga Satuan Kecil</Label>
+                                                            <Label>
+                                                                {(() => {
+                                                                    const avail = getUnitAvailability(modalData);
+                                                                    const smallest = avail.hasKecil ? 'Satuan Kecil' : (avail.hasSedang ? 'Satuan Sedang' : 'Satuan Besar');
+                                                                    return `Harga ${smallest}`;
+                                                                })()}
+                                                            </Label>
                                                             <Input
                                                                 type="number"
                                                                 value={modalData.harga_satuan_kecil || '0'}
@@ -1651,6 +1728,14 @@ export default function PembelianIndex() {
                                                         <p className="text-xs text-muted-foreground">Default 5 tahun dari hari ini</p>
                                                     </div>
                                                     <div className="space-y-2">
+                                                        <Label>Batch</Label>
+                                                        <Input
+                                                            value={modalData.batch}
+                                                            onChange={(e) => updateModalData('batch', e.target.value)}
+                                                            placeholder="Batch"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
                                                         <Label>Tanggal Pembelian</Label>
                                                         <Input
                                                             type="date"
@@ -1738,6 +1823,21 @@ export default function PembelianIndex() {
                                                         <span>Sub Total:</span>
                                                         <span className="font-medium" id="sub_total_keseluruhan">
                                                             Rp {parseFloat(pembelianData.sub_total || '0').toLocaleString('id-ID')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>
+                                                            {pembelianData.diskon_header_persen
+                                                                ? `Diskon Header (${pembelianData.diskon_header || '0'}%)`
+                                                                : `Diskon Header (Rp ${parseFloat(pembelianData.diskon_header || '0').toLocaleString('id-ID')})`}
+                                                        </span>
+                                                        <span className="font-medium text-red-600">
+                                                            {(() => {
+                                                                const sub = parseFloat(pembelianData.sub_total || '0') || 0;
+                                                                const hdr = parseFloat(pembelianData.diskon_header || '0') || 0;
+                                                                const nominal = pembelianData.diskon_header_persen ? sub * (hdr / 100) : hdr;
+                                                                return `Rp ${nominal.toLocaleString('id-ID')}`;
+                                                            })()}
                                                         </span>
                                                     </div>
                                                     <div className="flex justify-between">

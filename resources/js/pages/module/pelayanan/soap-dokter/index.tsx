@@ -74,6 +74,7 @@ export default function PelayananSoapDokter() {
     const [pelayanan, setPelayanan] = useState<PelayananData[]>(initialPelayanan);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
+    const [isBusy, setIsBusy] = useState(false);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -99,8 +100,19 @@ export default function PelayananSoapDokter() {
         });
     };
 
+    // Silent reload untuk polling agar tidak mengganggu UI
+    const reloadPelayananSilent = () => {
+        router.reload({
+            only: ['pelayanan'],
+            // Note: preserveState/preserveScroll tidak tersedia di ReloadOptions tipe Inertia
+            // Kita tetap "silent" dengan tidak mengubah loading state dan hanya memuat prop 'pelayanan'
+            onError: () => toast.error('Gagal memuat ulang data pelayanan'),
+        });
+    };
+
     const handlePanggilPasien = async (norawat: string) => {
         try {
+            setIsBusy(true);
             const encodedNorawat = btoa(norawat);
             const res = await fetch(`/api/pelayanan/hadir-dokter/${encodedNorawat}`, {
                 method: 'GET',
@@ -109,17 +121,20 @@ export default function PelayananSoapDokter() {
             const data = await res.json().catch(() => ({}));
             if (res.ok && data?.success) {
                 toast.success(data.message || 'Pasien dipanggil');
-                reloadPelayanan();
+                reloadPelayananSilent();
             } else {
                 toast.error(data?.message || 'Gagal memanggil pasien');
             }
         } catch (error) {
             toast.error('Gagal memanggil pasien');
+        } finally {
+            setIsBusy(false);
         }
     };
 
     const handlePasienSelesai = async (norawat: string) => {
         try {
+            setIsBusy(true);
             const encodedNorawat = btoa(norawat);
             const csrf = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
             const res = await fetch(`/api/pelayanan/selesai-dokter/${encodedNorawat}`, {
@@ -133,12 +148,14 @@ export default function PelayananSoapDokter() {
             const data = await res.json().catch(() => ({}));
             if (res.ok && data?.success) {
                 toast.success(data.message || 'Pasien selesai diperiksa');
-                reloadPelayanan();
+                reloadPelayananSilent();
             } else {
                 toast.error(data?.message || 'Gagal menandai pasien selesai');
             }
         } catch (error) {
             toast.error('Gagal menandai pasien selesai');
+        } finally {
+            setIsBusy(false);
         }
     };
 
@@ -173,6 +190,59 @@ export default function PelayananSoapDokter() {
     useEffect(() => {
         setCurrentPage(1);
     }, [search]);
+
+    // Polling ringan (visible-only) dengan silent reload dan guard interaksi
+    useEffect(() => {
+        let timer: number | undefined;
+
+        const isTyping = () => {
+            const ae = document.activeElement as HTMLElement | null;
+            const tag = ae?.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA';
+        };
+
+        const tick = () => {
+            if (document.visibilityState !== 'visible') return;
+            if (isBusy) return;
+            if (isTyping()) return;
+            reloadPelayananSilent();
+        };
+
+        const start = () => {
+            if (document.visibilityState === 'visible') {
+                tick();
+                timer = window.setInterval(tick, 8000);
+            }
+        };
+
+        const stop = () => {
+            if (timer) {
+                clearInterval(timer);
+                timer = undefined;
+            }
+        };
+
+        const onVisibilityChange = () => {
+            stop();
+            start();
+        };
+
+        start();
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => {
+            stop();
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
+    }, [isBusy]);
+
+    // Revalidate on focus
+    useEffect(() => {
+        const onFocus = () => {
+            if (!isBusy) reloadPelayananSilent();
+        };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [isBusy]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {

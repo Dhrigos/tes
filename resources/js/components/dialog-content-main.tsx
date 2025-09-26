@@ -223,6 +223,8 @@ function ConfigBPJS() {
         USER_KEY: '',
         USERNAME: '',
         PASSWORD: '',
+        MOBILE_JKN_USER: '',
+        MOBILE_JKN_PASS: '',
     });
     const [loading, setLoading] = useState(false);
     const [enabled, setEnabled] = useState<boolean>(true);
@@ -239,6 +241,8 @@ function ConfigBPJS() {
                 USER_KEY: bpjs.USER_KEY || '',
                 USERNAME: bpjs.USERNAME || '',
                 PASSWORD: bpjs.PASSWORD || '',
+                MOBILE_JKN_USER: bpjs.MOBILE_JKN_USER || '',
+                MOBILE_JKN_PASS: bpjs.MOBILE_JKN_PASS || '',
             });
         }
     }, [props?.set_bpjs]);
@@ -398,6 +402,28 @@ function ConfigBPJS() {
                                     onChange={handleChange}
                                     placeholder="••••••••"
                                     required
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Mobile JKN Username</label>
+                                <Input
+                                    name="MOBILE_JKN_USER"
+                                    type="text"
+                                    value={formData.MOBILE_JKN_USER}
+                                    onChange={handleChange}
+                                    placeholder="Masukkan Username Mobile JKN"
+                                    disabled={!enabled || loading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Mobile JKN Password</label>
+                                <Input
+                                    name="MOBILE_JKN_PASS"
+                                    type="password"
+                                    value={formData.MOBILE_JKN_PASS}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
                                     disabled={!enabled || loading}
                                 />
                             </div>

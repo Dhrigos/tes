@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\Dashboard\DashboardController;
+use App\Http\Controllers\Module\Antrian\Antrian_Controller;
 use App\Http\Controllers\Module\Master\Data\Umum\Agama_Controller;
 use App\Http\Controllers\Module\Master\Data\Umum\Asuransi_Controller;
 use App\Http\Controllers\Module\Master\Data\Umum\Bahasa_Controller;
@@ -66,9 +67,11 @@ use App\Http\Controllers\Module\Gudang\Stok_Obat_Klinik_Controller;
 use App\Http\Controllers\Module\Gudang\Stok_Inventaris_Klinik_Controller;
 use App\Http\Controllers\Module\Gudang\Permintaan_Barang_Controller;
 use App\Http\Controllers\Module\Gudang\Daftar_Permintaan_Barang_Controller;
+use App\Http\Controllers\Module\Gudang\Pengeluaran_Barang_Controller;
 use App\Http\Controllers\Module\Apotek\Apotek_Controller;
 use App\Http\Controllers\Module\Kasir\Kasir_Controller;
 use App\Http\Controllers\Module\Laporan\Laporan_Controller;
+use App\Http\Controllers\Module\Antrian\Monitor_Controller;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 
@@ -322,8 +325,6 @@ Route::middleware(['auth'])->prefix('datamaster')->as('datamaster.')->group(func
         Route::put('/daftar-harga-jual/{daftarHargaJual}', [Daftar_Harga_Jual_Controller::class, 'update'])->name('daftar-harga-jual.update');
         Route::delete('/daftar-harga-jual/{daftarHargaJual}', [Daftar_Harga_Jual_Controller::class, 'destroy'])->name('daftar-harga-jual.destroy');
 
-
-
         // Daftar Harga Jual Klinik
         Route::get('/daftar-harga-jual-klinik',  [Daftar_Harga_Jual_Klinik_Controller::class, 'index'])->name('daftar-harga-jual-klinik.index');
         Route::post('/daftar-harga-jual-klinik', [Daftar_Harga_Jual_Klinik_Controller::class, 'store'])->name('daftar-harga-jual-klinik.store');
@@ -388,6 +389,8 @@ Route::prefix('api/master')->group(function () {
     Route::get('/tindakan', [Tindakan_Controller::class, 'listAll']);
 });
 Route::get('/pendaftaran-online', [Pendaftaran_online_Controller::class, 'index'])->name('pendaftaran-online');
+Route::post('/pendaftaran-online/ambil-antrian', [Pendaftaran_online_Controller::class, 'ambilAntrian'])->name('pendaftaran-online.ambil-antrian');
+Route::get('/pendaftaran-online/cetak-antrian', [Pendaftaran_online_Controller::class, 'cetakAntrian'])->name('pendaftaran-online.cetak-antrian');
 Route::post('/pendaftaran-online/add', [Pendaftaran_online_Controller::class, 'add'])->name('pendaftaran-online.add');
 
 Route::middleware(['auth', 'verified'])->prefix('pembelian')->as('pembelian.')->group(function () {
@@ -411,6 +414,9 @@ Route::middleware(['auth', 'verified'])->prefix('gudang')->as('gudang.')->group(
 
     Route::get('/daftar-permintaan-barang', [Daftar_Permintaan_Barang_Controller::class, 'index'])->name('daftar-permintaan-barang.index');
     Route::post('/daftar-permintaan-barang/konfirmasi', [Daftar_Permintaan_Barang_Controller::class, 'konfirmasi'])->name('daftar-permintaan-barang.konfirmasi');
+
+    Route::get('/pengeluaran-barang', [Pengeluaran_Barang_Controller::class, 'index'])->name('pengeluaran-barang.index');
+    Route::post('/pengeluaran-barang', [Pengeluaran_Barang_Controller::class, 'store'])->name('pengeluaran-barang.store');
 });
 
 // Pelayanan routes
@@ -505,35 +511,53 @@ Route::middleware(['auth', 'verified'])->prefix('laporan')->as('laporan.')->grou
     Route::post('/dokter/export', [Laporan_Controller::class, 'export_dokter'])->name('dokter.export');
 
     Route::get('/perawat', [Laporan_Controller::class, 'pendataan_perawat'])->name('perawat');
-    // removed print_perawat and print_perawat_detail
     Route::post('/perawat/export', [Laporan_Controller::class, 'export_perawat'])->name('perawat.export');
 
     Route::get('/apotek', [Laporan_Controller::class, 'apotek'])->name('apotek');
-    // removed print_apotek
     Route::post('/apotek/export', [Laporan_Controller::class, 'export_apotek'])->name('apotek.export');
 
     Route::get('/stok-penyesuaian', [Laporan_Controller::class, 'laporan_stok_penyesuaian'])->name('stok-penyesuaian');
-    // removed print_stok_penyesuaian
     Route::post('/stok-penyesuaian/export', [Laporan_Controller::class, 'export_stok_penyesuaian'])->name('stok-penyesuaian.export');
 
     Route::get('/kasir', [Laporan_Controller::class, 'kasir'])->name('kasir');
-    // removed print_kasir
     Route::post('/kasir/export', [Laporan_Controller::class, 'export_kasir'])->name('kasir.export');
 
     // API untuk ambil detail kasir per invoice (tempatkan sebelum route parameter)
     Route::get('/kasir-detail/data', [Laporan_Controller::class, 'kasir_detail_data'])->name('kasir-detail.data');
-    // Print detail: dukung tanpa parameter kode_faktur (data dikirim dari client)
-    // removed kasir_detail_print
 
     // Pembelian
     Route::get('/pembelian', [Laporan_Controller::class, 'pembelian'])->name('pembelian');
-    // removed print_pembelian
     Route::post('/pembelian/export', [Laporan_Controller::class, 'export_pembelian'])->name('pembelian.export');
+
+    // Pengeluaran Barang
+    Route::get('/pengeluaran-barang', [Laporan_Controller::class, 'pengeluaran_barang'])->name('pengeluaran-barang');
+    Route::post('/pengeluaran-barang/export', [Laporan_Controller::class, 'export_pengeluaran_barang'])->name('pengeluaran-barang.export');
+});
+
+// Antrian route
+Route::get('/antrian', [Antrian_Controller::class, 'index']);
+Route::get('/antrian/loket', [Antrian_Controller::class, 'loket_antrian']);
+
+// Monitor Antrian Routes - untuk tampilan TV/Monitor
+Route::get('/loket-antrian', [Monitor_Controller::class, 'tampilkan_antrian'])->name('loket-antrian');
+
+// API routes untuk monitor antrian (hanya untuk tampilan, button panggil ada di halaman masing-masing)
+Route::prefix('api/antrian')->group(function () {
+    Route::get('/data', [Monitor_Controller::class, 'ambil_data_antrian']);
+    Route::get('/stats', [Monitor_Controller::class, 'ambil_statistik_antrian']);
+    Route::post('/reset-daily', [Monitor_Controller::class, 'reset_antrian_harian']);
+    Route::post('/panggil', [Monitor_Controller::class, 'panggil_antrian'])->name('antrian.panggil');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 });
 
+
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
+
+
+
+
+

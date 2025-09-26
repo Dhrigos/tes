@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -161,8 +162,11 @@ const PendaftaranDashboard = () => {
     const [selectedPoli, setSelectedPoli] = useState('');
     const [selectedDokter, setSelectedDokter] = useState('');
     const [selectedPenjamin, setSelectedPenjamin] = useState('');
-    const [tanggalKujungan, setTanggalKujungan] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [waktuKunjungan, setWaktuKunjungan] = useState('08:00');
+    const now = new Date();
+    const [tanggalKujungan, setTanggalKunjungan] = useState<string>(now.toISOString().split('T')[0]);
+    const [waktuKunjungan, setWaktuKunjungan] = useState(
+        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    );
     const [hariKunjungan, setHariKunjungan] = useState('');
     const [hariList, setHariList] = useState<string[]>([]);
 
@@ -645,14 +649,31 @@ const PendaftaranDashboard = () => {
     };
 
     const resetForm = () => {
-        setSelectedPasien('');
-        setSelectedPoli('');
-        setSelectedDokter('');
-        setSelectedPenjamin('');
-        setTanggalKujungan(new Date().toISOString().split('T')[0]);
-        setWaktuKunjungan('08:00');
-        setHariKunjungan('');
-        setSearchPasien('');
+        try {
+            setSelectedPasien('');
+            setSelectedPoli('');
+            setSelectedDokter('');
+            setSelectedPenjamin('');
+            const hariIni = new Date().toISOString().split('T')[0];
+            
+            // Set tanggal kunjungan
+            setTanggalKunjungan(hariIni);
+            
+            // Set hari kunjungan berdasarkan tanggal
+            const daftarHari = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+            const namaHari = daftarHari[new Date(hariIni).getDay()];
+            setHariKunjungan(namaHari);
+            
+            // Set waktu kunjungan ke waktu sekarang (HH:MM)
+            const now = new Date();
+            const jam = String(now.getHours()).padStart(2, '0');
+            const menit = String(now.getMinutes()).padStart(2, '0');
+            setWaktuKunjungan(`${jam}:${menit}`);
+            setSearchPasien('');
+            setFilteredPasienList(pasienList);
+        } catch (error) {
+            console.error('Error in resetForm:', error);
+        }
     };
 
     const resetActionState = () => {
@@ -1046,9 +1067,23 @@ const PendaftaranDashboard = () => {
                                                     </td>
                                                     <td className="p-2 text-center">
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Badge variant="outline" className="text-xs">
-                                                                {getStatusPendaftaran(item.status?.Status_aplikasi || 1)}
-                                                            </Badge>
+                                                            {(() => {
+                                                                const statusVal =
+                                                                    typeof item.status === 'number'
+                                                                        ? item.status
+                                                                        : Number(item.status?.Status_aplikasi ?? 1);
+                                                                const badgeClass =
+                                                                    statusVal === 2
+                                                                        ? 'bg-green-100 text-green-800 border border-green-200'
+                                                                        : statusVal === 3
+                                                                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                                                        : 'bg-gray-100 text-gray-800 border border-gray-200';
+                                                                return (
+                                                                    <Badge className={`text-xs ${badgeClass}`}>
+                                                                        {getStatusPendaftaran(statusVal)}
+                                                                    </Badge>
+                                                                );
+                                                            })()}
                                                             {/* Jika loket KIA (kode 'K'), tampilkan badge status bidan */}
                                                             {String(item?.poli?.kode || '').toUpperCase() === 'K'
                                                                 ? (() => {
@@ -1333,16 +1368,31 @@ const PendaftaranDashboard = () => {
             </div>
 
             {/* Add Patient Modal */}
-            <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-                <DialogContent className="!max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Plus className="h-5 w-5" />
-                            Tambah Pendaftaran Pasien
-                        </DialogTitle>
-                    </DialogHeader>
+            <AnimatePresence>
+                {showAddModal && (
+                    <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+                        <DialogContent className="!max-w-4xl p-0 overflow-hidden">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -20 }}
+                                transition={{ 
+                                    duration: 0.2, 
+                                    ease: "easeOut",
+                                    type: "spring",
+                                    stiffness: 300,
+                                    damping: 30
+                                }}
+                                className="p-6"
+                            >
+                                <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 mb-5">
+                                        <Plus className="h-5 w-5" />
+                                        Tambah Pendaftaran Pasien
+                                    </DialogTitle>
+                                </DialogHeader>
 
-                    <form onSubmit={handleAddPendaftaran} className="space-y-8">
+                                <form onSubmit={handleAddPendaftaran} className="space-y-8">
                         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
                             {/* Form Pendaftaran */}
                             <div className="xl:col-span-2">
@@ -1436,7 +1486,7 @@ const PendaftaranDashboard = () => {
                                         <Input
                                             type="date"
                                             value={tanggalKujungan}
-                                            onChange={(e) => setTanggalKujungan(e.target.value)}
+                                            onChange={(e) => setTanggalKunjungan(e.target.value)}
                                             min={new Date().toISOString().split('T')[0]}
                                             className="dark:[&::-webkit-calendar-picker-indicator]:invert"
                                         />
@@ -1448,7 +1498,8 @@ const PendaftaranDashboard = () => {
                                     {/* Waktu Kunjungan */}
                                     <div>
                                         <Label htmlFor="waktu">Waktu Kunjungan</Label>
-                                        <Input type="time" value={waktuKunjungan} onChange={(e) => setWaktuKunjungan(e.target.value)} />
+                                        <Input type="time" value={waktuKunjungan} onChange={(e) => setWaktuKunjungan(e.target.value)} 
+                                          className="dark:[&::-webkit-calendar-picker-indicator]:invert"/>
                                     </div>
 
                                     {/* Poli */}
@@ -1691,17 +1742,20 @@ const PendaftaranDashboard = () => {
                             </div>
                         </div>
 
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
-                                Batal
-                            </Button>
-                            <Button type="submit" disabled={loading || !selectedPasien || !selectedPoli || !selectedDokter || !selectedPenjamin}>
-                                {loading ? 'Menyimpan...' : 'Simpan Pendaftaran'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
+                                        Batal
+                                    </Button>
+                                    <Button type="submit" disabled={loading || !selectedPasien || !selectedPoli || !selectedDokter || !selectedPenjamin}>
+                                        {loading ? 'Menyimpan...' : 'Simpan Pendaftaran'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </motion.div>
+                    </DialogContent>
+                </Dialog>
+                )}
+            </AnimatePresence>
 
             {/* Recap Modal */}
             <Dialog open={showRekapModal} onOpenChange={setShowRekapModal}>

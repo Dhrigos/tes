@@ -138,12 +138,22 @@
 </head>
 
 <body>
-    <div class="header">
-        <div class="clinic-name">{{ $namaKlinik }}</div>
-        <div class="clinic-info">
-            {!! nl2br(e($alamatKlinik)) !!}
-        </div>
-    </div>
+    <table style="width: 100%; margin-bottom: 10px;">
+        <tr>
+            <td style="width: 60px; text-align: center; vertical-align: middle;">
+                <img src="{{ public_path('profile/default.png') }}" alt="Logo"
+                    style="width: 75px; height: 75px; border-radius: 50%;">
+            </td>
+            <td style="text-align: center;">
+                <div style="font-size: 14px; font-weight: bold; margin: 0;">
+                    {{ $namaKlinik }}
+                </div>
+                <div style="font-size: 9px; line-height: 1.3; margin: 0;">
+                    {!! nl2br(e($alamatKlinik)) !!}
+                </div>
+            </td>
+        </tr>
+    </table>
 
     <div class="divider"></div>
 

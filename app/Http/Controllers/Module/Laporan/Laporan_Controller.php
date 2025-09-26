@@ -12,12 +12,15 @@ use App\Models\Module\Kasir\Kasir_Detail;
 use App\Models\Module\Apotek\Apotek;
 use App\Models\Module\Pembelian\Pembelian;
 use App\Models\Module\Pelayanan\Pelayanan_Soap_Dokter_Icd;
+use App\Models\Module\Gudang\PengeluaranBarang;
+use App\Models\Module\Master\Data\Gudang\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StokPenyesuaianExport;
 use App\Exports\GenericArrayExport;
+use App\Http\Controllers\Module\Gudang\Pengeluaran_Barang_Controller;
 
 class Laporan_Controller extends Controller
 {
@@ -32,8 +35,6 @@ class Laporan_Controller extends Controller
             'data' => $data,
         ]);
     }
-
-    // removed print_antrian
 
     public function export_antrian(Request $request)
     {
@@ -482,8 +483,6 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-
-
     public function export_kasir(Request $request)
     {
         $data = json_decode($request->input('data'), true) ?: [];
@@ -604,8 +603,6 @@ class Laporan_Controller extends Controller
         return response()->json(['data' => $details]);
     }
 
-
-
     public function top_icd10()
     {
         $title = "Top ICD-10";
@@ -626,7 +623,6 @@ class Laporan_Controller extends Controller
         ]);
     }
 
-
     private function formatRupiah($amount)
     {
         return 'Rp ' . number_format($amount, 0, ',', '.');
@@ -643,8 +639,6 @@ class Laporan_Controller extends Controller
             'header' => $header,
         ]);
     }
-
-
 
     public function export_pembelian(Request $request)
     {
@@ -705,5 +699,78 @@ class Laporan_Controller extends Controller
         }, $rows);
         $filename = 'top_icd10_' . now()->format('Ymd_His') . '.xlsx';
         return Excel::download(new GenericArrayExport($headers, $mapped), $filename);
+    }
+
+    // Laporan Pengeluaran Barang (header only)
+    public function pengeluaran_barang()
+    {
+        $title = "Laporan Pengeluaran Barang";
+        $header = PengeluaranBarang::with(['supplier', 'items'])->orderByDesc('created_at')->get();
+
+        return Inertia::render('module/laporan/pengeluaran-barang/index', [
+            'title' => $title,
+            'header' => $header,
+        ]);
+    }
+
+    public function export_pengeluaran_barang(Request $request)
+    {
+        $data = json_decode($request->input('data'), true) ?: [];
+        $tanggal_awal = $request->input('tanggal_awal');
+        $tanggal_akhir = $request->input('tanggal_akhir');
+        $jenis = $request->input('jenis');
+        $supplier = $request->input('supplier');
+        $kode = $request->input('kode');
+        
+        // Headers untuk data pengeluaran barang dengan detail items
+        $headers = ['No', 'Kode Barang Keluar', 'Jenis Pengeluaran', 'Keterangan', 'Nama Pemeriksa', 'Nama approver', 'Tanggal Return', 'Supplier', 'Tanggal', 'Kode Obat/Alkes', 'Nama Obat/Alkes', 'Batch', 'Qty'];
+        
+        // Menyusun data dengan pendekatan seperti export_kasir
+        $rows = [];
+        foreach ($data as $index => $it) {
+            // Baris utama untuk pengeluaran barang
+            $rows[] = [
+                $index + 1,
+                $it['kode_barang_keluar'] ?? '-',
+                $it['jenis_pengeluaran'] ?? '-',
+                $it['keterangan'] ?? '-',
+                $it['nama_pemeriksa'] ?? '-',
+                $it['nama_approver'] ?? '-',
+                $it['tanggal_return'] ?? '-',
+                $it['supplier'] ?? '-',
+                $it['created_at'] ?? '-',
+                '',  // Kode Obat/Alkes (kosong untuk baris utama)
+                '',  // Nama Obat/Alkes (kosong untuk baris utama)
+                '',  // Batch (kosong untuk baris utama)
+                '',  // Qty (kosong untuk baris utama)
+            ];
+            
+            // Menambahkan detail items sebagai baris tambahan
+            if (isset($it['items']) && is_array($it['items'])) {
+                foreach ($it['items'] as $detail) {
+                    $rows[] = [
+                        '',  // No (kosong untuk detail)
+                        '',  // Kode Barang Keluar (kosong untuk detail)
+                        '',  // Jenis Pengeluaran (kosong untuk detail)
+                        '',  // Keterangan (kosong untuk detail)
+                        '',  // Nama Pemeriksa (kosong untuk detail)
+                        '',  // Nama approver (kosong untuk detail)
+                        '',  // Tanggal Return (kosong untuk detail)
+                        '',  // Supplier (kosong untuk detail)
+                        '',  // Tanggal (kosong untuk detail)
+                        $detail['kode_obat_alkes'] ?? '-',
+                        $detail['nama_obat_alkes'] ?? '-',
+                        $detail['batch'] ?? '-',
+                        $detail['qty'] ?? 0,
+                    ];
+                }
+            }
+        }
+        
+        // Membuat nama file yang lebih deskriptif
+        $filename = 'laporan_pengeluaran_barang_' . now()->format('Ymd_His') . '.xlsx';
+        
+        // Membuat export dengan single sheet
+        return Excel::download(new GenericArrayExport($headers, $rows), $filename);
     }
 }

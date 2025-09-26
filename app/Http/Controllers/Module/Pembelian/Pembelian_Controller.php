@@ -42,15 +42,21 @@ class Pembelian_Controller extends Controller
                 // Validasi data
                 $request->validate([
                     'jenis_pembelian' => 'required|in:obat,inventaris,obat_klinik,inventaris_klinik',
+                    // Terima kedua nama field untuk kompatibilitas frontend: kategori_pembelian atau jenis_pembelian_tipe
+                    'kategori_pembelian' => 'nullable|string|in:Reguler,Reguler Pre-Order,Konsinyasi',
+                    'jenis_pembelian_tipe' => 'nullable|string|in:Reguler,Reguler Pre-Order,Konsinyasi',
                     'nomor_faktur' => 'required|string',
                     'supplier' => 'nullable|string',
                     'no_po_sp' => 'nullable|string',
+                    'no_surat_jalan' => 'nullable|string',
                     'no_faktur_supplier' => 'nullable|string',
                     'tanggal_terima_barang' => 'nullable|string',
                     'tanggal_faktur' => 'nullable|string',
                     'tanggal_jatuh_tempo' => 'nullable|string',
                     'pajak_ppn' => 'nullable|string',
                     'metode_hna' => 'nullable|string',
+                    'diskon_header' => 'nullable|string',
+                    'diskon_header_persen' => 'nullable|boolean',
                     'sub_total' => 'nullable|string',
                     'total_diskon' => 'nullable|string',
                     'ppn_total' => 'nullable|string',
@@ -90,17 +96,21 @@ class Pembelian_Controller extends Controller
                 }
 
                 $pembelian = DB::transaction(function () use ($request) {
+                    $kategoriPembelian = $request->input('kategori_pembelian', $request->input('jenis_pembelian_tipe'));
                     $header = Pembelian::create([
                         'jenis_pembelian' => $request->jenis_pembelian,
+                        'kategori_pembelian' => $kategoriPembelian,
                         'nomor_faktur' => $request->nomor_faktur,
                         'supplier' => $request->supplier,
                         'no_po_sp' => $request->no_po_sp,
+                        'no_surat_jalan' => $request->no_surat_jalan,
                         'no_faktur_supplier' => $request->no_faktur_supplier,
                         'tanggal_terima_barang' => $request->tanggal_terima_barang,
                         'tanggal_faktur' => $request->tanggal_faktur,
                         'tanggal_jatuh_tempo' => $request->tanggal_jatuh_tempo,
                         'pajak_ppn' => $request->pajak_ppn ?: '0',
                         'metode_hna' => $request->metode_hna,
+                        'diskon_header' => $request->diskon_header ?: '0',
                         'sub_total' => $request->sub_total ?: '0',
                         'total_diskon' => $request->total_diskon ?: '0',
                         'ppn_total' => $request->ppn_total ?: '0',
@@ -151,7 +161,8 @@ class Pembelian_Controller extends Controller
                                 'kondisi' => $detail['kondisi'] ?? 'Baik',
                                 'masa_akhir_penggunaan' => $detail['exp'] ?? null,
                                 'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
-                                'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
+                                'batch' => $detail['batch'] ?? null,
+                                'detail_barang' => $detail['deskripsi_barang'] ?? null,
                             ]);
                             if ($request->jenis_pembelian === 'inventaris') {
                                 Stok_Inventaris::create([
@@ -168,7 +179,7 @@ class Pembelian_Controller extends Controller
                                     'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
                                     'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
                                     'penanggung_jawab' => $detail['penanggung_jawab'] ?? '-',
-                                    'no_seri' => $detail['no_seri'] ?? null,
+                                    'no_seri' => $detail['batch'] ?? null,
                                 ]);
                             } else { // inventaris_klinik
                                 Stok_Inventaris_Klinik::create([
@@ -185,7 +196,7 @@ class Pembelian_Controller extends Controller
                                     'tanggal_pembelian' => $detail['tanggal_pembelian'] ?? ($request->tgl_pembelian),
                                     'detail_barang' => $detail['deskripsi_barang'] ?? ('Batch: ' . ($detail['batch'] ?? '-')),
                                     'penanggung_jawab' => $detail['penanggung_jawab'] ?? '-',
-                                    'no_seri' => $detail['no_seri'] ?? null,
+                                    'no_seri' => $detail['batch'] ?? null,
                                 ]);
                             }
                         } else {
@@ -204,9 +215,10 @@ class Pembelian_Controller extends Controller
                                 Stok_Barang::create([
                                     'kode_obat_alkes' => $detail['kode_obat_alkes'],
                                     'nama_obat_alkes' => $detail['nama_obat_alkes'],
-                                    'qty' => $detail['qty'],
+                                    'qty' => $detail['qty'],                                    
                                     'tanggal_terima_obat' => $request->tanggal_terima_barang ?? now()->format('Y-m-d'),
                                     'expired' => $detail['exp'] ?? null,
+                                    'nomor_seri' => $detail['batch'] ?? null,
                                 ]);
                             } else { // obat_klinik
                                 Stok_Obat_Klinik::create([
@@ -215,6 +227,7 @@ class Pembelian_Controller extends Controller
                                     'qty' => $detail['qty'],
                                     'tanggal_terima_obat' => $request->tanggal_terima_barang ?? now()->format('Y-m-d'),
                                     'expired' => $detail['exp'] ?? null,
+                                    'nomor_seri' => $detail['batch'] ?? null,
                                 ]);
                             }
 

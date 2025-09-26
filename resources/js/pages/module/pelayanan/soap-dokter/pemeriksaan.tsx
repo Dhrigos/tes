@@ -9,25 +9,26 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import AppLayout from '@/layouts/app-layout';
-import { cn } from '@/lib/utils';
-import { type BreadcrumbItem } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
-import { Check, ChevronsUpDown, FileText } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
+  } from '@/components/ui/alert-dialog';
+  import { Button } from '@/components/ui/button';
+  import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+  import { Input } from '@/components/ui/input';
+  import { Label } from '@/components/ui/label';
+  import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  import AiAssistantWidget from '@/components/AiAssistantWidget';
+  import AppLayout from '@/layouts/app-layout';
+  import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  import { type BreadcrumbItem } from '@/types';
+  import { cn } from '@/lib/utils';
+  import { Head, router, usePage } from '@inertiajs/react';
+  import { Check, ChevronsUpDown, FileText } from 'lucide-react';
+  import React, { useEffect, useMemo, useRef, useState } from 'react';
+  import { toast } from 'sonner';
 
-interface PatientData {
+  interface PatientData {
     nomor_rm: string;
     nama: string;
     nomor_register: string;
@@ -48,9 +49,9 @@ interface PatientData {
             nama: string;
         };
     };
-}
+  }
 
-interface SoapDokterData {
+  interface SoapDokterData {
     no_rawat?: string;
     kode_tindakan?: string;
     umur?: string;
@@ -780,6 +781,7 @@ export default function PemeriksaanSoapDokter() {
             return String(text || '');
         }
     }
+    
 
     const icd10Array = useMemo(() => {
         const raw: any = (icd10 as any);
@@ -1852,6 +1854,8 @@ export default function PemeriksaanSoapDokter() {
                                                 )}
                                             </CardContent>
                                         </Card>
+
+                                        
                                         {/* Anamnesa */}
                                         <Card>
                                             <CardHeader>
@@ -3965,6 +3969,8 @@ export default function PemeriksaanSoapDokter() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            {/* Floating AI Assistant Widget */}
+            <AiAssistantWidget />
         </AppLayout >
     );
 }

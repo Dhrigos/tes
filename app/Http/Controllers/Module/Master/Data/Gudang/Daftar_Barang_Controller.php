@@ -77,7 +77,10 @@ class Daftar_Barang_Controller extends Controller
                 'jenis_obat' => 'nullable|string|in:Reguler,Khusus,Darurat',
                 'jenis_generik' => 'nullable|string|in:Non-Generic,Generic Polos,Branded Generic',
                 'jenis_formularium' => 'nullable|string|in:Formularium,Non-Formularium',
-                'bentuk_barang' => 'nullable|string|in:padat,cair,gas',
+                'bentuk_obat' => 'nullable|string|in:padat,cair,gas',
+                'multi_pakai' => 'nullable|boolean',
+                'multi_pakai_jumlah' => 'nullable|integer|min:1',
+                'multi_pakai_satuan' => 'nullable|string|max:255',
             ]);
 
             $data = $validated;
@@ -94,6 +97,10 @@ class Daftar_Barang_Controller extends Controller
                     'satuan',
                     'penyimpanan',
                     'gudang_kategori',
+                    'bentuk_obat',
+                    'multi_pakai',
+                    'multi_pakai_jumlah',
+                    'multi_pakai_satuan',
                 ]);
             } else {
                 // For farmasi and alkes
@@ -114,13 +121,13 @@ class Daftar_Barang_Controller extends Controller
                     'gudang_kategori',
                     'jenis_obat',
                     'jenis_generik',
-                    'bentuk_barang',
+                    'bentuk_obat',
+                    'multi_pakai',
+                    'multi_pakai_jumlah',
+                    'multi_pakai_satuan',
                 ]);
 
-                // Set default values for required fields
-                if (empty($data['nilai_satuan_kecil'])) {
-                    $data['nilai_satuan_kecil'] = 1;
-                }
+                // Do not enforce default 1; allow null if not provided
 
                 // Handle merek based on jenis_generik
                 if (($data['jenis_generik'] ?? '') === 'Non-Generic') {
@@ -155,7 +162,10 @@ class Daftar_Barang_Controller extends Controller
                 'jenis_obat' => 'nullable|string|in:Reguler,Khusus,Darurat',
                 'jenis_generik' => 'nullable|string|in:Non-Generic,Generic Polos,Branded Generic',
                 'jenis_formularium' => 'nullable|string|in:Formularium,Non-Formularium',
-                'bentuk_barang' => 'nullable|string|in:padat,cair,gas',
+                'bentuk_obat' => 'nullable|string|in:padat,cair,gas',
+                'multi_pakai' => 'nullable|boolean',
+                'multi_pakai_jumlah' => 'nullable|integer|min:1',
+                'multi_pakai_satuan' => 'nullable|string|max:255',
             ]);
 
             $barang = Daftar_Barang::findOrFail($id);
@@ -169,6 +179,10 @@ class Daftar_Barang_Controller extends Controller
                     'satuan',
                     'penyimpanan',
                     'gudang_kategori',
+                    'bentuk_obat',
+                    'multi_pakai',
+                    'multi_pakai_jumlah',
+                    'multi_pakai_satuan',
                 ]);
             } else {
                 // For farmasi and alkes
@@ -190,13 +204,13 @@ class Daftar_Barang_Controller extends Controller
                     'gudang_kategori',
                     'jenis_obat',
                     'jenis_generik',
-                    'bentuk_barang',
+                    'bentuk_obat',
+                    'multi_pakai',
+                    'multi_pakai_jumlah',
+                    'multi_pakai_satuan',
                 ]);
 
-                // Set default values for required fields
-                if (empty($updateData['nilai_satuan_kecil'])) {
-                    $updateData['nilai_satuan_kecil'] = 1;
-                }
+                // Do not enforce default 1; allow null if not provided
 
                 // Handle merek based on jenis_generik
                 if (($updateData['jenis_generik'] ?? '') === 'Non-Generic') {

@@ -200,6 +200,7 @@ export default function PendaftaranPasien() {
     const [goldarBaru, setGoldarBaru] = useState<string>('');
     const [pernikahanBaru, setPernikahanBaru] = useState<string>('');
     const [fotoBaru, setFotoBaru] = useState<File | null>(null);
+    const [umumTanpaNik, setUmumTanpaNik] = useState(false);
 
     useEffect(() => {
         if (flash?.success) {
@@ -492,7 +493,10 @@ export default function PendaftaranPasien() {
         e.preventDefault();
         const formData = new FormData();
         formData.append('nama', namaBaru);
-        formData.append('nik', nikBaru);
+        formData.append('umum_tanpa_nik', umumTanpaNik ? '1' : '0');
+        if (!umumTanpaNik) {
+            formData.append('nik', nikBaru);
+        }
         formData.append('tgl_lahir', tglLahirBaru);
         formData.append('kelamin', kelaminBaru);
         formData.append('telepon', teleponBaru);
@@ -515,6 +519,7 @@ export default function PendaftaranPasien() {
                 setGoldarBaru('');
                 setPernikahanBaru('');
                 setFotoBaru(null);
+                setUmumTanpaNik(false);
             },
             onError: (errors) => {
                 // errors handled by inertia props toast elsewhere if provided
@@ -1515,8 +1520,28 @@ export default function PendaftaranPasien() {
                                         <Input placeholder="Nama" value={namaBaru} onChange={(e) => setNamaBaru(e.target.value)} />
                                     </div>
                                     <div>
-                                        <Label>NIK/NOKA</Label>
-                                        <Input placeholder="NIK" value={nikBaru} onChange={(e) => setNikBaru(e.target.value)} type="text" />
+                                        <div className="flex items-center justify-between">
+                                            <Label>NIK/NOKA</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id="umumTanpaNik"
+                                                    checked={umumTanpaNik}
+                                                    onCheckedChange={(v) => {
+                                                        const checked = !!v;
+                                                        setUmumTanpaNik(checked);
+                                                        if (checked) setNikBaru('');
+                                                    }}
+                                                />
+                                                <Label htmlFor="umumTanpaNik" className="text-xs">Pasien Umum tanpa NIK</Label>
+                                            </div>
+                                        </div>
+                                        <Input
+                                            placeholder="NIK"
+                                            value={nikBaru}
+                                            onChange={(e) => setNikBaru(e.target.value)}
+                                            type="text"
+                                            disabled={umumTanpaNik}
+                                        />
                                     </div>
                                     <div>
                                         <Label>Tanggal Lahir</Label>

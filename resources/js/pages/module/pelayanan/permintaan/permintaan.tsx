@@ -274,8 +274,8 @@ export default function Permintaan() {
                 toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
                 return;
             }
-            if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.kode_surat || !skdp.untuk || !skdp.pada)) {
-                toast.warning('Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.');
+            if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.untuk || !skdp.pada)) {
+                toast.warning('Lengkapi tanggal pemeriksaan, untuk dan pada.');
                 return;
             }
             if (jenis_permintaan === 'surat_sehat' && !suratSehat.tgl_periksa) {
@@ -396,8 +396,8 @@ export default function Permintaan() {
                 toast.warning('Lengkapi tabel pemeriksaan, diagnosa, dan tanggal periksa.');
                 return;
             }
-            if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.kode_surat || !skdp.untuk || !skdp.pada)) {
-                toast.warning('Lengkapi tanggal pemeriksaan, kode surat, untuk dan pada.');
+            if (jenis_permintaan === 'skdp' && (!skdp.tanggal_pemeriksaan || !skdp.untuk || !skdp.pada)) {
+                toast.warning('Lengkapi tanggal pemeriksaan, untuk dan pada.');
                 return;
             }
             if (jenis_permintaan === 'surat_sehat' && !suratSehat.tgl_periksa) {

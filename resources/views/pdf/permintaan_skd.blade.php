@@ -73,6 +73,12 @@
             width: 10px;
             text-align: center;
         }
+
+        /* Ensure spacing around bold inline text within paragraphs */
+        p.teks b,
+        p.teks strong {
+            margin: 0 0 0 2px;
+        }
     </style>
 </head>
 
@@ -81,7 +87,7 @@
         <tr>
             <td style="width: 60px; text-align: center; vertical-align: middle;">
                 <img src="{{ public_path('profile/default.png') }}" alt="Logo"
-                    style="width: 50px; height: 50px; border-radius: 50%;">
+                    style="width: 75px; height: 75px; border-radius: 50%;">
             </td>
             <td style="text-align: center;">
                 <div style="font-size: 14px; font-weight: bold; margin: 0;">
@@ -97,9 +103,11 @@
     <div class="divider"></div>
 
     <div class="document-title">SURAT KETERANGAN DOKTER</div>
+    @if($kode_surat)
     <div class="kode-surat">{{ $kode_surat }}</div>
+    @endif
 
-    <p class="teks">Yang bertanda tangan dibwah ini, menerangkan bahwa : </p>
+    <p class="teks">Yang bertanda tangan dibawah ini, menerangkan bahwa : </p>
 
     <table class="info-table" style="width: 100%;">
         <tr>
@@ -133,7 +141,8 @@
         </tr>
     </table>
 
-    <p class="teks">Pada pemeriksaan kami saat ini pada {{ \Carbon\Carbon::parse($tgl_pemeriksaan)->format('d-m-Y H:i') }}, yang bersangkutan ternyata dalam keadaan <b>"SAKIT"</b>, dengan</p>
+    <p class="teks">Berdasarkan hasil pemeriksaan pada {{ \Carbon\Carbon::parse($tgl_pemeriksaan)->format('d-m-Y H:i') }}, pasien yang bersangkutan dinyatakan dalam kondisi <b>"SAKIT"</b>, dengan rincian sebagai berikut:</p>
+
 
     <table class="info-table" style="width: 100%;">
         <tr>
@@ -158,11 +167,15 @@
             <td class="info-label">Alasan</td>
             <td class="info-separator">:</td>
             <td>
-                @if($alasan1)
+                @if($alasan1 && $alasan2)
                 1. {{ $alasan1 }}<br>
-                @endif
-                @if($alasan2)
                 2. {{ $alasan2 }}
+                @elseif($alasan1)
+                {{ $alasan1 }}
+                @elseif($alasan2)
+                {{ $alasan2 }}
+                @else
+                -
                 @endif
             </td>
         </tr>
@@ -171,11 +184,15 @@
             <td class="info-label">Rencana</td>
             <td class="info-separator">:</td>
             <td>
-                @if($rencana1)
+                @if($rencana1 && $rencana2)
                 1. {{ $rencana1 }}<br>
-                @endif
-                @if($rencana2)
                 2. {{ $rencana2 }}
+                @elseif($rencana1)
+                {{ $rencana1 }}
+                @elseif($rencana2)
+                {{ $rencana2 }}
+                @else
+                -
                 @endif
             </td>
         </tr>

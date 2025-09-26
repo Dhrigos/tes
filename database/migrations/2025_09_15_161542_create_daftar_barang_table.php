@@ -34,6 +34,9 @@ return new class extends Migration
             $table->string('jenis_obat', 255)->nullable();
             $table->string('jenis_generik', 255)->nullable();
             $table->string('bentuk_obat', 255)->nullable();
+            $table->boolean('multi_pakai')->nullable();
+            $table->integer('multi_pakai_jumlah')->nullable();
+            $table->string('multi_pakai_satuan', 255)->nullable();
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
             $table->unique(['kode']);

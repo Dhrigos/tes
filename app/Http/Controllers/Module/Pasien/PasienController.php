@@ -169,7 +169,9 @@ class PasienController extends Controller
         try {
             $request->validate([
                 'nama' => 'required|string|max:255',
-                'nik' => 'required|string|max:20',
+                'umum_tanpa_nik' => 'nullable|in:0,1',
+                // NIK wajib kecuali jika pasien umum tanpa NIK
+                'nik' => 'required_unless:umum_tanpa_nik,1|nullable|string|max:20',
                 'tgl_lahir' => 'required|date',
                 'kelamin' => 'required',
                 'telepon' => 'nullable|string|max:20',
@@ -188,31 +190,38 @@ class PasienController extends Controller
             // Coba ambil data dari BPJS, jika gagal gunakan data input
             $bpjsData = [];
             $ihsFromSatuSehat = null;
-            try {
-                $pcareController = new Pcare_Controller();
-                $response = $pcareController->get_peserta($request->nik);
-                $data = json_decode($response->getContent(), true);
+            // Hanya coba fetch jika NIK tersedia (bukan pasien umum tanpa NIK)
+            if (!empty($request->nik)) {
+                try {
+                    $pcareController = new Pcare_Controller();
+                    $response = $pcareController->get_peserta($request->nik);
+                    $data = json_decode($response->getContent(), true);
 
-                if (isset($data['data']) && $data['data']) {
-                    $bpjsData = $data['data'];
+                    if (isset($data['data']) && $data['data']) {
+                        $bpjsData = $data['data'];
+                    }
+                } catch (\Exception $e) {
+                    FacadesLog::warning('BPJS data fetch failed: ' . $e->getMessage());
+                    // Lanjutkan dengan data input saja
                 }
-            } catch (\Exception $e) {
-                FacadesLog::warning('BPJS data fetch failed: ' . $e->getMessage());
-                // Lanjutkan dengan data input saja
-            }        
+            }
             // Gunakan NIK dari BPJS jika tersedia dan tidak kosong, jika kosong fallback ke input request
             $nik = !empty($bpjsData['noKTP']) ? $bpjsData['noKTP'] : $request->nik;
 
-            if (!$nik) {
+            // Jika bukan pasien umum dan NIK kosong -> tolak
+            if (empty($request->umum_tanpa_nik) && !$nik) {
                 return redirect()->back()->with('error', 'NIK pasien wajib diisi!');
             }
 
             try {
-                $satuSehatController = new Satu_Sehat_Controller();
-                $responseIhs = $satuSehatController->get_peserta($nik);
-                $dataIhs = json_decode($responseIhs->getContent(), true);
-                if (($dataIhs['status'] ?? '') === 'success') {
-                    $ihsFromSatuSehat = $dataIhs['data'] ?? null;
+                // Fetch IHS hanya bila NIK tersedia
+                if (!empty($nik)) {
+                    $satuSehatController = new Satu_Sehat_Controller();
+                    $responseIhs = $satuSehatController->get_peserta($nik);
+                    $dataIhs = json_decode($responseIhs->getContent(), true);
+                    if (($dataIhs['status'] ?? '') === 'success') {
+                        $ihsFromSatuSehat = $dataIhs['data'] ?? null;
+                    }
                 }
             } catch (\Exception $e) {
                 FacadesLog::warning('Satu Sehat fetch failed: ' . $e->getMessage());
@@ -242,9 +251,14 @@ class PasienController extends Controller
             ];
 
             // Pastikan UUID terisi saat insert pertama kali (kolom uuid NOT NULL)
-            $existing = Pasien::where('nik', $nik)
-                ->where('no_bpjs', $pasienData['no_bpjs'])
-                ->first();
+            // Cari pasien existing hanya jika ada identifier yang valid (nik atau no_bpjs)
+            $existing = null;
+            if (!empty($nik)) {
+                $existing = Pasien::where('nik', $nik)->first();
+            }
+            if (!$existing && !empty($pasienData['no_bpjs'])) {
+                $existing = Pasien::where('no_bpjs', $pasienData['no_bpjs'])->first();
+            }
 
             if ($existing) {
                 $existing->update($pasienData);

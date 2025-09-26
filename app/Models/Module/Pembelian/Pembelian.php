@@ -14,15 +14,18 @@ class Pembelian extends Model
     protected $fillable =
     [
         'jenis_pembelian',
+        'kategori_pembelian',
         'nomor_faktur',
         'supplier',
         'no_po_sp',
+        'no_surat_jalan',
         'no_faktur_supplier',
         'tanggal_terima_barang',
         'tanggal_faktur',
         'tanggal_jatuh_tempo',
         'pajak_ppn',
         'metode_hna',
+        'diskon_header',
         'sub_total',
         'total_diskon',
         'ppn_total',

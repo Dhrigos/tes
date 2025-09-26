@@ -187,6 +187,12 @@ const mainNavItems: MenuItem[] = [
                 icon: FileText,
                 roles: ['Admin', 'Gudang'],
             },
+            {
+                title: 'Pengeluaran Barang',
+                href: '/gudang/pengeluaran-barang',
+                icon: FileText,
+                roles: ['Admin', 'Gudang'],
+            },
         ],
     },
     {
@@ -235,6 +241,7 @@ const mainNavItems: MenuItem[] = [
             { title: 'Perawat', href: '/laporan/perawat', icon: Heart, roles: ['Admin', 'Manajemen'] },
             { title: 'Stok Penyesuaian', href: '/laporan/stok-penyesuaian', icon: Package, roles: ['Admin', 'Manajemen'] },
             { title: 'Pembelian', href: '/laporan/pembelian', icon: ShoppingBag, roles: ['Admin', 'Manajemen'] },
+            { title: 'Pengeluaran Barang', href: '/laporan/pengeluaran-barang', icon: Truck, roles: ['Admin', 'Gudang'] },
         ],
     },
     {

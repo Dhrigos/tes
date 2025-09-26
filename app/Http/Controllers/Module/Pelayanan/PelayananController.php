@@ -254,19 +254,11 @@ class PelayananController extends Controller
                 $this->hapusDariTabel('pelayanan_so_perawats', ['nomor_register' => $nomorRegister]);
             }
 
-            // 5. Update status pelayanan
-            Pelayanan_status::where('nomor_register', $nomorRegister)
-                ->update([
-                    'status_pendaftaran' => '0', // Set status_pendaftaran to 0 for cancellation
-                    'updated_at' => now()
-                ]);
+            // 5. Hapus data pelayanan_status
+            Pelayanan_status::where('nomor_register', $nomorRegister)->delete();
 
-            // 6. Update status di tabel pelayanans
-            Pelayanan::where('nomor_register', $nomorRegister)
-                ->update([
-                    'status' => 'batal',
-                    'updated_at' => now()
-                ]);
+            // 6. Hapus data pelayanan
+            Pelayanan::where('nomor_register', $nomorRegister)->delete();
 
             // 7. Jika ada relasi dengan pendaftaran, update juga statusnya dan simpan alasan batal
             // Note: Uncomment and adjust if Pendaftaran model is available

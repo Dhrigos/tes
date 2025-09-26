@@ -22,6 +22,7 @@ class pembelian_inventaris_detail extends Model
         'masa_akhir_penggunaan',
         'tanggal_pembelian',
         'detail_barang',
+        'batch',
         'user_input_id',
         'user_input_name'
     ];
