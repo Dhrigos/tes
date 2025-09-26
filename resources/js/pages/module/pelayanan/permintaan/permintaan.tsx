@@ -328,7 +328,9 @@ export default function Permintaan() {
 
             // Save only (tidak cetak)
             toast.success('Permintaan disimpan');
-            onSuccess && onSuccess();
+            if (onSuccess) {
+                onSuccess();
+            }
         } catch (e) {
             toast.error('Terjadi kesalahan saat menyimpan permintaan');
         }

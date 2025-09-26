@@ -306,9 +306,8 @@ export default function PengeluaranBarangIndex() {
 
     // Cari faktur pembelian saat user mengetik (debounce sederhana)
     useEffect(() => {
-        let handle: any;
         const q = (searchFaktur || '').trim().toLowerCase();
-        handle = setTimeout(() => {
+        const handle = window.setTimeout(() => {
             try {
                 setIsSearchingFaktur(true);
                 const items = Array.isArray(pembelians) ? pembelians : [];

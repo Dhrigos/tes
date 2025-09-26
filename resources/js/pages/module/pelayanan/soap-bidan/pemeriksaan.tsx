@@ -320,7 +320,7 @@ export default function PemeriksaanSoapBidan() {
                 setPenggunaanOptions([]);
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, []);
 
     // Opsi jenis alergi unik dan detail alergi terfilter (dideklarasikan setelah formData)

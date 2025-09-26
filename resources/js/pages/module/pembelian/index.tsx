@@ -418,9 +418,9 @@ export default function PembelianIndex() {
             hargaKecil = hargaSedang / Math.max(1, konversiSk);
         }
 
-        let nilaiBesar = parseInt(item.nilai_satuan_besar || '0') || 0;
-        let nilaiSedang = parseInt(item.nilai_satuan_sedang || '0') || 0;
-        let nilaiKecil = parseInt(item.nilai_satuan_kecil || '0') || 0;
+        const nilaiBesar = parseInt(item.nilai_satuan_besar || '0') || 0;
+        const nilaiSedang = parseInt(item.nilai_satuan_sedang || '0') || 0;
+        const nilaiKecil = parseInt(item.nilai_satuan_kecil || '0') || 0;
 
         // Tentukan unit aktif secara dinamis (kecil/sedang/besar)
         const avail = getActiveUnit(item);

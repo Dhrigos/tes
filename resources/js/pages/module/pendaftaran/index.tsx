@@ -236,7 +236,7 @@ const PendaftaranDashboard = () => {
         if (itemsToCheck.length === 0) return;
 
         checkPermintaanAvailability(itemsToCheck);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [pendaftaranData, currentPage, itemsPerPage]);
 
     // Filter pasien list based on search with debounce
