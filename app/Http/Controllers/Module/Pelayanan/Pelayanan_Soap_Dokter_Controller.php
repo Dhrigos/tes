@@ -1157,22 +1157,6 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 ], 404);
             }
 
-            // Update atau buat status pendaftaran menjadi 3 (selesai) dan tandai dokter complete (3)
-            if ($pendaftaran->status) {
-                $pendaftaran->status->update(['status_pendaftaran' => 3]);
-            } else {
-                Pendaftaran_status::create([
-                    'register_id'        => $pendaftaran->id,
-                    'nomor_rm'           => $pendaftaran->nomor_rm,
-                    'pasien_id'          => $pendaftaran->pasien_id,
-                    'nomor_register'     => $pendaftaran->nomor_register,
-                    'tanggal_kujungan'   => $pendaftaran->tanggal_kujungan,
-                    'status_panggil'     => 0,
-                    'status_pendaftaran' => 3,
-                    'Status_aplikasi'    => null,
-                ]);
-            }
-
             // Dokter selesai layanan penuh: set 4 (pelayanan selesai penuh)
             app(PelayananStatusService::class)->tandaiDokterSelesaiPenuh($nomor_register);
 
