@@ -247,7 +247,7 @@ export default function CpptTimeline({ nomor_register, entries, loading = false 
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {entry.profesi === 'perawat'
-                                                            ? currentUserName || (entry as any).nama_perawat || '-'
+                                                            ? (entry as any).perawat_name || (entry as any).nama_perawat || '-'
                                                             : (entry as any).nama_dokter || '-'}
                                                         {(() => {
                                                             const klinik = (entry as any).nama_klinik as string | undefined;
@@ -255,7 +255,7 @@ export default function CpptTimeline({ nomor_register, entries, loading = false 
                                                             if (!klinik || sameAsLocal) return '';
                                                             const hasLeft =
                                                                 entry.profesi === 'perawat'
-                                                                    ? !!(currentUserName || (entry as any).nama_perawat)
+                                                                    ? !!((entry as any).perawat_name || (entry as any).nama_perawat)
                                                                     : !!(entry as any).nama_dokter;
                                                             return `${hasLeft ? ' • ' : ''}${klinik}`;
                                                         })()}

@@ -865,7 +865,20 @@ const PendaftaranDashboard = () => {
                     const cw = iframe.contentWindow;
                     if (!cw) return;
                     const cleanup = () => { try { document.body.removeChild(iframe); } catch {} };
-                    (cw as any).onafterprint = cleanup;
+                    
+                    // CSS A5 sudah diatur di backend controller (setPaper('a5', 'portrait'))
+                    // Tidak perlu inject CSS di frontend karena akan konflik dengan backend PDF
+                    
+                    // Firefox-compatible: proteksi akses cross-origin onafterprint
+                    try {
+                        (cw as any).onafterprint = cleanup;
+                    } catch (crossOriginError) {
+                        // Fallback untuk Firefox: gunakan timeout cleanup
+                        console.warn('Cross-origin onafterprint blocked, using fallback cleanup');
+                        window.setTimeout(cleanup, 5000); // cleanup setelah 5 detik
+                    }
+                    
+                    // Backup cleanup timeout
                     window.setTimeout(cleanup, 60000);
                     window.setTimeout(() => { try { cw.focus(); cw.print(); } catch {} }, 150);
                 } catch (e) {

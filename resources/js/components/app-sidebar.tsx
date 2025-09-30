@@ -499,15 +499,22 @@ export function AppSidebar() {
                 <SidebarHeader>
                     <SidebarMenu>
                         <SidebarMenuItem>
-                            <Dialog>
-                                {/* Trigger: tombol di sidebar */}
-                                <DialogTrigger asChild>
-                                    <SidebarMenuButton size="lg" className="flex items-center gap-2">
-                                        <AppLogo />
-                                    </SidebarMenuButton>
-                                </DialogTrigger>
-                                <SettingsDialog />
-                            </Dialog>
+                            {userRoles?.includes('Admin') && (
+                                <Dialog>
+                                    {/* Trigger: tombol di sidebar */}
+                                    <DialogTrigger asChild>
+                                        <SidebarMenuButton size="lg" className="flex items-center gap-2">
+                                            <AppLogo />
+                                        </SidebarMenuButton>
+                                    </DialogTrigger>
+                                    <SettingsDialog />
+                                </Dialog>
+                            )}
+                            {!userRoles?.includes('Admin') && (
+                                <SidebarMenuButton size="lg" className="flex items-center gap-2">
+                                    <AppLogo />
+                                </SidebarMenuButton>
+                            )}
                         </SidebarMenuItem>
                     </SidebarMenu>
                 </SidebarHeader>
