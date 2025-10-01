@@ -10,7 +10,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { Bell, CheckCircle, ChevronLeft, ChevronRight, Edit, FileText, MoreVertical, Search, Send, UserCheck } from 'lucide-react';
+import { Bell, CheckCircle, ChevronLeft, ChevronRight, Edit, FileText, MoreVertical, Search, Send, UserCheck, Volume2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -128,6 +128,39 @@ export default function PelayananSoapBidan() {
             toast.error('Gagal memanggil pasien');
         } finally {
             setIsBusy(false);
+        }
+    };
+
+    const handlePanggilUlang = async (nomorRegister: string, antrian: string) => {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!csrfToken) {
+                throw new Error('CSRF token tidak ditemukan');
+            }
+
+            const response = await fetch('/api/antrian/panggil-ulang', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({ nomor_register: nomorRegister }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(`Panggil ulang antrian ${antrian} berhasil`);
+            } else {
+                throw new Error(result.message || 'Gagal panggil ulang');
+            }
+        } catch (error: any) {
+            console.error('Error panggil ulang:', error);
+            toast.error((error as Error).message || 'Gagal panggil ulang antrian');
         }
     };
 
@@ -286,34 +319,56 @@ export default function PelayananSoapBidan() {
         switch (row.tindakan_button) {
             case 'panggil':
                 return (
-                    <Button
-                        variant="outline"
-                        size="xs"
-                        className="border-yellow-600 text-yellow-600 hover:bg-yellow-50 disabled:opacity-50"
-                        onClick={() => handlePanggilPasien(row.nomor_register)}
-                        disabled={!((row.status_daftar ?? 0) === 2 && (row.status_bidan ?? 0) === 0)}
-                    >
-                        <Bell className="mr-1 h-4 w-4" />
-                        Panggil
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            className="border-yellow-600 text-yellow-600 hover:bg-yellow-50 disabled:opacity-50"
+                            onClick={() => handlePanggilPasien(row.nomor_register)}
+                            disabled={!((row.status_daftar ?? 0) === 2 && (row.status_bidan ?? 0) === 0)}
+                        >
+                            <Bell className="mr-1 h-4 w-4" />
+                            Panggil
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                            onClick={() => handlePanggilUlang(row.nomor_register, row.pendaftaran?.antrian || row.nomor_register)}
+                        >
+                            <Volume2 className="mr-1 h-4 w-4" />
+                            Panggil Ulang
+                        </Button>
+                    </div>
                 );
             case 'soap':
                 return (
-                    <Button
-                        variant="outline"
-                        size="xs"
-                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                        onClick={() => {
-                            try {
-                                router.visit(`/pelayanan/soap-bidan/${norawat}`);
-                            } catch (error) {
-                                toast.error('Gagal membuka halaman pemeriksaan');
-                            }
-                        }}
-                    >
-                        <FileText className="mr-1 h-4 w-4" />
-                        Pemeriksaan
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                            onClick={() => {
+                                try {
+                                    router.visit(`/pelayanan/soap-bidan/${norawat}`);
+                                } catch (error) {
+                                    toast.error('Gagal membuka halaman pemeriksaan');
+                                }
+                            }}
+                        >
+                            <FileText className="mr-1 h-4 w-4" />
+                            Pemeriksaan
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                            onClick={() => handlePanggilUlang(row.nomor_register, row.pendaftaran?.antrian || row.nomor_register)}
+                        >
+                            <Volume2 className="mr-1 h-4 w-4" />
+                            Panggil Ulang
+                        </Button>
+                    </div>
                 );
             case 'edit':
                 return (

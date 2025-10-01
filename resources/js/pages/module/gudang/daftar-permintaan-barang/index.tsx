@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import axios from 'axios';
-import { Eye, Search } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Eye, Search } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -30,6 +30,10 @@ interface PermintaanBarangDetail {
     nama_barang: string;
     jumlah: number;
     jenis_barang?: string;
+    stock_tersedia?: number;
+    stok_minimal?: number;
+    stok_tersedia_dikurangi_minimal?: number;
+    cukup_stok?: boolean;
 }
 
 interface PermintaanBarangWithDetails extends PermintaanBarang {
@@ -77,6 +81,10 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
     // State for selected rows
     const [selectedRows, setSelectedRows] = useState<string[]>([]);
     const [selectAll, setSelectAll] = useState(false);
+
+    // State for pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     // Filter dabar based on search term and jenis_barang
     const filteredDabar =
@@ -147,6 +155,13 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
 
         // Move selected items to the request form
         const selectedItems = selectedPermintaan.details?.filter((detail) => selectedRows.includes(detail.kode_barang)) || [];
+
+        // Check if any selected item has insufficient stock
+        const itemsWithInsufficientStock = selectedItems.filter((item) => item.cukup_stok === false);
+        if (itemsWithInsufficientStock.length > 0) {
+            toast.error('Tidak dapat memindahkan barang dengan stok tidak mencukupi');
+            return;
+        }
 
         // Add each selected item to manualItems with harga dasar
         const newManualItems = [...manualItems];
@@ -343,7 +358,10 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
         const isChecked = e.target.checked;
         setSelectAll(isChecked);
         if (isChecked && selectedPermintaan?.details) {
-            const allIds = selectedPermintaan.details.map((detail) => detail.kode_barang);
+            // Only select items with sufficient stock
+            const allIds = selectedPermintaan.details
+                .filter((detail) => detail.cukup_stok !== false)
+                .map((detail) => detail.kode_barang);
             setSelectedRows(allIds);
         } else {
             setSelectedRows([]);
@@ -375,6 +393,18 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                 item.status?.toLowerCase().includes(q)
             );
         }) || [];
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredPermintaan.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedPermintaan = filteredPermintaan.slice(startIndex, endIndex);
+
+    // Reset to page 1 when search term changes
+    const handleSearchChange = (value: string) => {
+        setSearchTerm(value);
+        setCurrentPage(1);
+    };
 
     // Function to fetch permintaan details
     const fetchPermintaanDetails = async (kodeRequest: string) => {
@@ -416,7 +446,7 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                             type="text"
                             placeholder="Cari berdasarkan kode request, kode klinik, nama klinik, atau status..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                             className="pl-10"
                         />
                     </div>
@@ -441,10 +471,10 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                 </TableRow>
                             </TableHeader>
                             <TableBody className="text-xs">
-                                {filteredPermintaan.length > 0 ? (
-                                    filteredPermintaan.map((item, index) => (
+                                {paginatedPermintaan.length > 0 ? (
+                                    paginatedPermintaan.map((item, index) => (
                                         <TableRow key={`${item.id || item.kode_request}-${index}`}>
-                                            <TableCell className="text-center">{index + 1}</TableCell>
+                                            <TableCell className="text-center">{startIndex + index + 1}</TableCell>
                                             <TableCell>{item.kode_request}</TableCell>
                                             <TableCell>{item.kode_klinik}</TableCell>
                                             <TableCell>{item.nama_klinik}</TableCell>
@@ -477,6 +507,48 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                 )}
                             </TableBody>
                         </Table>
+
+                        {/* Pagination Controls */}
+                        {filteredPermintaan.length > 0 && (
+                            <div className="mt-4 flex items-center justify-between">
+                                <div className="text-sm text-gray-600">
+                                    Menampilkan {startIndex + 1} - {Math.min(endIndex, filteredPermintaan.length)} dari {filteredPermintaan.length} data
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                        Sebelumnya
+                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                            <Button
+                                                key={page}
+                                                variant={currentPage === page ? 'default' : 'outline'}
+                                                size="sm"
+                                                onClick={() => setCurrentPage(page)}
+                                                className="h-8 w-8 p-0"
+                                            >
+                                                {page}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Selanjutnya
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -526,42 +598,77 @@ export default function DaftarPermintaanBarangIndex({ title, permintaan, dabar, 
                                                         </TableHeader>
                                                         <TableBody className="text-sm">
                                                             {selectedPermintaan.details && selectedPermintaan.details.length > 0 ? (
-                                                                selectedPermintaan.details.map((detail, index) => (
-                                                                    <TableRow key={`${detail.kode_barang}-${index}`}>
-                                                                        {/* Checkbox per row */}
-                                                                        {!isReadonlyStatus(selectedPermintaan.status) && (
-                                                                            <TableCell>
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    className="h-4 w-4"
-                                                                                    checked={selectedRows.includes(detail.kode_barang)}
-                                                                                    onChange={() => handleSelectRow(detail.kode_barang)}
-                                                                                />
-                                                                            </TableCell>
-                                                                        )}
-                                                                        <TableCell>
-                                                                            <div className="font-medium" title={detail.nama_barang}>
-                                                                                {detail.nama_barang.length > 30
-                                                                                    ? `${detail.nama_barang.substring(0, 30)}...`
-                                                                                    : detail.nama_barang}
-                                                                            </div>
-                                                                        </TableCell>
-                                                                        <TableCell>
-                                                                            {detail.jenis_barang && (
-                                                                                <span
-                                                                                    className={`rounded-full px-2 py-1 text-xs font-medium ${detail.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : detail.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
-                                                                                >
-                                                                                    {detail.jenis_barang.charAt(0).toUpperCase() +
-                                                                                        detail.jenis_barang.slice(1)}
-                                                                                </span>
+                                                                selectedPermintaan.details.map((detail, index) => {
+                                                                    const hasInsufficientStock = detail.cukup_stok === false;
+                                                                    // Ensure values are numbers
+                                                                    const stockTotal = Number(detail.stock_tersedia ?? 0);
+                                                                    const stokMinimal = Number(detail.stok_minimal ?? 0);
+                                                                    const stockTersedia = Number(detail.stok_tersedia_dikurangi_minimal ?? 0);
+                                                                    return (
+                                                                        <TableRow
+                                                                            key={`${detail.kode_barang}-${index}`}
+                                                                            className={hasInsufficientStock ? '' : ''}
+                                                                        >
+                                                                            {/* Checkbox per row */}
+                                                                            {!isReadonlyStatus(selectedPermintaan.status) && (
+                                                                                <TableCell>
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        className="h-4 w-4"
+                                                                                        checked={selectedRows.includes(detail.kode_barang)}
+                                                                                        onChange={() => handleSelectRow(detail.kode_barang)}
+                                                                                        disabled={hasInsufficientStock}
+                                                                                        title={
+                                                                                            hasInsufficientStock
+                                                                                                ? 'Stok tidak mencukupi'
+                                                                                                : ''
+                                                                                        }
+                                                                                    />
+                                                                                </TableCell>
                                                                             )}
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right">{detail.jumlah}</TableCell>
-                                                                    </TableRow>
-                                                                ))
+                                                                            <TableCell>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <div className="font-medium" title={detail.nama_barang}>
+                                                                                        {detail.nama_barang.length > 30
+                                                                                            ? `${detail.nama_barang.substring(0, 30)}...`
+                                                                                            : detail.nama_barang}
+                                                                                    </div>
+                                                                                    {hasInsufficientStock && (
+                                                                                        <div
+                                                                                            className="flex items-center gap-1 text-xs text-red-600"
+                                                                                            title="Stok tidak mencukupi"
+                                                                                        >
+                                                                                            <AlertCircle className="h-4 w-4" />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                                {hasInsufficientStock && (
+                                                                                    <div className="mt-1 text-xs text-red-600">
+                                                                                        {stockTotal === stokMinimal ? (
+                                                                                            <>Stok tidak mencukupi. Stok saat ini sama dengan stok minimal ({stokMinimal})</>
+                                                                                        ) : (
+                                                                                            <>Stok tidak mencukupi (Tersedia: {stockTersedia})</>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell>
+                                                                                {detail.jenis_barang && (
+                                                                                    <span
+                                                                                        className={`rounded-full px-2 py-1 text-xs font-medium ${detail.jenis_barang === 'obat' ? 'bg-blue-100 text-blue-800' : detail.jenis_barang === 'alkes' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}
+                                                                                    >
+                                                                                        {detail.jenis_barang.charAt(0).toUpperCase() +
+                                                                                            detail.jenis_barang.slice(1)}
+                                                                                    </span>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-right">{detail.jumlah}</TableCell>
+                                                                        </TableRow>
+                                                                    );
+                                                                })
                                                             ) : (
                                                                 <TableRow key="empty-details">
-                                                                    <TableCell colSpan={3} className="text-center text-sm">
+                                                                    <TableCell colSpan={4} className="text-center text-sm">
                                                                         Tidak ada detail barang
                                                                     </TableCell>
                                                                 </TableRow>

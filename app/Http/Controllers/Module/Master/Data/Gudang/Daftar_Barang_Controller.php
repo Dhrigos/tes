@@ -78,9 +78,8 @@ class Daftar_Barang_Controller extends Controller
                 'jenis_generik' => 'nullable|string|in:Non-Generic,Generic Polos,Branded Generic',
                 'jenis_formularium' => 'nullable|string|in:Formularium,Non-Formularium',
                 'bentuk_obat' => 'nullable|string|in:padat,cair,gas',
-                'multi_pakai' => 'nullable|boolean',
-                'multi_pakai_jumlah' => 'nullable|integer|min:1',
-                'multi_pakai_satuan' => 'nullable|string|max:255',
+                'bhp' => 'nullable|boolean',
+                'stok_minimal' => 'nullable|integer|min:0',
             ]);
 
             $data = $validated;
@@ -98,9 +97,7 @@ class Daftar_Barang_Controller extends Controller
                     'penyimpanan',
                     'gudang_kategori',
                     'bentuk_obat',
-                    'multi_pakai',
-                    'multi_pakai_jumlah',
-                    'multi_pakai_satuan',
+                    'stok_minimal',
                 ]);
             } else {
                 // For farmasi and alkes
@@ -122,9 +119,8 @@ class Daftar_Barang_Controller extends Controller
                     'jenis_obat',
                     'jenis_generik',
                     'bentuk_obat',
-                    'multi_pakai',
-                    'multi_pakai_jumlah',
-                    'multi_pakai_satuan',
+                    'bhp',
+                    'stok_minimal',
                 ]);
 
                 // Do not enforce default 1; allow null if not provided
@@ -163,9 +159,8 @@ class Daftar_Barang_Controller extends Controller
                 'jenis_generik' => 'nullable|string|in:Non-Generic,Generic Polos,Branded Generic',
                 'jenis_formularium' => 'nullable|string|in:Formularium,Non-Formularium',
                 'bentuk_obat' => 'nullable|string|in:padat,cair,gas',
-                'multi_pakai' => 'nullable|boolean',
-                'multi_pakai_jumlah' => 'nullable|integer|min:1',
-                'multi_pakai_satuan' => 'nullable|string|max:255',
+                'bhp' => 'nullable|boolean',
+                'stok_minimal' => 'nullable|integer|min:0',
             ]);
 
             $barang = Daftar_Barang::findOrFail($id);
@@ -180,9 +175,7 @@ class Daftar_Barang_Controller extends Controller
                     'penyimpanan',
                     'gudang_kategori',
                     'bentuk_obat',
-                    'multi_pakai',
-                    'multi_pakai_jumlah',
-                    'multi_pakai_satuan',
+                    'stok_minimal',
                 ]);
             } else {
                 // For farmasi and alkes
@@ -205,9 +198,8 @@ class Daftar_Barang_Controller extends Controller
                     'jenis_obat',
                     'jenis_generik',
                     'bentuk_obat',
-                    'multi_pakai',
-                    'multi_pakai_jumlah',
-                    'multi_pakai_satuan',
+                    'bhp',
+                    'stok_minimal',
                 ]);
 
                 // Do not enforce default 1; allow null if not provided

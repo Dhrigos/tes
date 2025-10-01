@@ -256,13 +256,24 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
     {
         try {
             $today = Carbon::today();
-            $pelayanans = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
+            
+            // Ambil ID dokter berdasarkan user yang login
+            $userId = Auth::id();
+            $dokter = \App\Models\Module\SDM\Dokter::where('users', $userId)->first();
+            
+            $query = Pelayanan::with(['pasien', 'poli', 'dokter.namauser', 'pendaftaran.penjamin'])
                 ->whereDate('tanggal_kujungan', '=', $today)
                 // Kecualikan pasien poli KIA (kode 'K') dari daftar dokter
                 ->whereHas('poli', function ($q) {
                     $q->where('kode', '!=', 'K');
-                })
-                ->orderBy('created_at', 'desc')
+                });
+            
+            // Filter berdasarkan dokter yang login jika user adalah dokter
+            if ($dokter) {
+                $query->where('dokter_id', $dokter->id);
+            }
+            
+            $pelayanans = $query->orderBy('created_at', 'desc')
                 ->get()
                 ->unique('nomor_register')
                 ->values();
@@ -626,11 +637,7 @@ class Pelayanan_Soap_Dokter_Controller extends Controller
                 'icd10_priority' => 'nullable|array',
                 'icd9_code' => 'nullable|array',
                 'icd9_name' => 'nullable|array',
-                'tindakan_kode' => 'nullable|array',
-                'tindakan_nama' => 'nullable|array',
                 'tindakan_kategori' => 'nullable|array',
-                'tindakan_pelaksana' => 'nullable|array',
-                'tindakan_harga' => 'nullable|array',
                 'resep_data' => 'nullable|string',
             ]);
 

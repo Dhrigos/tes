@@ -192,7 +192,45 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                 $details = Permintaan_Barang_Detail::where('kode_request', $kode_request)
                     ->select('kode_obat_alkes', 'nama_obat_alkes', 'qty', 'jenis_barang')
                     ->get();
-                Log::info('Master found ' . $details->count() . ' details for kode_request: ' . $kode_request);
+                
+                // Add stock information to each detail
+                $details = $details->map(function ($item) {
+                    // Get stok_minimal from daftar_barang
+                    $barang = Daftar_Barang::where('kode', $item->kode_obat_alkes)->first();
+                    $stokMinimal = $barang ? (int)($barang->stok_minimal ?? 0) : 0;
+                    
+                    // Determine stock table based on jenis_barang
+                    if ($item->jenis_barang === 'inventaris') {
+                        // For inventaris, check Stok_Inventaris
+                        $totalStock = Stok_Inventaris::where('kode_barang', $item->kode_obat_alkes)
+                            ->where('qty_barang', '>', 0)
+                            ->sum('qty_barang');
+                    } else {
+                        // For obat/alkes, check Stok_Barang
+                        $totalStock = Stok_Barang::where('kode_obat_alkes', $item->kode_obat_alkes)
+                            ->where('qty', '>', 0)
+                            ->sum('qty');
+                    }
+                    
+                    // Ensure all values are properly cast to integers
+                    $totalStock = (int)$totalStock;
+                    $stokMinimal = (int)$stokMinimal;
+                    
+                    // Calculate available stock (total stock - minimum stock)
+                    $availableStock = max(0, $totalStock - $stokMinimal);
+                    
+                    // Create a new array with all the required data
+                    return [
+                        'kode_barang' => $item->kode_obat_alkes,
+                        'nama_barang' => $item->nama_obat_alkes,
+                        'jumlah' => (int)$item->qty,
+                        'jenis_barang' => $item->jenis_barang,
+                        'stock_tersedia' => $totalStock,
+                        'stok_minimal' => $stokMinimal,
+                        'stok_tersedia_dikurangi_minimal' => $availableStock,
+                        'cukup_stok' => $availableStock >= (int)$item->qty
+                    ];
+                });
             }
 
             return response()->json([
@@ -260,6 +298,10 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                         continue;
                     }
 
+                    // Get stok_minimal from daftar_barang
+                    $barang = Daftar_Barang::where('kode', $kodeObat)->first();
+                    $stokMinimal = $barang ? (int)($barang->stok_minimal ?? 0) : 0;
+
                     // Use appropriate table based on jenis_barang
                     if ($jenisBarang === 'inventaris') {
                         $query = Stok_Inventaris::where('kode_barang', $kodeObat)
@@ -274,11 +316,14 @@ class Daftar_Permintaan_Barang_Controller extends Controller
                         $totalTersedia = $stokList->sum('qty');
                     }
 
-                    if ($totalTersedia < $jumlahDibutuhkan) {
+                    // Calculate available stock (total stock - minimum stock)
+                    $availableStock = max(0, $totalTersedia - $stokMinimal);
+
+                    if ($availableStock < $jumlahDibutuhkan) {
                         $jenisBarangLabel = $jenisBarang === 'inventaris' ? 'inventaris' : 'obat/alkes';
                         return response()->json([
                             'success' => false,
-                            'message' => "Stok tidak cukup untuk {$jenisBarangLabel} dengan kode {$kodeObat}. Dibutuhkan: {$jumlahDibutuhkan}, tersedia: {$totalTersedia}",
+                            'message' => "Stok tidak cukup untuk {$jenisBarangLabel} dengan kode {$kodeObat}. Dibutuhkan: {$jumlahDibutuhkan}, tersedia (dikurangi stok minimal): {$availableStock}",
                         ], 422);
                     }
                 }

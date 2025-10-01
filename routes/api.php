@@ -162,7 +162,7 @@ Route::prefix('permintaan-barang')->group(function () {
 });
 
 Route::prefix('daftar-permintaan-barang')->group(function () {
-    Route::get('/get-detail/{kode_request}', [Permintaan_Barang_Controller::class, 'getDetail']);
+    Route::get('/get-detail/{kode_request}', [Daftar_Permintaan_Barang_Controller::class, 'getDetail']);
 
     Route::post('/proses-permintaan', [Daftar_Permintaan_Barang_Controller::class, 'prosesPermintaan']);
     Route::post('/konfirmasi', [Daftar_Permintaan_Barang_Controller::class, 'konfirmasi']);

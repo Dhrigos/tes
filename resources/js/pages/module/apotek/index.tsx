@@ -1,15 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import { Edit, Plus, RefreshCw, XCircle } from 'lucide-react';
 import React from 'react';
+import { toast } from 'sonner';
+import StokTerbukaModal from './stok-terbuka-modal';
 
 type AnyRecord = Record<string, any>;
 
@@ -23,6 +27,7 @@ interface Props {
     stok: AnyRecord[];
     obat: AnyRecord[];
     satuan: AnyRecord[];
+    stok_terbuka: AnyRecord[];
 }
 
 const formatCurrency = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -33,10 +38,18 @@ const formatGender = (v: any) => {
     return val || '-';
 };
 
-export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, embalase, stok, obat, satuan }: Props) {
+export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, embalase, stok, obat, satuan, stok_terbuka }: Props) {
     const [step, setStep] = React.useState<1 | 2>(1);
     const [showCariPasien, setShowCariPasien] = React.useState(false);
     const [showSuccessDialog, setShowSuccessDialog] = React.useState(false);
+    
+    // Stok Terbuka state
+    const [showStokTerbukaModal, setShowStokTerbukaModal] = React.useState(false);
+    const [stokTerbukaMode, setStokTerbukaMode] = React.useState<'create' | 'edit'>('create');
+    const [selectedStokTerbuka, setSelectedStokTerbuka] = React.useState<any>(null);
+    const [showIsiUlangDialog, setShowIsiUlangDialog] = React.useState(false);
+    const [showHabisDialog, setShowHabisDialog] = React.useState(false);
+    const [itemToProcess, setItemToProcess] = React.useState<any>(null);
 
     // Step 1 form state
     const [noRawat, setNoRawat] = React.useState('');
@@ -88,6 +101,70 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Apotek', href: '/apotek' },
     ];
+
+    // Handler untuk isi ulang stok terbuka
+    const handleIsiUlang = async () => {
+        if (!itemToProcess) return;
+        
+        try {
+            const response = await fetch(`/apotek/stok-terbuka/${itemToProcess.id}/isi-ulang`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({}), // Tidak perlu kirim volume, backend akan gunakan ukuran
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                toast.success(data.message);
+                router.reload();
+            } else if (data.status === 'warning') {
+                toast.warning(data.message);
+                router.reload();
+            } else {
+                toast.error(data.message || 'Gagal isi ulang');
+            }
+        } catch (error) {
+            toast.error('Terjadi kesalahan');
+        } finally {
+            setShowIsiUlangDialog(false);
+            setItemToProcess(null);
+        }
+    };
+
+    // Handler untuk tandai habis
+    const handleTandaiHabis = async () => {
+        if (!itemToProcess) return;
+        
+        try {
+            const response = await fetch(`/apotek/stok-terbuka/${itemToProcess.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    volume: 0,
+                    ukuran: itemToProcess.ukuran, // Tambahkan ukuran
+                    satuan: itemToProcess.satuan,
+                    tanggal_kadaluarsa: itemToProcess.tanggal_kadaluarsa,
+                }),
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                toast.success('Stok terbuka ditandai sebagai habis');
+                router.reload();
+            } else {
+                toast.error(data.message || 'Gagal mengupdate');
+            }
+        } catch (error) {
+            toast.error('Terjadi kesalahan');
+        } finally {
+            setShowHabisDialog(false);
+            setItemToProcess(null);
+        }
+    };
 
     const handlePilihPasien = async (row: AnyRecord) => {
         setNoRawat(row?.no_rawat || '');
@@ -198,6 +275,36 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                 if (data?.kode) finalKode = data.kode;
                 if (data?.harga && !hargaTambahan) setHargaTambahan(Number(data.harga));
             } catch {}
+        }
+
+        // Validate stock availability
+        const stokItem = (stok || []).find((s: AnyRecord) => 
+            (s.kode_obat_alkes || s.kode_barang) === finalKode
+        );
+        
+        if (stokItem) {
+            const stockTotal = Number(stokItem.stock_total ?? stokItem.qty ?? 0);
+            const stokMinimal = Number(stokItem.stok_minimal ?? 0);
+            const stokTersedia = Number(stokItem.stok_tersedia ?? (stockTotal - stokMinimal));
+            
+            // Calculate total qty including existing items
+            const existingQty = items.reduce((sum, item) => {
+                if (item.kode === finalKode) {
+                    return sum + Number(item.qty || 0);
+                }
+                return sum;
+            }, 0);
+            
+            const totalQtyNeeded = existingQty + qty;
+            
+            if (stokTersedia < totalQtyNeeded) {
+                if (stockTotal === stokMinimal) {
+                    toast.error(`Stok tidak mencukupi untuk ${nama}. Stok saat ini sama dengan stok minimal (${stokMinimal})`);
+                } else {
+                    toast.error(`Stok tidak mencukupi untuk ${nama}. Dibutuhkan: ${totalQtyNeeded}, Tersedia: ${stokTersedia}`);
+                }
+                return;
+            }
         }
 
         setItems((prev) => {
@@ -815,7 +922,185 @@ export default function ApotekIndex({ title, data_soap, dokter, poli, penjamin, 
                         </div>
                     </DialogContent>
                 </Dialog>
-            </div>
+
+                {/* Stok Terbuka Modal */}
+                <StokTerbukaModal
+                    open={showStokTerbukaModal}
+                    onClose={() => {
+                        setShowStokTerbukaModal(false);
+                        setSelectedStokTerbuka(null);
+                    }}
+                    mode={stokTerbukaMode}
+                    stokTerbuka={selectedStokTerbuka}
+                    obatList={obat}
+                />
+
+                {/* Stok Terbuka Section */}
+                <Card className="mt-6">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>Stok Terbuka (BHP)</CardTitle>
+                        <Button
+                            onClick={() => {
+                                setStokTerbukaMode('create');
+                                setSelectedStokTerbuka(null);
+                                setShowStokTerbukaModal(true);
+                            }}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Tambah Stok Terbuka
+                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-12">#</TableHead>
+                                    <TableHead>Kode Obat</TableHead>
+                                    <TableHead>Nama Obat</TableHead>
+                                    <TableHead>Volume/Sisa</TableHead>
+                                    <TableHead>Satuan</TableHead>
+                                    <TableHead>Tanggal Kadaluarsa</TableHead>
+                                    <TableHead className="text-right">Aksi</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {stok_terbuka && stok_terbuka.length > 0 ? (
+                                    stok_terbuka.map((item: AnyRecord, idx: number) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell>{idx + 1}</TableCell>
+                                            <TableCell className="font-medium">{item.kode_obat}</TableCell>
+                                            <TableCell>{item.nama_obat}</TableCell>
+                                            <TableCell>{item.volume}</TableCell>
+                                            <TableCell>{item.satuan}</TableCell>
+                                            <TableCell>{item.tanggal_kadaluarsa}</TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            setStokTerbukaMode('edit');
+                                                            setSelectedStokTerbuka(item);
+                                                            setShowStokTerbukaModal(true);
+                                                        }}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            setItemToProcess(item);
+                                                            setShowIsiUlangDialog(true);
+                                                        }}
+                                                        className="h-8 w-8 p-0"
+                                                        title="Isi Ulang"
+                                                    >
+                                                        <RefreshCw className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => {
+                                                            setItemToProcess(item);
+                                                            setShowHabisDialog(true);
+                                                        }}
+                                                        className="h-8 w-8 p-0"
+                                                        title="Tandai Habis"
+                                                    >
+                                                        <XCircle className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                                            Belum ada stok terbuka
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                            </CardContent>
+                        </Card>
+
+                        {/* Dialog Konfirmasi Isi Ulang */}
+                <Dialog open={showIsiUlangDialog} onOpenChange={setShowIsiUlangDialog}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Konfirmasi Isi Ulang</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            {itemToProcess && (
+                                <div className="rounded-md bg-blue-50 p-3 text-sm space-y-1">
+                                    <p className="font-medium text-blue-900">{itemToProcess.nama_obat}</p>
+                                    <p className="text-blue-700">Volume saat ini: {itemToProcess.volume} {itemToProcess.satuan}</p>
+                                    <p className="text-blue-700">Ukuran penuh: {itemToProcess.ukuran} {itemToProcess.satuan}</p>
+                                </div>
+                            )}
+                            
+                            <div className="rounded-md bg-green-50 p-3 text-sm text-green-800">
+                                <p className="font-medium">Isi Ulang Otomatis:</p>
+                                <p className="mt-1">Volume akan diisi ulang ke <strong>{itemToProcess?.ukuran} {itemToProcess?.satuan}</strong> (kapasitas penuh)</p>
+                            </div>
+                            
+                            <div className="rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+                                <p className="font-medium">Perhatian:</p>
+                                <ul className="mt-1 list-inside list-disc space-y-1">
+                                    <li>Stok akan dikurangi 1 unit dari gudang</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowIsiUlangDialog(false)}>
+                                Batal
+                            </Button>
+                            <Button onClick={handleIsiUlang}>
+                                Ya, Isi Ulang
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                        {/* Dialog Konfirmasi Tandai Habis */}
+                <Dialog open={showHabisDialog} onOpenChange={setShowHabisDialog}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Konfirmasi Tandai Habis</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <p className="text-sm text-gray-700">
+                                Yakin ingin menandai stok ini sebagai HABIS?
+                            </p>
+                            {itemToProcess && (
+                                <div className="rounded-md bg-blue-50 p-3 text-sm">
+                                    <p className="font-medium text-blue-900">{itemToProcess.nama_obat}</p>
+                                    <p className="text-blue-700">Volume saat ini: {itemToProcess.volume} {itemToProcess.satuan}</p>
+                                </div>
+                            )}
+                            <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+                                <p className="font-medium">Perhatian:</p>
+                                <ul className="mt-1 list-inside list-disc space-y-1">
+                                    <li>Volume akan diset ke 0</li>
+                                    <li>Data stok terbuka tetap tersimpan</li>
+                                    <li>Tidak mengurangi stok gudang</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowHabisDialog(false)}>
+                                Batal
+                            </Button>
+                            <Button variant="destructive" onClick={handleTandaiHabis}>
+                                Ya, Tandai Habis
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                    </div>
         </AppLayout>
     );
 }

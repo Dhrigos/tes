@@ -32,9 +32,8 @@ class Daftar_Barang extends Model
         'jenis_generik',
         'merek',
         'bentuk_obat',
-        'multi_pakai',
-        'multi_pakai_jumlah',
-        'multi_pakai_satuan',
+        'bhp',
+        'stok_minimal'
     ];
 
 

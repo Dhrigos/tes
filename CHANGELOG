@@ -1,0 +1,5 @@
+# 2025-10-01
+- Fix pada pendaftaran dimana print tidak berfungsi untuk browser Firefox
+- Fix gudang request
+- Tambah batas minimal stok
+- Tambah fitur BHP

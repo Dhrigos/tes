@@ -5,7 +5,9 @@ interface AntrianData {
     antrian: string;
     loket: string;
     loket_nama: string;
+    loket_key: string; // Key untuk tracking perpindahan loket (A, B, C)
     status_display: string;
+    tujuan?: string; // Tujuan untuk text-to-speech
     created_at: string;
 }
 
@@ -26,14 +28,18 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
     const [currentDate, setCurrentDate] = useState<string>('');
     const [displayedQueueNumber, setDisplayedQueueNumber] = useState<string>('--');
     const [displayedStatus, setDisplayedStatus] = useState<string>('MENUNGGU PANGGILAN');
-    const [autoAnnounce, setAutoAnnounce] = useState<boolean>(false);
-    const [countdown, setCountdown] = useState<number>(10);
+    const [autoAnnounce, setAutoAnnounce] = useState<boolean>(true); // Default ON
     const [allQueues, setAllQueues] = useState<AntrianData[]>([]);
     const [loketStatuses, setLoketStatuses] = useState<Record<string, LoketStatus>>({});
-    const [displayedQueues, setDisplayedQueues] = useState<string[]>([]);
+    const [displayedQueues, setDisplayedQueues] = useState<string[]>([]); // Track per loket (A-001-A, A-001-B)
+    const [announcedQueues, setAnnouncedQueues] = useState<string[]>([]); // Track nomor antrian yang sudah di-announce per loket (A-001-A, A-001-B)
+    const [forceAnnounceQueue, setForceAnnounceQueue] = useState<string | null>(null); // Nomor antrian yang harus di-announce paksa
+    const [isDisplayingQueue, setIsDisplayingQueue] = useState<boolean>(false); // Flag untuk mencegah reset saat TTS
+    const [lastAnnouncedTime, setLastAnnouncedTime] = useState<Record<string, number>>({}); // Track waktu terakhir announce per antrian-loket
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const countdownRef = useRef<NodeJS.Timeout | null>(null);
+    const isFirstLoad = useRef<boolean>(true); // Flag untuk detect first load/refresh
 
     // Update waktu dan tanggal
     const updateDateTime = () => {
@@ -63,9 +69,17 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
                 }
             });
             
-            if (!response.ok) return;
+            if (!response.ok) {
+                console.error('❌ API response not OK:', response.status, response.statusText);
+                return;
+            }
             
             const data = await response.json();
+            
+            // Check if there's a force announce request
+            if (data.force_announce_data) {
+                setForceAnnounceQueue(data.force_announce_data.antrian);
+            }
             
             if (data.success) {
                 if (Array.isArray(data.data)) {
@@ -74,22 +88,60 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
                     
                     data.data.forEach((loket: any) => {
                         if (loket.sedang_dilayani) {
-                            queues.push({
+                            // Ambil prefix dari nomor antrian (A-001 → A, K-002 → K)
+                            const antrianPrefix = loket.sedang_dilayani.antrian.split('-')[0] || loket.loket_nama;
+                            
+                            // Tentukan tujuan berdasarkan nama loket
+                            let tujuan = '';
+                            if (loket.loket_nama === 'A') {
+                                tujuan = 'loket pendaftaran';
+                            } else if (loket.loket_nama === 'B') {
+                                tujuan = 'ruang pemeriksaan';
+                            } else if (loket.loket_nama === 'C') {
+                                tujuan = 'ruang pemeriksaan';
+                            } else {
+                                tujuan = `loket ${loket.loket_nama}`;
+                            }
+                            
+                            const queueData = {
                                 antrian: loket.sedang_dilayani.antrian,
-                                loket: loket.loket_nama.slice(-1), // Ambil huruf terakhir (A, B, C)
-                                loket_nama: loket.loket_nama,
-                                status_display: `SILAHKAN KE ${loket.loket_nama}`,
+                                loket: antrianPrefix, // Prefix antrian untuk display (A atau K)
+                                loket_nama: loket.loket_nama, // Nama loket untuk tracking (A, B, C)
+                                loket_key: loket.loket_nama, // Key untuk tracking perpindahan loket
+                                status_display: `SILAHKAN MENUJU ${tujuan.toUpperCase()}`,
+                                tujuan: tujuan, // Untuk text-to-speech
                                 created_at: loket.sedang_dilayani.created_at || new Date().toISOString()
-                            });
+                            };
+                            queues.push(queueData);
                         }
                     });
+                    
+                    // Inject force announce queue jika ada
+                    if (data.force_announce_data) {
+                        const forceQueue: AntrianData = {
+                            antrian: data.force_announce_data.antrian,
+                            loket: data.force_announce_data.antrian.split('-')[0],
+                            loket_nama: data.force_announce_data.loket_key,
+                            loket_key: data.force_announce_data.loket_key,
+                            status_display: `SILAHKAN MENUJU ${data.force_announce_data.tujuan.toUpperCase()}`,
+                            tujuan: data.force_announce_data.tujuan,
+                            created_at: new Date().toISOString()
+                        };
+                        
+                        // Tambahkan ke queues jika belum ada
+                        const exists = queues.some(q => q.antrian === forceQueue.antrian && q.loket_key === forceQueue.loket_key);
+                        if (!exists) {
+                            queues.unshift(forceQueue); // Tambahkan di awal array
+                        }
+                    }
                     
                     setAllQueues(queues);
                     
                     // Update status loket
                     const statuses: Record<string, LoketStatus> = {};
                     data.data.forEach((loket: any) => {
-                        const loketKey = loket.loket_nama.slice(-1);
+                        // Gunakan nama loket langsung (A, B, C, K)
+                        const loketKey = loket.loket_nama;
                         statuses[loketKey] = {
                             nomor: loket.sedang_dilayani?.antrian || '--',
                             label: loket.sedang_dilayani ? 'Sedang Dilayani' : 'Siap Melayani',
@@ -99,15 +151,23 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
                         };
                     });
                     setLoketStatuses(statuses);
+                } else {
                 }
+            } else {
+                console.error('❌ API returned success: false', data);
             }
         } catch (error) {
-            console.error('Error fetching queue data:', error);
+            // Silent error
         }
     };
 
     // Periksa dan tampilkan antrian baru
     const checkAndDisplayNewQueues = () => {
+        // Jika sedang menampilkan antrian, jangan proses yang baru
+        if (isDisplayingQueue) {
+            return;
+        }
+
         if (allQueues.length === 0) {
             setDisplayedQueueNumber('--');
             setDisplayedStatus('TIDAK ADA ANTRIAN');
@@ -115,63 +175,178 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
         }
 
         // Filter antrian yang belum ditampilkan
+        // Key menggunakan loket_key (A, B, C) bukan loket (prefix antrian)
+        // ATAU antrian yang harus di-force announce
         const newQueues = allQueues.filter(queue => {
-            const key = `${queue.antrian}-${queue.loket}`;
-            return !displayedQueues.includes(key);
+            const key = `${queue.antrian}-${queue.loket_key}`;
+            const isNewQueue = !displayedQueues.includes(key);
+            const isForceAnnounce = forceAnnounceQueue === queue.antrian;
+            
+            return isNewQueue || isForceAnnounce; // Bypass filter jika force announce
         });
 
         if (newQueues.length === 0) {
-            setDisplayedQueueNumber('--');
-            setDisplayedStatus('MENUNGGU PANGGILAN');
+            if (!isDisplayingQueue) {
+                setDisplayedQueueNumber('--');
+                setDisplayedStatus('MENUNGGU PANGGILAN');
+            }
             return;
         }
 
         // Ambil antrian pertama yang belum ditampilkan
         const queueToDisplay = newQueues[0];
         
-        // Tampilkan antrian
+        // Set flag: sedang menampilkan antrian
+        setIsDisplayingQueue(true);
+        
+        // 1. Tampilkan nomor antrian DULU
         setDisplayedQueueNumber(queueToDisplay.antrian);
         setDisplayedStatus(queueToDisplay.status_display);
 
-        // Tandai antrian ini sudah ditampilkan
-        const queueKey = `${queueToDisplay.antrian}-${queueToDisplay.loket}`;
+        // 2. Tandai antrian ini sudah ditampilkan (per loket)
+        const queueKey = `${queueToDisplay.antrian}-${queueToDisplay.loket_key}`;
         setDisplayedQueues(prev => [...prev, queueKey]);
 
-        // Umumkan antrian jika auto announce aktif
-        if (autoAnnounce) {
-            announceQueue(queueToDisplay);
+        // 3. Cek apakah kombinasi antrian-loket ini sudah pernah di-announce
+        const isAlreadyAnnounced = announcedQueues.includes(queueKey);
+        
+        // 4. Cek apakah ini force announce (dari button "Panggil Ulang")
+        const shouldForceAnnounce = forceAnnounceQueue === queueToDisplay.antrian;
+        
+        // 5. Cek cooldown - minimal 30 detik sejak announce terakhir untuk kombinasi antrian-loket ini
+        const now = Date.now();
+        const lastTime = lastAnnouncedTime[queueKey] || 0;
+        const cooldownPassed = (now - lastTime) > 30000; // 30 detik
+
+        // 6. Skip TTS jika ini first load (refresh)
+        if (isFirstLoad.current) {
+            // Tandai sebagai sudah ditampilkan tapi jangan announce
+            if (!isAlreadyAnnounced) {
+                setAnnouncedQueues(prev => [...prev, queueKey]);
+            }
+            setLastAnnouncedTime(prev => ({
+                ...prev,
+                [queueKey]: Date.now()
+            }));
+            setIsDisplayingQueue(false);
+            return;
+        }
+
+        // 7. Umumkan antrian jika:
+        // - Auto announce aktif DAN
+        // - (belum pernah di-announce ATAU force announce) DAN
+        // - (cooldown sudah lewat ATAU force announce)
+        if (autoAnnounce && (!isAlreadyAnnounced || shouldForceAnnounce) && (cooldownPassed || shouldForceAnnounce)) {
+            // Tandai kombinasi antrian-loket ini sudah di-announce (jika belum)
+            if (!isAlreadyAnnounced) {
+                setAnnouncedQueues(prev => [...prev, queueKey]);
+            }
+            
+            // Reset force announce flag
+            if (shouldForceAnnounce) {
+                setForceAnnounceQueue(null);
+            }
+            
+            // Update waktu announce terakhir untuk kombinasi antrian-loket ini
+            setLastAnnouncedTime(prev => ({
+                ...prev,
+                [queueKey]: Date.now()
+            }));
+            
+            announceQueue(queueToDisplay, () => {
+                // Callback setelah TTS selesai
+                // Tunggu 10 detik lagi sebelum reset
+                setTimeout(() => {
+                    setDisplayedQueueNumber('--');
+                    setDisplayedStatus('MENUNGGU PANGGILAN');
+                    setIsDisplayingQueue(false); // Reset flag
+                }, 10000); // 10 detik untuk display + TTS
+            });
+        } else {
+            // Jika sudah pernah di-announce atau auto announce OFF, reset setelah 5 detik
+            setTimeout(() => {
+                setDisplayedQueueNumber('--');
+                setDisplayedStatus('MENUNGGU PANGGILAN');
+                setIsDisplayingQueue(false); // Reset flag
+            }, 5000);
         }
     };
 
     // Fungsi untuk mengumumkan antrian
-    const announceQueue = (queue: AntrianData) => {
-        const announcementText = `Nomor Antrian ${queue.antrian}, silakan menuju ${queue.loket_nama}`;
+    const announceQueue = (queue: AntrianData, onComplete?: () => void) => {
+        // Pisahkan prefix (huruf) dan nomor
+        const match = queue.antrian.match(/^([A-Z]+)[-]?(\d+)$/);
+        let announcementText = '';
+        
+        // Gunakan tujuan dari queue data, atau fallback ke loket_nama
+        const tujuan = queue.tujuan || `loket ${queue.loket_nama}`;
+        
+        if (match) {
+            const prefix = match[1]; // A, B, C, K, dll
+            const number = match[2]; // 001, 002, dll
+            
+            // Konversi nomor ke format yang lebih natural
+            const numericValue = parseInt(number, 10);
+            
+            // Buat teks pengumuman yang lebih natural dengan tujuan yang jelas
+            announcementText = `Nomor antrian ${prefix} ${numericValue}, silakan menuju ${tujuan}`;
+        } else {
+            // Fallback jika format tidak sesuai
+            announcementText = `Nomor antrian ${queue.antrian}, silakan menuju ${tujuan}`;
+        }
 
-        // Hentikan pengumuman sebelumnya jika masih berjalan
+        // Gunakan browser native speech synthesis (lebih reliable)
         if ('speechSynthesis' in window) {
+            // Hentikan pengumuman sebelumnya
             window.speechSynthesis.cancel();
 
             const utterance = new SpeechSynthesisUtterance(announcementText);
             utterance.lang = 'id-ID';
-            utterance.rate = 0.8;
-            utterance.pitch = 1;
-            utterance.volume = 1;
+            utterance.rate = 0.85;  // Kecepatan bicara
+            utterance.pitch = 1;    // Nada suara
+            utterance.volume = 1;   // Volume maksimal
 
-            window.speechSynthesis.speak(utterance);
+            // Event handlers
+            utterance.onend = () => {
+                // Panggil callback setelah TTS selesai
+                if (onComplete) {
+                    onComplete();
+                }
+            };
+            utterance.onerror = (error) => {
+                console.error('❌ Speech error:', error);
+                // Panggil callback meski error
+                if (onComplete) {
+                    onComplete();
+                }
+            };
+
+            // Cari voice Indonesia yang tersedia
+            const voices = window.speechSynthesis.getVoices();
+            const indonesianVoice = voices.find(voice => 
+                voice.lang === 'id-ID' || 
+                voice.lang.startsWith('id') ||
+                voice.name.toLowerCase().includes('indonesia')
+            );
+
+            if (indonesianVoice) {
+                utterance.voice = indonesianVoice;
+            }
+
+            // Speak dengan delay kecil untuk memastikan voices sudah loaded
+            setTimeout(() => {
+                window.speechSynthesis.speak(utterance);
+            }, 100);
+        } else {
+            console.error('❌ No speech synthesis available in this browser');
         }
     };
 
-    // Setup auto-refresh dengan countdown
+    // Setup auto-refresh dengan countdown (1 detik untuk responsif)
     const setupAutoRefresh = () => {
         countdownRef.current = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    fetchQueues();
-                    return 10;
-                }
-                return prev - 1;
-            });
-        }, 1000);
+            fetchQueues();
+        }, 1000); // Refresh setiap 1 detik
     };
 
     // Effect untuk auto announce
@@ -192,7 +367,7 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
             setDisplayedQueueNumber('--');
             setDisplayedStatus('MENUNGGU PANGGILAN');
         }
-    }, [autoAnnounce, allQueues, displayedQueues]);
+    }, [autoAnnounce, allQueues, displayedQueues, announcedQueues, forceAnnounceQueue]);
 
     // Effect untuk setup awal
     useEffect(() => {
@@ -205,9 +380,30 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
         // Setup auto-refresh
         setupAutoRefresh();
         
-        // Load auto announce setting dari localStorage
-        const savedAutoAnnounce = localStorage.getItem('autoAnnounce') === 'true';
-        setAutoAnnounce(savedAutoAnnounce);
+        // Set auto announce default ON (tidak perlu localStorage)
+        setAutoAnnounce(true);
+
+        // Set isFirstLoad menjadi false setelah 3 detik
+        // Ini untuk skip TTS saat refresh/pertama kali load
+        setTimeout(() => {
+            isFirstLoad.current = false;
+        }, 3000);
+
+        // Load voices untuk text-to-speech
+        if ('speechSynthesis' in window) {
+            // Load voices immediately
+            const loadVoices = () => {
+                window.speechSynthesis.getVoices();
+            };
+            
+            // Load voices immediately
+            loadVoices();
+            
+            // Also listen for voices changed event (for some browsers)
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        } else {
+            console.error('❌ Speech synthesis not supported in this browser');
+        }
 
         return () => {
             clearInterval(timeInterval);
@@ -218,18 +414,6 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
             }
         };
     }, []);
-
-    // Handle auto announce toggle
-    const handleAutoAnnounceToggle = (checked: boolean) => {
-        setAutoAnnounce(checked);
-        localStorage.setItem('autoAnnounce', checked.toString());
-        
-        if (!checked) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
-        }
-    };
 
     return (
         <>
@@ -272,26 +456,10 @@ export default function LoketAntrian({ settings }: LoketAntrianProps) {
                                         <i className="far fa-clock mr-2"></i>
                                         {currentTime}
                                     </div>
-                                    <div className="text-lg md:text-xl mb-2">
+                                    <div className="text-lg md:text-xl">
                                         <i className="far fa-calendar-alt mr-2"></i>
                                         {currentDate}
                                     </div>
-                                    <div className="text-sm">
-                                        Update otomatis dalam {countdown} detik
-                                    </div>
-                                </div>
-
-                                {/* Auto-announce toggle */}
-                                <div className="mt-4">
-                                    <label className="flex items-center justify-center space-x-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={autoAnnounce}
-                                            onChange={(e) => handleAutoAnnounceToggle(e.target.checked)}
-                                            className="w-5 h-5"
-                                        />
-                                        <span className="text-white">Pengumuman Otomatis</span>
-                                    </label>
                                 </div>
                             </div>
                         </div>

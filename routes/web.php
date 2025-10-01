@@ -484,6 +484,12 @@ Route::middleware(['auth'])->prefix('api/pelayanan')->group(function () { //ini 
 Route::middleware(['auth', 'verified'])->prefix('apotek')->as('apotek.')->group(function () {
     Route::get('/', [Apotek_Controller::class, 'index'])->name('index');
     Route::post('/add', [Apotek_Controller::class, 'apotekadd'])->name('add');
+    
+    // Stok Terbuka Routes
+    Route::post('/stok-terbuka', [Apotek_Controller::class, 'stokTerbukaStore'])->name('stok-terbuka.store');
+    Route::put('/stok-terbuka/{id}', [Apotek_Controller::class, 'stokTerbukaUpdate'])->name('stok-terbuka.update');
+    Route::post('/stok-terbuka/{id}/isi-ulang', [Apotek_Controller::class, 'stokTerbukaIsiUlang'])->name('stok-terbuka.isi-ulang');
+    Route::delete('/stok-terbuka/{id}', [Apotek_Controller::class, 'stokTerbukaDestroy'])->name('stok-terbuka.destroy');
 });
 
 Route::middleware(['auth', 'verified'])->prefix('kasir')->as('kasir.')->group(function () {
@@ -547,6 +553,7 @@ Route::prefix('api/antrian')->group(function () {
     Route::get('/stats', [Monitor_Controller::class, 'ambil_statistik_antrian']);
     Route::post('/reset-daily', [Monitor_Controller::class, 'reset_antrian_harian']);
     Route::post('/panggil', [Monitor_Controller::class, 'panggil_antrian'])->name('antrian.panggil');
+    Route::post('/panggil-ulang', [Monitor_Controller::class, 'panggil_ulang'])->name('antrian.panggil-ulang');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

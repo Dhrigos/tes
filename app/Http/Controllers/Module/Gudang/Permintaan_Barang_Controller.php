@@ -249,12 +249,13 @@ class Permintaan_Barang_Controller extends Controller
         $tanggal = now()->format('Ymd'); // Format YYYYMMDD
 
         // KONSEP BARU: Semua kode request dibuat di database lokal
+        // Cari kode terakhir untuk hari ini saja
         $last = Permintaan_Barang::where('kode_klinik', $kodeKlinik)
-            ->where('kode_request', 'like', "{$kodeKlinik}-%-%")
+            ->where('kode_request', 'like', "{$kodeKlinik}-{$tanggal}-%")
             ->orderByDesc('kode_request')
             ->first();
 
-        // Buat kode baru
+        // Buat kode baru, reset ke 1 jika hari berbeda
         $lastNumber = $last ? (int) substr($last->kode_request, -5) : 0;
         $nextNumber = $lastNumber + 1;
         $kodeBaru = $kodeKlinik . '-' . $tanggal . '-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);

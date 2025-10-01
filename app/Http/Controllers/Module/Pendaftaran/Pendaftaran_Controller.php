@@ -531,7 +531,7 @@ class Pendaftaran_Controller extends Controller
             $pendaftaran = $pendaftaran->filter(function ($p) use ($statusMap) {
                 $ps = $statusMap->get($p->nomor_register);
                 $statusDaftar = (int) ((optional($ps)->status_daftar) ?? 1);
-                return in_array($statusDaftar, [1, 2], true);
+                return in_array($statusDaftar, [1, 2, 3], true);
             })->values();
 
             // Bentuk array dengan field 'status' kompatibel untuk frontend (bukan relation Eloquent)

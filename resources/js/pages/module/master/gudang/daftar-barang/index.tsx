@@ -42,10 +42,9 @@ interface DaftarBarang {
     deskripsi?: string;
     jenis_inventaris?: string;
     satuan?: string;
-    // Optional fields for Multi Pakai
-    multi_pakai?: boolean;
-    multi_pakai_jumlah?: number | null;
-    multi_pakai_satuan?: string | null;
+    // BHP (Barang Habis Pakai) - 1 = Ya, 0 = Tidak
+    bhp?: boolean;
+    stok_minimal?: number | null;
 }
 
 interface PageProps {
@@ -119,12 +118,11 @@ export default function Index() {
     const [nilaiSatuanSedang, setNilaiSatuanSedang] = useState<number | ''>('');
     const [satuanBesar, setSatuanBesar] = useState('');
     const [nilaiSatuanBesar, setNilaiSatuanBesar] = useState<number | ''>('');
-    const [multiPakai, setMultiPakai] = useState(false);
+    const [bhp, setBhp] = useState(false);
     const [aktifSatuanBesar, setAktifSatuanBesar] = useState(true);
     const [aktifSatuanSedang, setAktifSatuanSedang] = useState(true);
     const [aktifSatuanKecil, setAktifSatuanKecil] = useState(true);
-    const [jumlahPerSatuan, setJumlahPerSatuan] = useState<number | ''>('');
-    const [jumlahPerSatuanUnit, setJumlahPerSatuanUnit] = useState('');
+    const [stokMinimal, setStokMinimal] = useState<number | ''>('');
     // Step 3
     const [penyimpanan, setPenyimpanan] = useState('');
     const [barcode, setBarcode] = useState('');
@@ -167,6 +165,7 @@ export default function Index() {
             jenis_barang: kfaType,
             gudang_kategori: gudangKategori === '' ? null : Number(gudangKategori),
             penyimpanan,
+            stok_minimal: stokMinimal === '' ? null : Number(stokMinimal),
         };
 
         // Normalize satuan values based on active checkboxes
@@ -202,9 +201,7 @@ export default function Index() {
                   nilai_satuan_besar: normalizedNilaiSatuanBesar,
                   barcode,
                   bentuk_obat: bentukobat,
-                  multi_pakai: !!multiPakai,
-                  multi_pakai_jumlah: multiPakai ? (jumlahPerSatuan === '' ? null : Number(jumlahPerSatuan)) : null,
-                  multi_pakai_satuan: multiPakai ? (jumlahPerSatuanUnit || null) : null,
+                  bhp: !!bhp,
               };
 
         if (editId) {
@@ -265,10 +262,9 @@ export default function Index() {
 
         setPenyimpanan(barang.penyimpanan ?? '');
         setGudangKategori(barang.gudang_kategori ?? '');
-        // Initialize Multi Pakai states
-        setMultiPakai(!!barang.multi_pakai);
-        setJumlahPerSatuan(barang.multi_pakai_jumlah ?? '');
-        setJumlahPerSatuanUnit(barang.multi_pakai_satuan ?? '');
+        setStokMinimal(barang.stok_minimal ?? '');
+        // Initialize BHP state
+        setBhp(!!barang.bhp);
         // Initialize active toggles based on whether values exist
         setAktifSatuanKecil(!!(barang.satuan_kecil || barang.nilai_satuan_kecil));
         setAktifSatuanSedang(!!(barang.satuan_sedang || barang.nilai_satuan_sedang));
@@ -320,9 +316,8 @@ export default function Index() {
         setBentukObat('');
         setKfaOptions([]);
         setShowKfaList(false);
-        setMultiPakai(false);
-        setJumlahPerSatuan('');
-        setJumlahPerSatuanUnit('');
+        setBhp(false);
+        setStokMinimal('');
         setAktifSatuanBesar(true);
         setAktifSatuanSedang(true);
         setAktifSatuanKecil(true);
@@ -619,8 +614,8 @@ export default function Index() {
                                                     {item.jenis_barang === 'inventaris'
                                                         ? (item.satuan || '-')
                                                         : (item.satuan_kecil || item.satuan_sedang || item.satuan_besar || '-')}
-                                                    {item.multi_pakai && item.multi_pakai_jumlah && item.multi_pakai_satuan ? (
-                                                        <span className="ml-2 text-xs text-muted-foreground">• Multi: {item.multi_pakai_jumlah} {item.multi_pakai_satuan}</span>
+                                                    {item.bhp ? (
+                                                        <span className="ml-2 text-xs text-green-600 font-medium">• BHP</span>
                                                     ) : null}
                                                 </div>
                                                         </TooltipTrigger>
@@ -629,8 +624,8 @@ export default function Index() {
                                                                 {item.jenis_barang === 'inventaris'
                                                                     ? (item.satuan || '-')
                                                                     : (item.satuan_kecil || item.satuan_sedang || item.satuan_besar || '-')}
-                                                                {item.multi_pakai && item.multi_pakai_jumlah && item.multi_pakai_satuan ? (
-                                                                    <span className="ml-2 text-xs text-muted-foreground">• Multi: {item.multi_pakai_jumlah} {item.multi_pakai_satuan}</span>
+                                                                {item.bhp ? (
+                                                                    <span className="ml-2 text-xs text-green-600 font-medium">• BHP</span>
                                                                 ) : null}
                                                             </p>
                                                         </TooltipContent>
@@ -795,6 +790,13 @@ export default function Index() {
                                             onChange={(e) => setPenyimpanan(e.target.value)}
                                             className="md:col-span-2"
                                         />
+                                        <Input
+                                            type="number"
+                                            placeholder="Stok Minimal"
+                                            value={stokMinimal}
+                                            onChange={(e) => setStokMinimal(e.target.value === '' ? '' : Number(e.target.value))}
+                                            min={0}
+                                        />
                                     </div>
                                 )}
                             </>
@@ -930,16 +932,15 @@ export default function Index() {
 
                                 {step === 2 && !isInventaris && (
                                     <div className="space-y-6">
-                                        {/* Toggle Multi Pakai */}
+                                        {/* Toggle BHP (Barang Habis Pakai) */}
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <div className="text-sm font-medium">Multi Pakai</div>
+                                                <div className="text-sm font-medium">BHP (Barang Habis Pakai)</div>
                                                 <div className="flex items-center gap-3">
-                                                    <span className="text-xs text-muted-foreground">{multiPakai ? 'Aktif' : 'Nonaktif'}</span>
-                                                    <Switch checked={multiPakai} onCheckedChange={setMultiPakai} />
+                                                    <span className="text-xs text-muted-foreground">{bhp ? 'Ya' : 'Tidak'}</span>
+                                                    <Switch checked={bhp} onCheckedChange={setBhp} />
                                                 </div>
                                             </div>
-                                            {/* Tidak ada pilihan mode; gunakan checkbox per bagian Satuan */}
                                         </div>
                                         {/* Satuan Besar */}
                                         <div className="space-y-2">
@@ -1046,32 +1047,6 @@ export default function Index() {
                                                     />
                                                 </div>
                                             </div>
-                                            {multiPakai && (
-                                                <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
-                                                    <div className="text-sm text-muted-foreground">Jumlah per Satuan (Multi Pakai)</div>
-                                                    <div className="md:col-span-2 grid grid-cols-2 gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="contoh: 10"
-                                                            value={jumlahPerSatuan}
-                                                            onChange={(e) => setJumlahPerSatuan(e.target.value === '' ? '' : Number(e.target.value))}
-                                                            min={1}
-                                                        />
-                                                        <Select value={jumlahPerSatuanUnit} onValueChange={setJumlahPerSatuanUnit}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Satuan" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {satuanBarangs.map((s) => (
-                                                                    <SelectItem key={s.id} value={s.nama}>
-                                                                        {s.nama}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1109,6 +1084,13 @@ export default function Index() {
                                                 <SelectItem value="gas">Gas</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        <Input
+                                            type="number"
+                                            placeholder="Stok Minimal"
+                                            value={stokMinimal}
+                                            onChange={(e) => setStokMinimal(e.target.value === '' ? '' : Number(e.target.value))}
+                                            min={0}
+                                        />
                                     </div>
                                 )}
                             </>

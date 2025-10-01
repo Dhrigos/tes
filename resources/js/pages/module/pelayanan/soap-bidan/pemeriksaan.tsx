@@ -2217,7 +2217,7 @@ export default function PemeriksaanSoapBidan() {
                                                                     <SelectContent>
                                                                         {gcs_eye.map((item) => (
                                                                             <SelectItem key={item.id} value={item.skor}>
-                                                                                {item.skor} - {item.nama}
+                                                                                <span className="truncate">{item.skor} - {item.nama}</span>
                                                                             </SelectItem>
                                                                         ))}
                                                                     </SelectContent>
@@ -2235,7 +2235,7 @@ export default function PemeriksaanSoapBidan() {
                                                                     <SelectContent>
                                                                         {gcs_verbal.map((item) => (
                                                                             <SelectItem key={item.id} value={item.skor}>
-                                                                                {item.skor} - {item.nama}
+                                                                                <span className="truncate">{item.skor} - {item.nama}</span>
                                                                             </SelectItem>
                                                                         ))}
                                                                     </SelectContent>
@@ -2253,7 +2253,7 @@ export default function PemeriksaanSoapBidan() {
                                                                     <SelectContent>
                                                                         {gcs_motorik.map((item) => (
                                                                             <SelectItem key={item.id} value={item.skor}>
-                                                                                {item.skor} - {item.nama}
+                                                                                <span className="truncate">{item.skor} - {item.nama}</span>
                                                                             </SelectItem>
                                                                         ))}
                                                                     </SelectContent>

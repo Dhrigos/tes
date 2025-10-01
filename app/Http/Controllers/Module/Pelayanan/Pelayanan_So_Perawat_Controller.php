@@ -240,16 +240,22 @@ class Pelayanan_So_Perawat_Controller extends Controller
                     }
                     $bpjsMessage = $bpjsBody['data'] ?? null;
                 }
-                // Update status: hadir perawat (berbeda dengan hadir daftar di modul pendaftaran)
+                // Update status: hadir perawat + selesai pendaftaran
                 Pelayanan_status::updateOrCreate(
                     ['nomor_register' => $nomor_register],
-                    ['status_perawat' => 1]
+                    [
+                        'status_daftar' => 3,    // Selesai pendaftaran
+                        'status_perawat' => 1     // Sedang dilayani perawat
+                    ]
                 );
             } else {
-                // Update status: hadir perawat (berbeda dengan hadir daftar di modul pendaftaran)
+                // Update status: hadir perawat + selesai pendaftaran
                 Pelayanan_status::updateOrCreate(
                     ['nomor_register' => $nomor_register],
-                    ['status_perawat' => 1]
+                    [
+                        'status_daftar' => 3,    // Selesai pendaftaran
+                        'status_perawat' => 1     // Sedang dilayani perawat
+                    ]
                 );
             }
 

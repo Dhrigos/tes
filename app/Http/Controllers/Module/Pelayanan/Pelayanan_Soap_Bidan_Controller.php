@@ -64,7 +64,7 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
             try {
                 $noRawatForLookup = $historyData['history']['no_rawat'] ?? '';
                 if (!empty($noRawatForLookup)) {
-                    $pelayananForMeta = \App\Models\Module\Pelayanan\Pelayanan::with(['dokter.namauser'])
+                    $pelayananForMeta = Pelayanan::with(['dokter.namauser'])
                         ->where('nomor_register', $noRawatForLookup)
                         ->first();
                     if ($pelayananForMeta) {
@@ -105,12 +105,22 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
                 $q->where('kode', 'K')->orWhere('nama', 'like', '%KIA%');
             })->pluck('id');
 
+            // Ambil ID bidan/dokter berdasarkan user yang login
+            $userId = Auth::id();
+            $bidan = \App\Models\Module\SDM\Dokter::where('users', $userId)->first();
+
             // Ambil sumber data dari Pendaftaran agar pasien KIA tampil meski belum ada row di Pelayanan
-            $pendaftarans = Pendaftaran::with(['pasien', 'poli', 'dokter.namauser', 'penjamin', 'status'])
+            $query = Pendaftaran::with(['pasien', 'poli', 'dokter.namauser', 'penjamin', 'status'])
                 // Kolom ini bertipe string; gunakan like agar aman
                 ->where('tanggal_kujungan', 'like', $today->format('Y-m-d') . '%')
-                ->whereIn('poli_id', $kiaPoliIds)
-                ->orderBy('created_at', 'desc')
+                ->whereIn('poli_id', $kiaPoliIds);
+            
+            // Filter berdasarkan bidan yang login jika user adalah bidan
+            if ($bidan) {
+                $query->where('dokter_id', $bidan->id);
+            }
+            
+            $pendaftarans = $query->orderBy('created_at', 'desc')
                 ->get()
                 ->unique('nomor_register')
                 ->values();
@@ -458,11 +468,7 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
                 'icd10_priority' => 'nullable|array',
                 'icd9_code' => 'nullable|array',
                 'icd9_name' => 'nullable|array',
-                'tindakan_kode' => 'nullable|array',
-                'tindakan_nama' => 'nullable|array',
                 'tindakan_kategori' => 'nullable|array',
-                'tindakan_pelaksana' => 'nullable|array',
-                'tindakan_harga' => 'nullable|array',
                 'resep_data' => 'nullable|string',
             ]);
 
@@ -1035,8 +1041,8 @@ class Pelayanan_Soap_Bidan_Controller extends Controller
             }
 
             // Tandai bidan mulai memeriksa dan set timestamp panggil bidan
-            app(\App\Services\PelayananStatusService::class)->tandaiBidanBerjalan($nomor_register);
-            app(\App\Services\PelayananStatusService::class)->setWaktuPanggilBidan($nomor_register);
+            app(PelayananStatusService::class)->tandaiBidanBerjalan($nomor_register);
+            app(PelayananStatusService::class)->setWaktuPanggilBidan($nomor_register);
 
             return response()->json([
                 'success' => true,

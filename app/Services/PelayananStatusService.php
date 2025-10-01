@@ -58,7 +58,11 @@ class PelayananStatusService
 
     public function tandaiDokterBerjalan(string $nomorRegister): Pelayanan_status
     {
-        return $this->setStatusDokter($nomorRegister, 1);
+        // Ketika dokter mulai, tandai perawat selesai (status 3)
+        return $this->perbaruiStatus($nomorRegister, [
+            'status_perawat' => 3,  // Selesai dengan perawat
+            'status_dokter' => 1     // Sedang dilayani dokter
+        ]);
     }
 
     public function tandaiDokterSelesai(string $nomorRegister): Pelayanan_status
@@ -101,7 +105,11 @@ class PelayananStatusService
 
     public function tandaiBidanBerjalan(string $nomorRegister): Pelayanan_status
     {
-        return $this->setStatusBidan($nomorRegister, 1);
+        // Ketika bidan mulai, tandai perawat selesai (status 3)
+        return $this->perbaruiStatus($nomorRegister, [
+            'status_perawat' => 3,  // Selesai dengan perawat
+            'status_bidan' => 1      // Sedang dilayani bidan
+        ]);
     }
 
     public function tandaiBidanSelesai(string $nomorRegister): Pelayanan_status
