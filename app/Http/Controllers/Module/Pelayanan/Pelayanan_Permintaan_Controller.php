@@ -653,6 +653,8 @@ class Pelayanan_Permintaan_Controller extends Controller
 
     /**
      * Ambil data cetak yang tersimpan berdasarkan no_rawat
+     * Prioritas: pelayanan_permintaans (data draft/pending yang belum dicetak)
+     * Fallback: permintaan_cetaks (data yang sudah pernah dicetak)
      */
     public function getCetakData(Request $request, $norawat)
     {
@@ -660,13 +662,31 @@ class Pelayanan_Permintaan_Controller extends Controller
             $nomor_register = base64_decode($norawat, true) ?: $norawat;
             $jenis = $request->query('jenis');
 
-            $query = Permintaan_Cetak::where('no_rawat', $nomor_register);
-
+            // Prioritas 1: Ambil dari pelayanan_permintaans (data draft/pending)
+            $queryPermintaan = Pelayanan_Permintaan::where('no_rawat', $nomor_register);
+            
             if ($jenis) {
-                $query->where('jenis_permintaan', $jenis);
+                $queryPermintaan->where('jenis_permintaan', $jenis);
+            }
+            
+            $permintaanData = $queryPermintaan->orderBy('created_at', 'desc')->get();
+            
+            // Jika ada data di pelayanan_permintaans, gunakan itu
+            if ($permintaanData->isNotEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $permintaanData
+                ]);
             }
 
-            $cetakData = $query->orderBy('created_at', 'desc')->get();
+            // Fallback: Jika tidak ada di pelayanan_permintaans, cek di permintaan_cetaks
+            $queryCetak = Permintaan_Cetak::where('no_rawat', $nomor_register);
+
+            if ($jenis) {
+                $queryCetak->where('jenis_permintaan', $jenis);
+            }
+
+            $cetakData = $queryCetak->orderBy('created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,

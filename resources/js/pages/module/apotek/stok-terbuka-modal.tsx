@@ -34,13 +34,7 @@ export default function StokTerbukaModal({ open, onClose, mode, stokTerbuka, oba
                    bhpValue === true || 
                    bhpValue === 'true';
         });
-        
-        // Debug: log if no BHP items found
-        if (filtered.length === 0) {
-            console.log('No BHP items found. Total obat:', obatList.length);
-            console.log('Sample obat data:', obatList.slice(0, 3));
-        }
-        
+       
         return filtered;
     }, [obatList]);
 

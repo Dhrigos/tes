@@ -442,8 +442,21 @@ const PendaftaranDashboard = () => {
                         return;
                     }
                     const json = await res.json();
-                    const hasData = Boolean(json?.success && Array.isArray(json?.data) && json.data.length > 0);
-                    console.log(`Permintaan for ${item.nomor_register}:`, { success: json?.success, dataLength: json?.data?.length, hasData });
+                    // Data bisa berupa array atau object tunggal
+                    const hasData = Boolean(
+                        json?.success && 
+                        json?.data && 
+                        (
+                            (Array.isArray(json.data) && json.data.length > 0) || 
+                            (!Array.isArray(json.data) && Object.keys(json.data).length > 0)
+                        )
+                    );
+                    console.log(`Permintaan for ${item.nomor_register}:`, { 
+                        success: json?.success, 
+                        dataType: Array.isArray(json?.data) ? 'array' : 'object',
+                        dataLength: Array.isArray(json?.data) ? json.data.length : Object.keys(json?.data || {}).length,
+                        hasData 
+                    });
                     updates[item.nomor_register] = hasData;
                 } catch (error) {
                     console.error(`Error checking permintaan for ${item.nomor_register}:`, error);
@@ -621,6 +634,9 @@ const PendaftaranDashboard = () => {
 
             if (result.success) {
                 toast.success('Status kehadiran berhasil diupdate');
+                setShowHadirModal(false);
+                resetActionState();
+                fetchPendaftaranData();
             } else {
                 throw new Error(result.message || 'Gagal mengupdate status kehadiran');
             }
@@ -874,21 +890,32 @@ const PendaftaranDashboard = () => {
 
             const result = await response.json();
 
-            if (result.success && result.data && result.data.length > 0) {
+            // Handle data bisa berupa array atau object tunggal
+            const hasValidData = result.success && result.data && (
+                (Array.isArray(result.data) && result.data.length > 0) ||
+                (!Array.isArray(result.data) && Object.keys(result.data).length > 0)
+            );
+
+            if (hasValidData) {
+                // Jika data object tunggal, convert ke array untuk konsistensi
+                const dataArray = Array.isArray(result.data) ? result.data : [result.data];
+                
                 // Jika ada surat yang dipilih, gunakan surat tersebut
                 // Jika tidak, tampilkan modal pilihan
                 if (selectedPermintaan) {
                     await cetakSuratPermintaan(selectedPermintaan, encodedNorawat);
+                } else if (dataArray.length === 1) {
+                    // Jika hanya 1 surat, langsung cetak tanpa modal
+                    await cetakSuratPermintaan(dataArray[0], encodedNorawat);
                 } else {
-                    // Simpan data permintaan yang tersedia
-                    setAvailablePermintaan(result.data);
-                    // Tampilkan modal pilihan surat
+                    // Jika lebih dari 1 surat, tampilkan modal pilihan
+                    setAvailablePermintaan(dataArray);
                     setSelectedAction({
                         id: item.id,
                         nomor_register: item.nomor_register,
                         nama: item.pasien.nama,
                         type: 'cetak-permintaan',
-                        data: result.data
+                        data: dataArray
                     });
                     setShowCetakPermintaanModal(true);
                 }
@@ -1208,132 +1235,119 @@ const PendaftaranDashboard = () => {
                                                     <td className="p-2 text-sm">{item.penjamin.nama}</td>
                                                     <td className="p-2 text-center text-sm">{item.dokter.namauser?.name || item.dokter.nama}</td>
                                                     <td className="p-2 text-center">
-                                                        {/* Jika status 2/3 dan tidak ada permintaan, tampilkan button X langsung */}
-                                                        {(String(item.status?.status_pendaftaran) === '2' || String(item.status?.status_pendaftaran) === '3') && 
-                                                         !permintaanAvailability[item.nomor_register] ? (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0 border-red-500 hover:bg-red-50"
-                                                                onClick={() => {
-                                                                    setSelectedAction({
-                                                                        id: item.id,
-                                                                        nomor_register: item.nomor_register,
-                                                                        nama: item.pasien.nama,
-                                                                        type: 'batal-pcare',
-                                                                    });
-                                                                    setShowBatalModal(true);
-                                                                }}
-                                                            >
-                                                                <X className="h-4 w-4 text-red-600" />
-                                                            </Button>
-                                                        ) : (
-                                                            <DropdownMenu>
-                                                                <DropdownMenuTrigger asChild>
-                                                                    <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-                                                                        <MoreVertical className="h-4 w-4" />
-                                                                    </Button>
-                                                                </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end" className="w-48">
-                                                                    {String(item.status?.status_pendaftaran) === '1' && (
-                                                                        <>
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => {
-                                                                                    setSelectedAction({
-                                                                                        id: item.id,
-                                                                                        nomor_register: item.nomor_register,
-                                                                                        nama: item.pasien.nama,
-                                                                                        type: 'dokter',
-                                                                                    });
-                                                                                    // Load dokter untuk poli yang sama
-                                                                                    if (hariKunjungan && waktuKunjungan) {
-                                                                                        fetchDokterByPoli(
-                                                                                            item.poli.id.toString(),
-                                                                                            hariKunjungan,
-                                                                                            waktuKunjungan,
-                                                                                        );
-                                                                                    }
-                                                                                    setShowUbahDokterModal(true);
-                                                                                }}
-                                                                            >
-                                                                                <UserIcon className="h-4 w-4 text-purple-600" />
-                                                                                Ubah Dokter
-                                                                            </DropdownMenuItem>
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => {
-                                                                                    setSelectedAction({
-                                                                                        id: item.id,
-                                                                                        nomor_register: item.nomor_register,
-                                                                                        nama: item.pasien.nama,
-                                                                                        type: 'hadir',
-                                                                                    });
-                                                                                    setShowHadirModal(true);
-                                                                                }}
-                                                                            >
-                                                                                <UserCheck className="h-4 w-4 text-green-600" />
-                                                                                Hadir
-                                                                            </DropdownMenuItem>
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => handlePanggilUlang(item.nomor_register, item.antrian)}
-                                                                            >
-                                                                                <Volume2 className="h-4 w-4 text-blue-600" />
-                                                                                Panggil Ulang
-                                                                            </DropdownMenuItem>
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => handleCetak(item)}
-                                                                            >
-                                                                                <Printer className="h-4 w-4 text-gray-600" />
-                                                                                Cetak Antrian
-                                                                            </DropdownMenuItem>
-                                                                            <DropdownMenuSeparator />
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => {
-                                                                                    setSelectedAction({
-                                                                                        id: item.id,
-                                                                                        nomor_register: item.nomor_register,
-                                                                                        nama: item.pasien.nama,
-                                                                                        type: 'batal',
-                                                                                    });
-                                                                                    setShowBatalModal(true);
-                                                                                }}
-                                                                                variant="destructive"
-                                                                            >
-                                                                                <X className="h-4 w-4 text-red-600" />
-                                                                                Batal
-                                                                            </DropdownMenuItem>
-                                                                        </>
-                                                                    )}
-                                                                    {(String(item.status?.status_pendaftaran) === '2' || String(item.status?.status_pendaftaran) === '3') && 
-                                                                     permintaanAvailability[item.nomor_register] && (
-                                                                        <>
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => handleCetakPermintaan(item)}
-                                                                                disabled={loading}
-                                                                            >
-                                                                                <Printer className="h-4 w-4 text-blue-600" />
-                                                                                {loading ? 'Loading...' : 'Cetak Permintaan'}
-                                                                            </DropdownMenuItem>
-                                                                            <DropdownMenuSeparator />
-                                                                            <DropdownMenuItem
-                                                                                onClick={() => {
-                                                                                    setSelectedAction({
-                                                                                        id: item.id,
-                                                                                        nomor_register: item.nomor_register,
-                                                                                        nama: item.pasien.nama,
-                                                                                        type: 'batal-pcare',
-                                                                                    });
-                                                                                    setShowBatalModal(true);
-                                                                                }}
-                                                                                variant="destructive"
-                                                                            >
-                                                                                <X className="h-4 w-4 text-red-600" />
-                                                                                Batal
-                                                                            </DropdownMenuItem>
-                                                                        </>
-                                                                    )}
-                                                                </DropdownMenuContent>
-                                                            </DropdownMenu>
-                                                        )}
+                                                        <div className="flex flex-col items-center justify-center gap-1">
+                                                            {/* Untuk status 1: tampilkan dropdown dengan banyak opsi */}
+                                                            {String(item.status?.status_pendaftaran) === '1' && (
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                                                                            <MoreVertical className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end" className="w-48">
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => {
+                                                                                setSelectedAction({
+                                                                                    id: item.id,
+                                                                                    nomor_register: item.nomor_register,
+                                                                                    nama: item.pasien.nama,
+                                                                                    type: 'dokter',
+                                                                                });
+                                                                                // Load dokter untuk poli yang sama
+                                                                                if (hariKunjungan && waktuKunjungan) {
+                                                                                    fetchDokterByPoli(
+                                                                                        item.poli.id.toString(),
+                                                                                        hariKunjungan,
+                                                                                        waktuKunjungan,
+                                                                                    );
+                                                                                }
+                                                                                setShowUbahDokterModal(true);
+                                                                            }}
+                                                                        >
+                                                                            <UserIcon className="h-4 w-4 text-purple-600" />
+                                                                            Ubah Dokter
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => {
+                                                                                setSelectedAction({
+                                                                                    id: item.id,
+                                                                                    nomor_register: item.nomor_register,
+                                                                                    nama: item.pasien.nama,
+                                                                                    type: 'hadir',
+                                                                                });
+                                                                                setShowHadirModal(true);
+                                                                            }}
+                                                                        >
+                                                                            <UserCheck className="h-4 w-4 text-green-600" />
+                                                                            Hadir
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => handlePanggilUlang(item.nomor_register, item.antrian)}
+                                                                        >
+                                                                            <Volume2 className="h-4 w-4 text-blue-600" />
+                                                                            Panggil Ulang
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => handleCetak(item)}
+                                                                        >
+                                                                            <Printer className="h-4 w-4 text-gray-600" />
+                                                                            Cetak Antrian
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => {
+                                                                                setSelectedAction({
+                                                                                    id: item.id,
+                                                                                    nomor_register: item.nomor_register,
+                                                                                    nama: item.pasien.nama,
+                                                                                    type: 'batal',
+                                                                                });
+                                                                                setShowBatalModal(true);
+                                                                            }}
+                                                                            variant="destructive"
+                                                                        >
+                                                                            <X className="h-4 w-4 text-red-600" />
+                                                                            Batal
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            )}
+                                                            
+                                                            {/* Untuk status 2/3: tampilkan button X di atas */}
+                                                            {(String(item.status?.status_pendaftaran) === '2' || String(item.status?.status_pendaftaran) === '3') && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-8 w-8 p-0 border-red-500 hover:bg-red-50"
+                                                                    onClick={() => {
+                                                                        setSelectedAction({
+                                                                            id: item.id,
+                                                                            nomor_register: item.nomor_register,
+                                                                            nama: item.pasien.nama,
+                                                                            type: 'batal-pcare',
+                                                                        });
+                                                                        setShowBatalModal(true);
+                                                                    }}
+                                                                >
+                                                                    <X className="h-4 w-4 text-red-600" />
+                                                                </Button>
+                                                            )}
+                                                            
+                                                            {/* Button Cetak Permintaan di bawah - hanya untuk status 2/3 yang ada data */}
+                                                            {(String(item.status?.status_pendaftaran) === '2' || String(item.status?.status_pendaftaran) === '3') && 
+                                                             permintaanAvailability[item.nomor_register] && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-8 px-3"
+                                                                    onClick={() => handleCetakPermintaan(item)}
+                                                                    disabled={loading}
+                                                                >
+                                                                    <Printer className="mr-1 h-4 w-4 text-blue-600" />
+                                                                    Cetak Surat
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))
